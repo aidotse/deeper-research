@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Local, per-machine settings
+.claude/settings.local.json
+.serena/project.local.yml
+
+# Full texts fetched from arXiv by tools/fulltext.py. Third-party text, and
+# regenerable with `uv run tools/fulltext.py <topic> <id>`.
+graphs/*/fulltext/
+
+# The viewer is generated from the survey and clusters.json by tools/graph.py,
+# and is large; rebuild it rather than track it.
+graphs/*/graph.html
+
+# Editors and OS
+.DS_Store
+*.swp
+.idea/
+.vscode/

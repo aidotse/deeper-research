@@ -1,0 +1,5 @@
+wrap = 120
+number = true
+
+[plugin.tables]
+compact_tables = true

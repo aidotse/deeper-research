@@ -1,0 +1,26 @@
+{
+  "allow": ["mcp__asta__*"],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$ASTA_API_KEY\" ] || echo 'WARNING: ASTA_API_KEY not set — anonymous rate limits apply'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && mdformat . 2>/dev/null || true",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
