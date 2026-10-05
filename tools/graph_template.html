@@ -1243,6 +1243,8 @@ function renderPanel() {
         stab ? el("dd", { text: stab.stability == null ? "Too small to score."
           : `${fmtStab(stab.stability)}: on average, this group overlaps ${Math.round(stab.stability * 100)}% with its best match when the clustering is rerun on a random 80% of the papers.` +
             (stab.stability < 0.6 ? " Below 0.6: its boundary is not well defined." : "") }) : null,
+        twin && CL.history && CL.history.clusters[twin.id] ? el("dt", { text: "Since when" }) : null,
+        twin && CL.history && CL.history.clusters[twin.id] ? el("dd", { text: sinceText(twin.id) }) : null,
         twin && twin.subclusters.length ? el("dt", { text: twin.divided ? "Sub-clusters (internally divided)" : "Sub-clusters" }) : null,
         twin && twin.subclusters.length ? el("dd", { text: twin.subclusters.map(s => `${s.name}: ${s.size} papers, stability ${fmtStab(s.stability)}`).join("; ") }) : null,
         (g.computed || g.subcluster) ? el("dt", { text: "Made of" }) : null,
@@ -1277,6 +1279,20 @@ function renderPanel() {
 // chose, why, the parameters, and the stability curves the choice rests on.
 const MEASURE_TEXT = { text: "text: embeddings of title and abstract", refs: "refs: shared references",
                        combined: "combined: both, weighted by how many references a pair has" };
+// Whether the structure-free model's stability is nearly constant across levels, for the chosen measure. When it is,
+// subtracting it changes nothing, and the threshold-free rule reduces to "most stable".
+// The smallest margin of real over structure-free stability across the computed levels, for the "at every level"
+// wording. It borrows the 0.15 of tools/cluster.py's `no structure` diagnostic, which applies to the largest margin.
+function nullGap() {
+  const gaps = (CL.slider || []).map(l => l.stability - l.null_stability);
+  return gaps.length ? Math.min(...gaps) : 1;
+}
+
+function nullFlat() {
+  const ys = (CL.null_curves[CL.measure] || []).map(l => l.stability);
+  return ys.length > 0 && Math.max(...ys) - Math.min(...ys) < 0.1;
+}
+
 function clusteringSection() {
   const p = CL.params, sens = Object.entries(CL.tau_sensitivity).map(([t, k]) => `τ ${t} → ${k}`).join(", ");
   return [
@@ -1285,11 +1301,16 @@ function clusteringSection() {
     stabilityChart(),
     levelSlider(),
     el("dl", {},
+      el("dt", { text: "Why these clusters" }),
+      CL.rationale
+        ? el("dd", { text: CL.rationale.text + (CL.rationale.pass ? ` (retrieval log, pass ${CL.rationale.pass})` : "") })
+        : el("dd", { class: "empty", text: "No clustering rationale in the retrieval log yet. It is written at step 3 of a pass." }),
+      ...historySection(),
       el("dt", { text: "Measure" }), el("dd", { text: `${MEASURE_TEXT[CL.measure]}. Chosen by stability averaged over all levels: ` +
         Object.entries(CL.grid_mean).map(([m, v]) => `${m} ${v.mean.toFixed(3)} ± ${v.se.toFixed(3)}`).join(", ") + ". " + CL.measure_reason + "." }),
       el("dt", { text: "Level" }), el("dd", { text: `${CL.level} clusters, by the ${CL.rule === "null" ? "null-model" : "threshold"} rule: the ${CL.level_reason}. The threshold τ matters: ${sens}.` }),
       CL.level_null != null ? el("dt", { text: "Against structure-free data" }) : null,
-      CL.level_null != null ? el("dd", { text: `The same pipeline on random data of the same size and spread (dashed grey) scores well below the real data at every level, so the structure is real. The threshold-free rule, the level with the largest excess over it, picks ${CL.level_null} clusters: the ${CL.level_null_reason}. The random data's stability is nearly flat, so this rule favours the coarsest level; how much detail to keep remains a judgement. Use the slider.` }) : null,
+      CL.level_null != null ? el("dd", { text: `The same pipeline on random data of the same size and spread (dashed grey) ${nullGap() >= 0.15 ? "scores well below the real data at every level, so the structure is real" : `comes within ${nullGap().toFixed(2)} of the real data at some level, so the structure there may not be real`}. The threshold-free rule, the level with the largest excess over it, picks ${CL.level_null} clusters: the ${CL.level_null_reason}. ${nullFlat() ? "The random data's stability is nearly flat across levels, so this rule favours the coarsest level, as plain stability does" : "The random data's stability changes across levels, so this rule can pick a different level from plain stability"}; how much detail to keep remains a judgement. Use the slider.` }) : null,
       el("dt", { text: "Diagnostics" }),
       el("dd", {}, ...(CL.diagnostics && CL.diagnostics.length
         ? CL.diagnostics.map(d => el("div", { style: "margin-bottom:6px" }, el("b", { text: d.case + ": " }), d.detail + ". ",
@@ -1302,6 +1323,73 @@ function clusteringSection() {
     el("p", { class: "empty", text: `Computed ${CL.generated} by tools/cluster.py. Colour by "Computed cluster" to see them on the map, or by "Computed sub-cluster" for the level below.` }),
     el("div", { style: "height:14px" }),
   ];
+}
+// Since when each computed cluster exists (tools/match.py, cluster_history): the pool as it stood at equal-count date
+// cutoffs, each snapshot clustered with today's settings and matched to today's clusters.
+const sinceText = id => {
+  const s = CL.history.clusters[id].statement;
+  return s.charAt(0).toUpperCase() + s.slice(1) + ".";
+};
+function computedColour(id) {
+  const e = MODES.find(m => m.id === "computed").enc.get(id);
+  return e ? css(`--series-${e.slot}`) : css("--neutral");
+}
+function historySection() {
+  if (!CL.history) return [];
+  const h = CL.history;
+  return [
+    el("dt", { text: "Since when" }),
+    el("dd", {},
+      el("p", { style: "margin:0 0 4px", text: `The pool as it stood at ${h.cutoffs.length} earlier dates, chosen so that each period adds the same number of papers, clustered with today's settings. Each bar shows how many papers of today's clusters already existed; a solid segment means the cluster was already found, a faint one that its papers existed but did not yet form it. Under each date: the snapshot's papers and its own stability; a snapshot below τ is itself unreliable, so what it finds is marked "probably".` }),
+      historyChart(),
+      ...CL.clusters.filter(c => h.clusters[c.id]).map(c => el("div", { style: "display:flex;gap:6px;align-items:baseline;margin:3px 0" },
+        el("span", { style: `flex:none;width:10px;height:10px;border-radius:2px;background:${computedColour(c.id)}` }),
+        el("span", {}, el("b", { text: c.name + ": " }), sinceText(c.id)))),
+      el("p", { class: "empty", text: "Snapshots are drawn from today's pool, whose older papers are the ones still relevant today, so this history is optimistic: a real earlier pass would have looked messier. Post-processing only: it does not change the clusters." }),
+    ),
+  ];
+}
+function historyChart() {
+  const h = CL.history, W = 330, H = 182, m = { l: 30, r: 8, t: 20, b: 32 };
+  const cols = h.snapshots.map((sn, j) => ({ label: sn.cutoff, papers: sn.papers, stability: sn.stability,
+    seg: CL.clusters.filter(c => h.clusters[c.id]).map(c => {
+      const row = h.clusters[c.id].snapshots[j];
+      return { id: c.id, name: c.name, n: row.present, found: row.why === "found", why: row.why };
+    }) }));
+  cols.push({ label: "today", papers: CL.clusters.reduce((a, c) => a + c.size, 0), stability: null,
+    seg: CL.clusters.map(c => ({ id: c.id, name: c.name, n: c.size, found: true, why: "found" })) });
+  const top = Math.max(...cols.map(c => c.seg.reduce((a, s) => a + s.n, 0)));
+  const step = top > 150 ? 50 : top > 60 ? 25 : 10, max = Math.ceil(top / step) * step;
+  const bw = (W - m.l - m.r) / cols.length, Y = v => H - m.b - v / max * (H - m.t - m.b);
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart", role: "img",
+    "aria-label": "Papers of each of today's clusters that existed at each earlier date, and whether the cluster was already found" });
+  const add = (tag, a, text) => { const e = svgEl(tag, a); if (text != null) e.textContent = text; svg.append(e); return e; };
+  add("text", { x: m.l + 2, y: m.t - 7 }, "papers");
+  for (let v = step; v <= max; v += step) {
+    add("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), class: "grid" });
+    add("text", { x: m.l - 4, y: Y(v) + 3, "text-anchor": "end" }, String(v));
+  }
+  cols.forEach((col, j) => {
+    const x = m.l + j * bw + bw * 0.18, w = bw * 0.64;
+    let base = 0;
+    for (const sg of col.seg) {
+      if (!sg.n) continue;
+      const y1 = Y(base + sg.n), y0 = Y(base), colour = computedColour(sg.id);
+      const hgt = Math.max(1, y0 - y1 - 2);  // a 2px surface gap between stacked segments
+      const r = add("rect", { x, y: y1, width: w, height: hgt, rx: 2, fill: colour, "fill-opacity": sg.found ? 1 : 0.22,
+        stroke: sg.found ? "none" : colour, "stroke-width": sg.found ? 0 : 1 });
+      const tt = svgEl("title");
+      tt.textContent = `${sg.name}, ${col.label === "today" ? "today" : "before " + col.label}: ${sg.n} paper${sg.n === 1 ? "" : "s"}; ` +
+        (sg.found ? "found as a cluster" : sg.why);
+      r.append(tt);
+      base += sg.n;
+    }
+    add("text", { x: x + w / 2, y: H - m.b + 12, "text-anchor": "middle" }, col.label);
+    add("text", { x: x + w / 2, y: H - m.b + 23, "text-anchor": "middle" },
+      col.stability == null ? `${col.papers} papers` : `${col.papers} · ${col.stability.toFixed(2)}`);
+  });
+  add("line", { x1: m.l, x2: W - m.r, y1: Y(0), y2: Y(0), stroke: css("--baseline"), "stroke-width": 1 });
+  return svg;
 }
 function stabilityChart() {
   const W = 330, H = 176, m = { l: 30, r: 70, t: 10, b: 26 };

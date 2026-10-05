@@ -276,6 +276,27 @@ def louvain(adj):
 # --- output ---------------------------------------------------------------------------------------
 
 
+def clustering_rationale(topic):
+    """The latest pass's `Clustering rationale` from the survey's retrieval log, with that pass's date, or None.
+
+    Log entries are never rewritten, so the latest pass's rationale is the one that explains the current clusters.
+    """
+    text = (ROOT / "surveys" / f"{topic}.md").read_text()
+    found, date, lines = None, None, text.splitlines()
+    for i, line in enumerate(lines):
+        m = re.match(r"###\s+Pass\s+(\d{4}-\d{2}-\d{2})", line)
+        if m:
+            date = m.group(1)
+        if line.startswith("- **Clustering rationale:**"):
+            body = [line.split(":**", 1)[1].strip()]
+            for cont in lines[i + 1:]:
+                if not cont.startswith("  ") or not cont.strip():
+                    break
+                body.append(cont.strip())
+            found = {"pass": date, "text": plain(" ".join(body))}
+    return found
+
+
 def load_clustering(topic, nodes):
     """The report from tools/cluster.py, if one exists: how the clusters were computed, and each paper's assignment."""
     path = topic_dir(topic) / "clusters.json"
@@ -297,6 +318,8 @@ def load_clustering(topic, nodes):
             "cohesion", "ami_vs_survey_clusters", "rule", "level_tau", "level_tau_reason", "level_null",
             "level_null_reason", "knn", "diagnostics", "health"]
     out = {k: r.get(k) for k in keep}
+    out["rationale"] = clustering_rationale(topic)
+    out["history"] = r.get("history")
     out["null_curves"] = {m: [{"clusters": l["clusters"], "stability": l["stability"]} for l in ls]
                           for m, ls in r.get("null_curves", {}).items()}
     out["slider"] = [{"clusters": lv["clusters"], "stability": lv["stability"], "null_stability": lv["null_stability"]}

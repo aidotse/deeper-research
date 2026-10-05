@@ -16,7 +16,11 @@ the last level before the curve falls off into instability).
 It also runs the same pipeline on structure-free null data of the same size and shape, and reports a threshold-free
 alternative: the level where real stability most exceeds null stability. --rule picks which of the two decides.
 
-Writes graphs/<topic>/clusters.json and prints the retrieval log's `Clustering` line. Deterministic: every
+Afterwards, as post-processing that changes nothing above, it reports since when each cluster exists: the pool is
+divided by date into four segments of equal paper count, each snapshot is clustered with the chosen measure and level,
+and matched to the result (tools/match.py, `cluster_history`).
+
+Writes graphs/<topic>/clusters.json and prints the retrieval log's `Clustering` and `Temporal stability` lines. Deterministic: every
 random choice is seeded.
 """
 
@@ -50,7 +54,7 @@ UNSTABLE = 0.6  # a cluster below this clusterwise score is unstable
 SMALL = 10  # an unstable cluster smaller than this is thin: expand its region
 EXCHANGE = 0.2  # two unstable clusters whose papers are co-assigned this often in reruns trade papers
 NO_STRUCTURE = 0.15  # if real stability never exceeds the null by this much, there is little structure
-BROAD = 0.9  # a coarsest level this stable, with nothing finer reaching tau, suggests several topics in one pool
+BROAD = 0.9  # a coarsest level this stable, with nothing finer reaching tau: a broad scope, reported, not a failure
 THIN_REFS = 10  # papers with fewer resolved references than this carry little reference signal
 
 
@@ -311,20 +315,21 @@ def exchange_rates(S, full, k, gamma, reps, rng):
 
 
 def diagnose(curves_m, nulls_m, chosen, clusters, exchange, tau, recs, rename):
-    """Which of the cases in docs/process.md, "When stability fails", apply, each with its action."""
+    """Which of the cases in docs/process.md, "When stability fails", apply, each with its action, plus `broad scope`."""
     out = []
     excess = [l["stability"] - nl["stability"] for l, nl in zip(curves_m, nulls_m)]
     thin_share = float(np.mean([len(r["refs"]) < THIN_REFS for r in recs]))
     if max(excess) < NO_STRUCTURE:
         out.append({"case": "no structure", "detail": f"real stability exceeds random by at most {max(excess):.2f}",
-                    "action": "use very few clusters, possibly one, and report it at the checkpoint"})
+                    "action": "use very few clusters, possibly one, and stop for review"})
     passing = [l for l in curves_m if l["stability"] >= tau]
     if not passing:
         out.append({"case": "no stable level", "detail": f"no level reaches {tau}; {thin_share:.0%} of papers have fewer than {THIN_REFS} references",
-                    "action": "expand the thinnest regions (step 2) and rerun; if still unstable, take the coarsest level and let the user choose with the slider"})
+                    "action": "expand the thinnest regions (step 2) and rerun; if still unstable, take the coarsest level and stop for review, so that the user chooses with the slider"})
     elif passing == [curves_m[0]] and curves_m[0]["stability"] >= BROAD:
-        out.append({"case": "scope too broad", "detail": f"only the coarsest level ({curves_m[0]['clusters']} clusters, {curves_m[0]['stability']:.2f}) reaches {tau}",
-                    "action": "ask the user whether the input covers more than one topic"})
+        # Not a failure: the pool divides into a few clearly separate areas. Reported, and the pass continues.
+        out.append({"case": "broad scope", "detail": f"only the coarsest level ({curves_m[0]['clusters']} clusters, {curves_m[0]['stability']:.2f}) reaches {tau}",
+                    "action": "none; say so in the Clustering rationale and continue; the coverage test checks whether these clusters suffice"})
     by_id = {c["id"]: c for c in clusters}
     unstable = {c["id"] for c in clusters if c["stability"] is not None and c["stability"] < UNSTABLE}
     # A thin cluster that dissolves is absorbed by its neighbours, so its exchange with them is a symptom of being
@@ -348,7 +353,7 @@ def diagnose(curves_m, nulls_m, chosen, clusters, exchange, tau, recs, rename):
     for cid in sorted(unstable - thin - trading):
         c = by_id[cid]
         out.append({"case": "unstable cluster", "clusters": [cid], "detail": f"{cid}: {c['size']} papers, stability {c['stability']:.2f}",
-                    "action": "flag at the checkpoint for the user"})
+                    "action": "flag it in the report and the viewer; it does not stop the pass"})
     return out, {"max_null_excess": float(max(excess)), "chosen_null_excess": float(excess[curves_m.index(chosen)]),
                  "thin_reference_share": thin_share}
 
@@ -467,6 +472,11 @@ def main(argv):
                       "nn_refs": round(float(near["refs"][i]), 3), "year": recs[i].get("year"),
                       "cluster": rename[int(labels[i])]} for i in range(n)), key=lambda x: -x["score"])
 
+    # Post-processing: since when each cluster exists. Nothing above depends on it.
+    from match import cluster_history, log_line
+    assignment = {ids[i]: rename[int(labels[i])] for i in range(n)}
+    history = cluster_history(ids, recs, dates, assignment, measure, chosen["clusters"], k, c, tau, reps=reps)
+
     survey_labels = [papers[a].get("cluster") or "" for a in ids]
     exchange = exchange_rates(sims[measure], labels, k, chosen["gamma"], reps, np.random.default_rng(1))
     diagnostics, health = diagnose(curves[measure], null_curves[measure], chosen, clusters, exchange, tau, recs, rename)
@@ -484,7 +494,7 @@ def main(argv):
         "cohesion": cohesion(labels, T, C, edges),
         "ami_vs_survey_clusters": float(ami(survey_labels, labels)),
         "curves": {m: [{x: l[x] for x in l if x not in ("labels", "clusterwise")} for l in curves[m]] for m in curves},
-        "ids": ids, "assignment": {ids[i]: rename[int(labels[i])] for i in range(n)},
+        "ids": ids, "assignment": assignment, "history": history,
         "clusters": clusters, "skipped": skipped,
     }
     out = topic_dir(topic) / "clusters.json"
@@ -514,6 +524,7 @@ def main(argv):
           + ", ".join(f"{m} {g[m]['mean']:.3f} ± {g[m]['se']:.3f}" for m in MEASURES)
           + f"); level {chosen['clusters']} clusters (grid {[l['clusters'] for l in curves[measure]]}; {level_reason}); "
           f"k={k}, c={c}; holdout cutoffs {', '.join(cutoffs)}; manual overrides: none")
+    print(log_line(history))
     print(f"\nwrote {out.relative_to(ROOT)}")
 
 

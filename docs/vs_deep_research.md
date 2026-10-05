@@ -1,5 +1,7 @@
 # How this harness differs from Deep Research
 
+For information only, not instructions.
+
 Frontier chat assistants offer "Deep Research" modes, which also search the literature and write a cited report, and it
 is natural to ask what this repo does that they do not. The short answer: Deep Research answers a question, while this
 harness builds a verified, reusable map of a literature and answers questions from that map. Most of the differences

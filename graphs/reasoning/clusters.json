@@ -1,5 +1,5 @@
 {
- "generated": "2026-09-29",
+ "generated": "2026-10-05",
  "pool_fetched": "2026-09-29",
  "params": {
   "k": 10,
@@ -10939,6 +10939,217 @@
   "2609.15989": "c2",
   "2609.16660": "c5",
   "2609.19465": "c1"
+ },
+ "history": {
+  "segments": 4,
+  "seeds": 5,
+  "cutoffs": [
+   "2025-03-24",
+   "2025-10-09",
+   "2026-05-25"
+  ],
+  "snapshots": [
+   {
+    "cutoff": "2025-03-24",
+    "papers": 48,
+    "clusters": 4,
+    "stability": 0.3962976171899004
+   },
+   {
+    "cutoff": "2025-10-09",
+    "papers": 97,
+    "clusters": 6,
+    "stability": 0.7183452978045656
+   },
+   {
+    "cutoff": "2026-05-25",
+    "papers": 146,
+    "clusters": 6,
+    "stability": 0.8355295673508898
+   }
+  ],
+  "clusters": {
+   "c1": {
+    "first_seen": "2025-10-09",
+    "snapshots": [
+     {
+      "cutoff": "2025-03-24",
+      "present": 5,
+      "matched_seeds": 0,
+      "case": "new",
+      "why": "too few papers (5)",
+      "snapshot_stability": 0.3962976171899004
+     },
+     {
+      "cutoff": "2025-10-09",
+      "present": 29,
+      "matched_seeds": 5,
+      "case": "matched",
+      "why": "found",
+      "snapshot_stability": 0.7183452978045656
+     },
+     {
+      "cutoff": "2026-05-25",
+      "present": 44,
+      "matched_seeds": 5,
+      "case": "matched",
+      "why": "found",
+      "snapshot_stability": 0.8355295673508898
+     }
+    ],
+    "statement": "probably since 2025-10-09 (that snapshot's stability 0.72); before that, too few papers (5)"
+   },
+   "c2": {
+    "first_seen": "2026-05-25",
+    "snapshots": [
+     {
+      "cutoff": "2025-03-24",
+      "present": 2,
+      "matched_seeds": 0,
+      "case": "new",
+      "why": "too few papers (2)",
+      "snapshot_stability": 0.3962976171899004
+     },
+     {
+      "cutoff": "2025-10-09",
+      "present": 9,
+      "matched_seeds": 0,
+      "case": "new",
+      "why": "too few papers (9)",
+      "snapshot_stability": 0.7183452978045656
+     },
+     {
+      "cutoff": "2026-05-25",
+      "present": 29,
+      "matched_seeds": 5,
+      "case": "matched",
+      "why": "found",
+      "snapshot_stability": 0.8355295673508898
+     }
+    ],
+    "statement": "since 2026-05-25; before that, too few papers (9)"
+   },
+   "c3": {
+    "first_seen": "2025-03-24",
+    "snapshots": [
+     {
+      "cutoff": "2025-03-24",
+      "present": 9,
+      "matched_seeds": 5,
+      "case": "matched",
+      "why": "found",
+      "snapshot_stability": 0.3962976171899004
+     },
+     {
+      "cutoff": "2025-10-09",
+      "present": 15,
+      "matched_seeds": 5,
+      "case": "matched",
+      "why": "found",
+      "snapshot_stability": 0.7183452978045656
+     },
+     {
+      "cutoff": "2026-05-25",
+      "present": 23,
+      "matched_seeds": 5,
+      "case": "matched",
+      "why": "found",
+      "snapshot_stability": 0.8355295673508898
+     }
+    ],
+    "statement": "probably since 2025-03-24 or earlier (that snapshot's stability 0.40)"
+   },
+   "c4": {
+    "first_seen": "2025-03-24",
+    "snapshots": [
+     {
+      "cutoff": "2025-03-24",
+      "present": 20,
+      "matched_seeds": 5,
+      "case": "matched",
+      "why": "found",
+      "snapshot_stability": 0.3962976171899004
+     },
+     {
+      "cutoff": "2025-10-09",
+      "present": 23,
+      "matched_seeds": 5,
+      "case": "matched",
+      "why": "found",
+      "snapshot_stability": 0.7183452978045656
+     },
+     {
+      "cutoff": "2026-05-25",
+      "present": 25,
+      "matched_seeds": 5,
+      "case": "matched",
+      "why": "found",
+      "snapshot_stability": 0.8355295673508898
+     }
+    ],
+    "statement": "probably since 2025-03-24 or earlier (that snapshot's stability 0.40)"
+   },
+   "c5": {
+    "first_seen": "2025-03-24",
+    "snapshots": [
+     {
+      "cutoff": "2025-03-24",
+      "present": 12,
+      "matched_seeds": 5,
+      "case": "matched",
+      "why": "found",
+      "snapshot_stability": 0.3962976171899004
+     },
+     {
+      "cutoff": "2025-10-09",
+      "present": 21,
+      "matched_seeds": 5,
+      "case": "matched",
+      "why": "found",
+      "snapshot_stability": 0.7183452978045656
+     },
+     {
+      "cutoff": "2026-05-25",
+      "present": 24,
+      "matched_seeds": 5,
+      "case": "matched",
+      "why": "found",
+      "snapshot_stability": 0.8355295673508898
+     }
+    ],
+    "statement": "probably since 2025-03-24 or earlier (that snapshot's stability 0.40)"
+   },
+   "c6": {
+    "first_seen": null,
+    "snapshots": [
+     {
+      "cutoff": "2025-03-24",
+      "present": 0,
+      "matched_seeds": 0,
+      "case": "new",
+      "why": "too few papers (0)",
+      "snapshot_stability": 0.3962976171899004
+     },
+     {
+      "cutoff": "2025-10-09",
+      "present": 0,
+      "matched_seeds": 0,
+      "case": "new",
+      "why": "too few papers (0)",
+      "snapshot_stability": 0.7183452978045656
+     },
+     {
+      "cutoff": "2026-05-25",
+      "present": 1,
+      "matched_seeds": 0,
+      "case": "new",
+      "why": "too few papers (1)",
+      "snapshot_stability": 0.8355295673508898
+     }
+    ],
+    "statement": "new since 2026-05-25; before that, too few papers (1)"
+   }
+  }
  },
  "clusters": [
   {

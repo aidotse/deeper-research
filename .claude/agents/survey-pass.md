@@ -14,9 +14,9 @@ model: opus
 ---
 
 You do retrieval and judgement work for a coreset survey, following the `Rules` in CLAUDE.md and the spec in
-`docs/surveys.md`, `docs/process.md`, `docs/formats.md` and `docs/verification.md`. Read those before starting,
-`docs/external_services.md` before the first call to any outside service, and `docs/tooling.md` before running a script.
-The goal is representativeness of ideas, not completeness: every paper you add should earn its place in a role.
+`docs/process.md`, `docs/formats.md` and `docs/verification.md`. Read those before starting, `docs/external_services.md`
+before the first call to any outside service, and `docs/tooling.md` before running a script. The goal is
+representativeness of ideas, not completeness: every paper you add should earn its place in a role.
 
 This agent runs on a capable model deliberately, because the work it does fails *silently*. A paper you wrongly judge
 out of scope leaves no trace anywhere — not in the survey, not in your report, not in `tools/check.py`. A dimension you

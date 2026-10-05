@@ -50,9 +50,10 @@ A cluster whose papers mostly cite other clusters is a label, not a neighbourhoo
 
 Where `tools/cluster.py` has run, the viewer also shows how the clusters were produced: the chosen measure and level,
 `k`, `c`, `τ`, the stability curves with the null model's curve and the chosen level marked, each cluster's clusterwise
-stability, and the sub-clusters of the level below. A `Similarity map` layout places papers by the clustering's own
-neighbour graph, and a level slider recolours the map at each computed level, for choosing the level by eye during
-review. The similarity map's layout is seeded, so it is the same on every load.
+stability, the sub-clusters of the level below, and since when each cluster exists (a stacked column per date snapshot,
+and a "Since when" line per cluster). A `Similarity map` layout places papers by the clustering's own neighbour graph,
+and a level slider recolours the map at each computed level, for choosing the level by eye during review. The similarity
+map's layout is seeded, so it is the same on every load.
 
 A coreset survey carries its own graph in the pool's `cites` column, so nothing is fetched. A survey without a pool has
 its references fetched from the Semantic Scholar API and cached in `graphs/<topic>/references.json`; pass `--refresh` to
@@ -71,8 +72,9 @@ context, so it costs no tokens. Later runs fetch only new papers; `--refresh` re
 levels, the stability tests, and the choice of measure and level. Options: `--rule` (`tau` or `null`), `--tau`, `--k`,
 `--c`, `--reps`, `--nulls` and `--levels`; the defaults are the spec's. It takes about two minutes for 200 papers, most
 of it the null model. It writes the report to `graphs/<topic>/clusters.json` and prints the figures the retrieval log's
-`Clustering` line needs, the stability diagnostics of `docs/process.md` ("When stability fails") with their actions, and
-the highest fringe scores. It needs `uv`, which installs its Python dependencies on first use.
+`Clustering` and `Temporal stability` lines need, the stability diagnostics of `docs/process.md` ("When stability
+fails") with their actions, and the highest fringe scores. It needs `uv`, which installs its Python dependencies on
+first use.
 
 ## Fringe candidates
 
@@ -87,6 +89,21 @@ candidates added, and reports per route how they behave. It is not part of a pas
 
 `tools/cluster.py` writes each pool paper's fringe score to its report, and prints the highest; step 4 chooses `fringe`
 rows from them.
+
+`uv run tools/recursive.py <topic>` is an experiment, not part of a pass. It clusters recursively instead of at one
+global level: each cluster of the global clustering is split on its own until no split passes, under several stopping
+rules (`--rules`, see its docstring), including a shakedown that redoes each split decision on disturbed data. It
+compares each result with the global method by rerunning both from scratch on time holdouts and resamples. It reads
+`clusters.json` and writes `graphs/<topic>/recursive.json`; it takes about five minutes on 200 papers.
+
+`uv run tools/match.py simulate <topic>` is an experiment, not part of a pass. Its `match()` function is the draft rule
+for matching clusters across passes, by shared members. `simulate` treats the pool as it stood 3, 6 and 9 months ago as
+earlier passes, reruns the full clustering method on each, and matches it to today's clustering. It writes
+`graphs/<topic>/match-simulation.json`.
+
+`uv run tools/match.py history <topic>` runs, on its own, the cluster history that `tools/cluster.py` already runs after
+every clustering: four date segments of equal paper count, each cumulative snapshot clustered with today's settings, and
+per cluster since when it exists, or why it is not yet found. It writes `graphs/<topic>/history.json`.
 
 ## Full text
 

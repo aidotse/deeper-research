@@ -6,19 +6,21 @@ the spec; do not follow it in a pass until it is moved into the relevant `docs/`
 
 ## State (2026-09-29)
 
-- `Spec` — `docs/surveys.md` (formerly `docs/method.md`), `docs/process.md`, `docs/formats.md`, `docs/verification.md`,
-  `docs/dispatch.md`, `docs/tooling.md` and `docs/external_services.md` are current, including everything adopted on
-  2026-09-29 (below). The user has **not yet reviewed the spec in detail**; that is the next step. The user is also
-  consolidating `CLAUDE.md` by hand.
+- `Spec` — `docs/coresets.md`, `docs/process.md`, `docs/formats.md`, `docs/verification.md`, `docs/dispatch.md`,
+  `docs/tooling.md` and `docs/external_services.md` are current, including everything adopted on 2026-09-29 (below). The
+  user has **not yet reviewed the spec in detail**; that is the next step. The user is also consolidating `CLAUDE.md` by
+  hand.
 - `Surveys` — `surveys/reasoning.md` is the only topic. It is a legacy survey, written before the coreset spec: no
   Clusters or Pool section, 195 papers all fully characterised (about 10k tokens each, roughly 2M in total), grouped in
   hand-drawn blocks A–Q. It is the test corpus for everything below.
 - `Tools` — all built and tested on `reasoning`: `tools/check.py`, `tools/bib.py`, `tools/pool.py`, `tools/cluster.py`,
-  `tools/fringe.py`, `tools/fulltext.py`, `tools/graph.py` (viewer). See `docs/tooling.md`. Python tools that need numpy
-  and Leiden run with `uv run`; the rest are standard library.
+  `tools/fringe.py`, `tools/fulltext.py`, `tools/graph.py` (viewer), plus the experiments `tools/recursive.py` and
+  `tools/match.py`. See `docs/tooling.md`. Python tools that need numpy and Leiden run with `uv run`; the rest are
+  standard library.
 - `Data` — everything derived from a survey lives in `graphs/<topic>/`. For `reasoning`: `graph.html` (viewer),
   `pool.json` (embeddings, reference lists), `clusters.json` (clustering report), `references.json` (legacy reference
-  cache), and the fringe experiment's `fringe.json`, `fringe-screen.md` and `fringe-analysis.json`.
+  cache), the fringe experiment's `fringe.json`, `fringe-screen.md` and `fringe-analysis.json`, the recursive clustering
+  experiment's `recursive.json`, and the cross-pass matching simulation's `match-simulation.json` and `history.json`.
 
 ## Decisions taken
 
@@ -37,17 +39,17 @@ All adopted into the spec on 2026-09-29 unless marked otherwise.
   structure is real, but its null curve is flat, so it reduces to "most stable"; it is reported, not used. How much
   detail to keep is a trade-off between detail and stability, and the user judges it during cluster review with the
   viewer's level slider on the similarity map.
-- **When stability fails, the action is defined.** Whole clustering: `no structure`, `no stable level`,
-  `scope too broad`. Single clusters: `thin cluster` (expand the region), `clusters trade papers` (keep both, require a
-  bridge), `unstable cluster` (flag). Instability is information, not a defect: the user reads the two trading safety
-  clusters as an open boundary in the field. Spec: `docs/process.md`, "When stability fails".
+- **When stability fails, the action is defined.** Whole clustering: `no structure`, `no stable level`, `broad scope`
+  (reclassified 2026-10-02 as a reported finding, not a failure: the pass continues, and the coverage test judges
+  whether broad clusters suffice). Single clusters: `thin cluster` (expand the region), `clusters trade papers` (keep
+  both, require a bridge), `unstable cluster` (flag). Instability is information, not a defect: the user reads the two
+  trading safety clusters as an open boundary in the field. Spec: `docs/process.md`, "When stability fails".
 - **Citation communities are only a diagnostic.** Louvain communities came from the viewer, not the method. They remain
   one colour mode and feed the cohesion figures, with no names of their own.
 - **A `fringe` role**, five to ten per topic, for overlooked papers carrying an idea no other coreset row has. Two
   expansion routes feed it at the end of step 2, `hidden` and `new`; a third, `followers`, was tested and dropped.
   Fringe candidates enter the pool before clustering, and `fringe` rows are chosen last in step 4, by an age-corrected
-  distance to nearest neighbours plus a one-sentence idea test. Spec: `docs/surveys.md`, `docs/process.md` ("Fringe
-  routes").
+  distance to nearest neighbours plus a one-sentence idea test. Spec: `docs/process.md` (step 4 and "Fringe routes").
 - **Order of operations.** `docs/process.md` opens with a table of every operation in a pass: pool or coreset stage,
   script or model judgement, what the model reads and decides, and tokens. The pool is broad and cheap (steps 1–3); the
   coreset is small and expensive (steps 4–5). The stability test (step 3, script) checks the clusters; the coverage test
@@ -76,10 +78,30 @@ All adopted into the spec on 2026-09-29 unless marked otherwise.
   levers (level, alignment, names, scope, more data) can be given in advance in the input's new `Clustering` section, or
   requested afterwards as an incremental pass. Spec: `docs/process.md` (step 3, "Changing the clusters after a pass"),
   `docs/formats.md`.
+- **A clustering rationale per pass** (2026-10-02): at step 3 the naming agent writes a `Clustering rationale` paragraph
+  into the pass's log entry, interpreting the figures (level margin, weak clusters, how decisive the measure was, what
+  input steering changed). The viewer shows the latest pass's rationale. Spec: `docs/process.md` ("Recording it"),
+  `docs/formats.md`.
+- **Cluster history** (2026-10-05, proposed by the user): after choosing the level, `tools/cluster.py` reports since
+  when each cluster exists, as post-processing that never changes the clusters. Four date segments of equal paper count
+  (narrower in a publication burst); each cumulative snapshot clustered with today's measure and cluster count at five
+  seeds and matched to today (`cluster_history` in `tools/match.py`); one first-seen date per cluster, not per map. Lack
+  of data is stated, not corrected (the user's choice: no subsampling, and a size-matched control was declined): an
+  unfound cluster with fewer than 10 papers in the snapshot is "too few papers", otherwise "grouped differently". A find
+  in a snapshot below `τ` is hedged as "probably". Optimistic, since old papers in today's pool are those still
+  relevant. Recorded as a `Temporal stability` log line and interpreted in the `Clustering rationale`; the viewer shows
+  a stacked column per snapshot (segments per today's cluster, solid if found, faint if not) and a "Since when" line per
+  cluster. Considered and not built: a full flow (Sankey) chart between the snapshots' own clusters, busier and, on
+  `reasoning`, showing nothing more. Spec: `docs/process.md` ("Since when each cluster exists"), `docs/formats.md`.
 - **Pool metadata is filled by script**, `tools/pool.py`, never through a model's context.
 - **Docs structure.** `CLAUDE.md` holds what every session needs, plus a table of who reads which `docs/` file and when.
   `docs/responses.md` (formatting and voice) is imported into it. Terminal replies use top-level `#` headers and
   `inline code` for accents, because only those render visibly.
+- **`docs/surveys.md` dissolved** (2026-10-05, the user's request). About four-fifths of it repeated `docs/coresets.md`,
+  `docs/process.md` and `docs/formats.md`. Its unique content moved to where it is applied. `Sizing` and the role
+  definitions went to `docs/process.md` step 4, merged with how each role is found, so roles are defined once. The
+  cluster definition and examples went to step 3, and the hint that fringe rows feed `Questions` to `docs/formats.md`.
+  `docs/coresets.md` remains the one place for why the roles and sizing are as they are.
 
 ## Findings on the `reasoning` corpus
 
@@ -104,11 +126,72 @@ Caveat for all of these: one corpus, and a curated survey rather than a real poo
   0.70), which is why fringe routes run before clustering. Highest fringe scores on the base set: theory of learning
   dynamics and model collapse, and safety evaluations (sabotage, evaluation awareness). The user judged them acceptable
   matches.
+- `Recursive clustering` (2026-10-02/03, `tools/recursive.py`) — the global level-6 clustering is round 1; each of its
+  clusters is then reclustered on its own (own similarity scale, resolution and stability tests) and split into 2–6
+  parts if a rule accepts it, and so on. Clusters under 20 papers are not split. Rules: `tau` (the split's local
+  stability reaches `τ`); `strict` (as `tau`, and every part of 3+ papers comes back end to end at 0.6 or more, with the
+  rounds above reclustered at fixed resolutions); `partial` (the parts that come back are kept, the rest merge into one
+  remainder leaf; no whole-split `τ` gate); and `confirmed` and `partial-confirmed`, which add a shakedown to `strict`
+  and `partial` (see "Ideas raised"). Every method is also rerun from scratch on the 3 time holdouts and 10 resamples of
+  80%.
+  - `Where it splits` — `tau` and `strict` split only theory of chain-of-thought (29 papers), into latent reasoning
+    (14), Reflexion-style agents (10) and chain-of-thought prompting (5), at local stability 0.83. `partial` also carves
+    a 51-paper core out of RL (remainder 13) and a 9-paper group out of test-time compute (remainder 19), from splits
+    with local stability of only 0.33 and 0.37. The two safety clusters never split. A null-model guard changed nothing:
+    inside clusters, splits into two were not trivially stable (0.10–0.42).
+  - `Shakedown` — under `confirmed` the chain-of-thought split is made in only 8 of 29 reruns, its parts score 0.56,
+    0.51 and 0.35, and it is rejected: the result is exactly the global level 6. Under `partial-confirmed` every split
+    is made again (29, 29 and 27 of 29) and all are kept: chain-of-thought parts 0.93, 0.83, 0.71; RL core 0.72;
+    test-time compute group 0.63. So what flips with sample size is `strict`'s whole-split `τ` gate, not the parts.
+  - `From scratch` (holdout ARI, resample ARI, AMI with blocks A–Q; size thresholds scaled to each rerun's share of the
+    pool): global level 6 0.78, 0.71, 0.54; `confirmed` the same; global at 8 clusters 0.64, 0.67, 0.51; `strict` (8
+    clusters) 0.70, 0.67, 0.56; global at 10 0.71, 0.69, 0.52; `partial-confirmed` (10) 0.59, 0.62, 0.58. Per part under
+    `partial-confirmed`: latent reasoning 0.78 and agents 0.65 reproduce; chain-of-thought prompting (5 papers) 0.40,
+    the test-time compute group 0.34 and the RL remainder 0.34 do not; the RL core 0.75.
+  - `Corrections made on the way`: a first version capped round 1 at 6 clusters, which flattered recursion; the
+    fragility of the chain-of-thought parts was first blamed on the parent's boundary moving, but the parent comes back
+    84–100% intact in every rerun; and the from-scratch reruns first applied the 20-paper minimum unscaled, so a rerun
+    on 80% met a stricter rule than the original, which halved the scores of the parts.
+  - `Post hoc, not a rule`: a part threshold of 0.75 (equal to `τ`) instead of 0.6 in the shakedown would have kept
+    exactly latent reasoning and agents, with chain-of-thought prompting as the remainder: 7 clusters.
+  - `Reproduce` — `uv run tools/recursive.py reasoning --rules strict,partial,confirmed,partial-confirmed`, about five
+    minutes on 16 cores; `graphs/reasoning/recursive.json` holds this run. The script's docstring defines every rule.
+    Disturbed data throughout: 3 time-holdout cutoffs × 3 seeds, plus 20 resamples of 80% (29 reruns). Two diagnostics
+    were run ad hoc and not kept; rebuild them if needed: (1) for each from-scratch rerun, which clusters split and how
+    much of the parent stays together (showed the parent intact, the split rarely made); (2) each part's from-scratch
+    score, separated by whether round 1 came back at 6 clusters (ruled out round-1 count as the main cause, and found
+    the unscaled-minimum artefact).
+- `Matching across passes, simulated` (2026-10-05, `uv run tools/match.py simulate reasoning`, seconds) — the pool as it
+  stood 3, 6 and 9 months ago, clustered by the full method (measure, then level), matched to today's level 6:
+  - `6 months ago` (123 papers): combined, level 5. All 5 clusters matched; the agent-harness cluster is `new` (all its
+    papers are newer). ARI with today 0.86.
+  - `3 months ago` (158 papers): combined, level 8. 4 matched (RL, theory of chain-of-thought, test-time compute,
+    monitorability); an RL-algorithms group (15 papers) absorbed into RL, a faithfulness group (13) absorbed into
+    monitorability, two safety groups (13, 12) merged into attack surface; harnesses `reshuffled`. ARI 0.68. Part of the
+    change is settings (old pass against the old papers at today's settings: 0.73), part new papers (0.81).
+  - `9 months ago` (112 papers): refs, and no level reached `τ`, so the coarsest, 3 clusters, plus 7 fragments; a real
+    pass would have stopped for review. RL and monitorability matched; a 56-paper cluster split into theory of
+    chain-of-thought, test-time compute and attack surface. ARI 0.39, mostly from settings (0.47, against 0.84 for new
+    papers).
+  - `Caveats`: an earlier pass is simulated by dropping newer papers from today's curated corpus, so retrieval
+    differences between passes are not simulated, and the result is optimistic; pools of 112–158 papers.
+- `Cluster history` (2026-10-05, `uv run tools/match.py history reasoning`, seconds) — the pool divided by date into 4
+  segments of equal paper count (cutoffs 2025-03-24, 2025-10-09, 2026-05-25: segments of about four years, six, seven
+  and four months); each cumulative snapshot clustered with today's measure and cluster count at 5 seeds, and matched to
+  today. Snapshots: 48 papers (only 4 clusters reachable, stability 0.40), 97 (0.72), 146 (0.84). Per cluster: theory of
+  chain-of-thought, test-time compute and attack surface are already there in the earliest snapshot; RL first appears in
+  the pool of 2025-10-09 (5 papers before that); monitorability in the pool of 2026-05-25 (9 papers before); agent
+  harnesses only today. Every unmatched case was "too few papers yet", never "grouped differently", so on this pool the
+  history is one of emergence, not restructuring. Caveat: a match in an unstable snapshot (0.40) is weak evidence.
 - `Semantic Scholar recommendations` — accept negative examples, but they change little (16 of 20 results the same), and
   the endpoint returns only the last two months of papers.
 - `Costs` — measured: screening about 0.85k tokens per candidate (123k for 146); `tools/cluster.py` about two minutes
   per 200 papers. From earlier passes: verification about 10k per row. Estimated pass total for about 50 coreset rows:
   1–1.5M tokens.
+- `Retrieval` — a pass that used only WebSearch produced a corpus top-heavy with preprints and missing the methods they
+  all cite. This is the reason `docs/process.md` pairs orientation with expansion.
+- `Old stopping rule` — the fraction of screened candidates already present in the survey measured 4–12% on the best
+  seeds, and could never have reached its threshold. This is why the coverage test replaced it.
 
 ## Open items
 
@@ -123,8 +206,13 @@ Caveat for all of these: one corpus, and a curated survey rather than a real poo
 - The computed assignment (`c1`, `c2`, …) is not written into the Pool table's `cluster` column, nor mapped to the
   agent's named cluster ids.
 
-- `tools/check.py` does not check the `Clustering` log line, or that pool `cluster` values match the computed
-  assignment.
+- `tools/check.py` does not check the `Clustering`, `Temporal stability` or `Coverage test` log lines, or that pool
+  `cluster` values match the computed assignment.
+
+- The viewer's dark-mode palette fails the `dataviz` validator's lightness band (5 of the first 6 hues too light on the
+  dark surface; found 2026-10-05). Its 18-hue palette predates the reference palette's dark steps; re-step it and rerun
+  `scripts/validate_palette.js --mode dark`. Light mode passes, with a contrast warning on two hues that the text labels
+  cover.
 
 **Not yet built:**
 
@@ -138,7 +226,28 @@ Caveat for all of these: one corpus, and a curated survey rather than a real poo
   need a fallback.
 
 - Matching clusters across passes, so that ids and names persist and splits, merges and vanished clusters are logged.
-  Needed before a topic's second pass.
+  Needed before a topic's second pass. The matching rule is drafted in `tools/match.py` (`match()`), and simulated on
+  `reasoning` (see Findings); what remains is the pass-to-pass tool and the spec. The design so far (2026-10-05):
+
+  - `No guarantee` — a later pass can produce a different clustering: the level can change, new papers change the
+    similarity scale, the graph and the resolution, and the field can genuinely restructure. Matching is possible
+    because a later pass keeps the old papers, so clusters are compared by members on the shared papers, never by name.
+    The time holdout already simulates an earlier pass, so per-cluster stability predicts which clusters will match.
+  - `Many-to-many and graded` — each old cluster is `matched`, `split`, `merged`, `absorbed` or `vanished`; each new
+    cluster not accounted for is `new` (mostly new papers) or `reshuffled`. Rules in the `tools/match.py` docstring; the
+    majority threshold (0.5) and the 3-paper fragment limit are first guesses. Matched clusters keep id and name.
+  - `When most clusters fail to match`, report it, and tell the two causes apart: cluster the old papers alone with the
+    new pass's settings. Agreement with the old pass means the new papers changed things (the field moved); the reverse
+    means the change came from settings or instability.
+  - `A total remap is affordable`: verification belongs to rows, so rows survive; names, role selection and the
+    Landscape are redone, with no re-verification.
+  - `Option, untested: seeded clustering` — Leiden accepts an initial partition (`initial_membership` in
+    `leidenalg.find_partition`), so a later pass could start from the old clusters and move only what the data demands.
+    This makes matching likelier but biases towards the old structure and could hide real change. If used, run both a
+    fresh and a seeded clustering, prefer the seeded one only if it is about as stable, and log the comparison.
+  - `Levels nest` — in the simulation, earlier passes at a finer level merged or were absorbed into today's coarser
+    clusters, and a coarser one split; nothing vanished. Matching across passes then looks like matching across levels
+    of one hierarchy, which connects it to the recursive-clustering proposal ("Ideas raised").
 
 - Per-step token accounting in the retrieval log, from the fresh run on, to replace the estimates in the order of
   operations.
@@ -158,6 +267,54 @@ random, 0.9 for "broad", 0.6 for "unstable", 10 papers for "thin", 20% for "trad
 
 - Measuring whether two agents agree on the coverage test's "would this change a claim".
 
+- Recursive clustering with a shakedown, conservative by design (tested on `reasoning`, see Findings; not adopted).
+  Round 1 is the global clustering. In each later round, every leaf is tried as 2–6 parts, and a part becomes a new leaf
+  only if it passes three tests, cheapest first:
+
+  1. `Real` (script) — with the rounds above held fixed, disturb the pool and recluster at the same resolutions: the
+     part comes back (0.6 or more).
+  2. `Found again` (script, the shakedown) — on each disturbed version of the parent, the split decision is made again
+     from scratch (resolution, number of parts, test 1): the part comes back. The rounds above are held fixed, since
+     they already passed; otherwise every rerun would need its own shakedown. One shakedown per round, about a minute on
+     200 papers, no tokens.
+  3. `Nameable` (model, not built) — a blind name-and-assign test: one agent writes a one-sentence description of each
+     part that sets it apart from its siblings; a second, seeing only the descriptions, assigns a shuffled sample of the
+     parts' papers to them. Assignment well above chance (say 80%) passes. Only splits that passed 1 and 2 reach it: a
+     handful per pass, perhaps 5–10k tokens each.
+
+  Parts that fail join a remainder (`partial-confirmed`), or the whole split is refused (`confirmed`).
+
+  The user's position (2026-10-03): do not over-split; stay coarse unless the evidence clearly shows a meaningful
+  further split. Prefers `partial` over all-or-nothing, and accepts a messier tree for it. Agrees that earlier rounds
+  are held fixed in the shakedown, and wants the coarse bias kept and documented. The motivation, from the user: global
+  levels impose one granularity on the whole pool, while some clusters need decomposing and others do not.
+
+  `partial` drops the whole-split `τ` gate on purpose: that gate scores a split as a whole with pair-counting ARI, so a
+  split with one robust part and two loose ones fails it, which is the all-or-nothing behaviour `partial` avoids.
+
+  - `For` — selective resolution (one area can be finer than another); each area gets its own similarity scale and
+    resolution; a natural hierarchy for the Landscape; a part that survives the shakedown is likely to survive the next
+    pass, which is itself a disturbed pool, so cross-pass matching gets easier.
+  - `Against` — a deeper tree means more tests, so some pass by chance; a misassignment at the top is locked in below;
+    sizing must work on leaves, whose number is not chosen; cross-pass matching becomes tree matching; remainders are
+    defined by exclusion and reproduce poorly (0.34 here), so they need their own treatment in naming and sizing.
+  - `Built-in coarse bias` — the shakedown reruns on 80% of the data, so every cluster shrinks, and a split near a
+    threshold tends to fail. In effect the 20-paper minimum becomes about 25. Intended, and to be stated in the spec.
+    Evaluations of the method must scale size thresholds to the rerun's share of the pool, or the bias is applied twice.
+  - `Nameability in both directions` — a part that cannot be told apart from its siblings by name means the split went
+    too far (a gate). A cluster that cannot be named suggests it lumps several things (a signal, never a trigger: if no
+    split passes, flag the cluster in the `Clustering rationale` as possibly a grab-bag). A clear cluster name does not
+    block a split that passes the tests. A stable split that fails nameability is kept as one leaf but noted in the
+    rationale as a possible unnamed theme, since new groupings are the hardest to name in existing vocabulary.
+  - `Terminology` — "level" is the global cluster count (level 6 = six clusters in one step); in a tree, use "round" or
+    "depth". Round 1 of the tree is the global level.
+  - `Alternative` — use recursion only for sizing: clusters stay global, and a cluster with a confirmed internal split
+    gets extra rows for its parts, extending the current sub-cluster rule in `docs/process.md` (step 4, "Sizing"). This
+    gets selective resolution for coverage without naming fragile clusters.
+  - `Open` — the part threshold (0.6, or `τ`); whether round 1 should itself pass a shakedown (the global level is 5 to
+    10 clusters across from-scratch reruns, and parts score lower when it is not 6); only the chosen candidate is
+    shaken; and the real test is the fresh pool.
+
 - Persistence across resolutions (Markov stability) as a threshold-free level rule.
 
 - A per-cluster diagnostic: held together by text but not citations suggests a topic label; by citations but not text,
@@ -175,6 +332,10 @@ random, 0.9 for "broad", 0.6 for "unstable", 10 papers for "thin", 20% for "trad
    since this is the first real run, and run steps 1–3 to that review, in the viewer, with token accounting from the
    start.
 4. On that real pool, revisit the first-guess thresholds and the findings above.
+
+Separately, at any point: a dedicated session on recursive clustering with a shakedown (see "Ideas raised" and the
+Findings entry). Decide the open points, build the nameability test, and rerun `tools/recursive.py` on the fresh pool,
+the real test, before anything moves into the spec.
 
 ## Claims recalled but not verified
 

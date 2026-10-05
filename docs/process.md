@@ -15,8 +15,8 @@ Retrieval has four jobs, and the tools are good at different ones. Assign tools 
   arXiv. Step 5.
 
 Orientation and expansion need each other. A pass that uses only WebSearch produces a corpus top-heavy with preprints
-and missing the methods they all cite; this has happened in this repo. A pass that uses only Asta keyword search misses
-what the community has only just started discussing.
+and missing the methods they all cite. A pass that uses only Asta keyword search misses what the community has only just
+started discussing.
 
 How to call each service, their limits and failure modes, are in `docs/external_services.md`.
 
@@ -49,7 +49,7 @@ to be replaced by the per-step token accounting in the retrieval log.
 | 2 | pool | Screen fringe candidates | `survey-pass` | Reads the sheet: titles and abstracts, shuffled, without the route. Judges scope, and adds the in-scope papers to the pool. | about 0.85k per candidate (measured: 123k for 146) |
 | 2 | pool | Fetch again | script: `tools/pool.py` | — The same fetch, for the added papers. | 0 |
 | 3 | pool | Cluster | script: `tools/cluster.py` | — Chooses the measure and level by stability, and writes each paper's fringe score. This is the stability test. | 0; about 2 min per 200 papers (measured) |
-| 3 | pool | Name the clusters | `survey-pass` | Reads each computed cluster's most-cited titles, its sub-clusters and the input. Writes the name, definition, alignment and reason. Does not change membership. | est. 20–40k |
+| 3 | pool | Name the clusters | `survey-pass` | Reads each computed cluster's most-cited titles, its sub-clusters and the input. Writes the name, definition, alignment and reason, and the `Clustering rationale` in the log. Does not change membership. | est. 20–40k |
 | 3 | pool | Build the viewer | script: `tools/graph.py` | — | 0 |
 | 3 | pool | Cluster review, only if triggered | main session and user | Runs only when step 3 stops (see "Cluster review"). Reads the Clusters table and the `Clustering` log line; the user reviews in the viewer. Records the review and any override. | est. under 10k |
 | 4 | coreset | Anchors | script, then `survey-pass` | In-degree within the pool comes from the file, and `tools/check.py` reports each cluster's leader. The agent confirms the pick and writes `selected because`. | est. 1–2k per cluster |
@@ -135,11 +135,16 @@ Once candidates are in the pool, step 3 measures how far each paper sits from th
 
 ### Step 3: cluster
 
-Run the clustering method below, which chooses the similarity measure and the level (see below) from the pool's own
-data. Then name and define each computed cluster, rate its alignment, and write the Clusters section. Naming is
-judgement; membership is not. Do not move papers between clusters by hand. Apply the input's `Clustering` steering, if
-any (see `docs/formats.md`), and build the graph viewer (`tools/graph.py`); it shows the chosen parameters, each
-cluster's stability, and the level below.
+A cluster is a group of papers that share an approach, a question, or a line of results: for example "process reward
+models", or "does RL create reasoning capability or only select it". Clusters are computed from the pool. They are never
+copied from the input, or from a previous survey's section headings.
+
+Run the clustering method below, which chooses the similarity measure and the level (scale from coarse to fine) from the
+pool's own data. Then name and define each computed cluster, rate its alignment (how directly it bears on the input's
+questions), and write the Clusters section and the `Clustering rationale` (see "Recording it"). Naming is judgement;
+membership is not. Do not move papers between clusters by hand. Apply the input's `Clustering` steering, if any (see
+`docs/formats.md`), and build the graph viewer (`tools/graph.py`); it shows the chosen parameters, each cluster's
+stability, and the level below.
 
 #### Clustering method
 
@@ -176,10 +181,18 @@ check how much that matters.
 Each target number of clusters is a level, and the method runs over a grid of levels: 3, 4, 5, 6, 8, 10, 12, 15, 18 and
 22 clusters by default.
 
-**Choosing the measure.** There is no default measure: the choice is made on every topic, from its own pool. Compare the
-three measures' stability curves, from the stability tests below, averaged over the whole grid, not at one level. A
-measure must win by more than two standard errors; single levels may go either way. Within that margin it is a tie, and
-the tie goes to `combined`, because it is the one cohesive under both text and references. Cross-scored cohesion (silhouette under `text` and under `refs`) is reported alongside but does not decide: on a single-topic pool it sits near zero for every measure.
+**Choosing the measure.** There is no default measure: the choice is made on every topic, from its own pool, with the
+stability tests below. Each measure's stability at a level is an estimate, the mean over many reruns, with a standard
+error saying how much that mean would move if the reruns were repeated. To compare measures, average each one's
+stability over the whole grid of levels, and combine the levels' standard errors. The measure with the highest average
+wins, unless another measure is within two standard errors of it — a gap that small is probably noise — in which case
+the two are tied. Ties go to `combined`, because it uses both kinds of evidence, and falls back on text for pairs with
+little reference data.
+
+Comparing at a single level would not work, because the ranking can flip from level to level. For example, a measure can
+match another exactly at two levels and lose to it at a third, yet lead clearly on average over the grid. Cross-scored
+cohesion (silhouette under `text` and under `refs`) is reported alongside but does not decide: on a single-topic pool it
+sits near zero for every measure.
 
 **Stability tests.** Stability is measured separately for each measure at each level. The tests are not steps in a
 sequence. They are independent ways of disturbing the data, each compared against the same reference:
@@ -191,8 +204,8 @@ sequence. They are independent ways of disturbing the data, each compared agains
      six-month criterion run backwards.
    - `resampling` — drop a random 20% of the papers. Twenty reruns by default (`--reps`). It asks whether the clusters
      depend on which particular papers retrieval happened to find.
-   - `seeds` — the full pool again, with five different random seeds. It asks whether the algorithm's own randomness
-     matters.
+   - `seeds` — cluster the full pool again, with five different random seeds. It asks whether the algorithm's own
+     randomness matters.
 3. `Compare` — score each rerun against the reference, over the papers both contain, with the adjusted Rand index (ARI).
    ARI asks of every pair of papers whether both clusterings put them together; 1 is identical, 0 is chance.
 4. `Combine` — the stability of a measure at a level is the mean of two numbers: the mean holdout ARI and the mean
@@ -200,7 +213,9 @@ sequence. They are independent ways of disturbing the data, each compared agains
    not enter the score.
 
 Each cluster also gets a clusterwise score, from the resampling reruns: its best overlap (Jaccard) with any cluster in
-each rerun, averaged. Clusters of fewer than three papers get none.
+each rerun, averaged. Clusters of fewer than three papers get none. The overall score can hide a weak cluster: ARI
+counts pairs of papers, so a small cluster dissolving barely moves it. The clusterwise score shows which clusters are
+solid, and it drives the single-cluster diagnostics in "When stability fails" and the sub-cluster rule in "Sizing".
 
 **Choosing the level.** Plot the chosen measure's stability against the number of clusters. The chosen level is the
 finest one whose stability still reaches a threshold `τ`, 0.75 by default: the last level before the curve falls off
@@ -208,14 +223,14 @@ into instability. Do not look for the largest single drop instead. Stability is 
 so the largest drop tends to be the first one, from a trivially stable split into a still-stable one. `τ` is a
 convention, not a derived value, so the report also gives the level that `τ ± 0.05` would choose. The clusters at the
 chosen level are the survey's clusters. The level below is kept as sub-clusters, shown in the viewer and used by
-"Sizing".
+"Sizing" (step 4).
 
 **The null model.** The same pipeline is also run on structure-free data of the same size and shape: random vectors with
 the embeddings' mean and spread, and reference lists reshuffled among papers, keeping each paper's list length and each
 reference's popularity. Real stability well above the null at a level shows the structure there is real. The report also
 gives the threshold-free choice: the level with the largest excess over the null (`--rule null`). On a pool where null
-stability is flat across levels, as on the first topic, this rule reduces to "most stable" and picks the coarsest level.
-It is recorded alongside, and does not decide by default.
+stability is flat across levels, this rule reduces to "most stable" and picks the coarsest level. It is recorded
+alongside, and does not decide by default.
 
 **The fringe score.** `tools/cluster.py` also scores every pool paper for how poorly the rest of the pool covers it. For
 each paper:
@@ -229,13 +244,43 @@ each paper:
 
 A score of 0.95 means the paper is further from its nearest neighbours than 95% of papers its age. The age correction is
 there because older papers sit further from current work simply because the field moved on. Without it, the highest
-scores would go mostly to old papers. The score is per paper, not per cluster, for a related reason: in the fringe test
-on the first topic, `hidden` papers gathered in the cluster of the field's older foundations, so their clustering mostly
-reflected age. Fringe papers did not stand out by switching clusters, only by distance to their nearest neighbours.
+scores would go mostly to old papers. The score is per paper, not per cluster, for a related reason. Clusters can gather
+papers of the same period: overlooked older papers may settle into the cluster of the field's foundations, so a
+cluster-level signal can reflect age more than novelty. A fringe paper shows up as distance to its nearest neighbours,
+not as membership of an unusual cluster.
 
-**Recording it.** The retrieval log's `Clustering` line records the measure, the level, the grid, `k`, `c`, the cutoffs,
-and the stability figures that decided them. The full report stays in the sidecar, and the viewer displays the
-parameters, so the user can see how the clusters were produced.
+**Since when each cluster exists.** The stability test says whether the clusters are trustworthy now. It does not say
+whether a cluster has existed for a while or only just formed. After choosing the level, `tools/cluster.py` answers that
+separately, as post-processing: nothing above depends on it, and it never changes the clusters.
+
+1. `Snapshots` — divide the pool by publication date into four segments with the same number of papers each. A burst of
+   publications then gets narrower segments. Each snapshot is the pool as it stood at the end of a segment, so it
+   includes everything earlier.
+2. `Cluster and match` — cluster each snapshot with today's measure and number of clusters, at five seeds, and match it
+   to today's clusters by shared papers (`tools/match.py`). A cluster is found in a snapshot if a majority of seeds find
+   it.
+3. `First seen` — the earliest snapshot from which a cluster is found in every later one. The result is one date per
+   cluster, not one for the whole map, which the newest cluster would always drag to "today".
+
+Where a cluster is not found, the report says why, from how many of its papers the snapshot already had. Fewer than 10
+is a lack of data, not a change in the field: "too few papers". More means its papers existed but were grouped
+differently, which is a real change. No papers are discarded to equalise snapshot sizes. A snapshot whose own stability
+is below `τ` is itself unreliable, so what it finds is hedged: "probably since …".
+
+Read the result with one caveat. Snapshots are drawn from today's pool, whose older papers are the ones still relevant
+enough to be found and cited today. The history is therefore optimistic: a real earlier pass would have looked messier.
+A cluster that formed only recently is a hint for the `frontier` role and the recency queries.
+
+**Recording it.** Each pass records its clustering in its entry in the retrieval log, the first section of
+`surveys/<topic>.md` (see `docs/formats.md`). The log's `Clustering` line records the measure, the level, the grid, `k`,
+`c`, the cutoffs, and the stability figures that decided them. Next to it, the agent that names the clusters writes a
+`Clustering rationale`: a short paragraph saying why the clusters look as they do. It covers the level and its margin
+above `τ`, the spread of the clusterwise scores with the weak clusters named and diagnosed, how decisive the measure
+choice was, what any steering in the input's `Clustering` section changed, and which clusters are long-standing and
+which are recent, from the `Temporal stability` line. It interprets the figures rather than repeating them, and it does
+not restate the steering request, which lives in the input. Log entries are never rewritten, so each pass keeps the
+rationale for its own clusters. The full report stays in the sidecar, and the viewer displays the parameters and the
+latest pass's rationale, so the user can see how the clusters were produced.
 
 #### When stability fails
 
@@ -254,16 +299,19 @@ a user override that is logged. Otherwise the clustering quietly becomes judgeme
   papers per region, or many papers with few resolved references (the tool reports the share). Expand the thinnest
   regions in step 2 and rerun. If it is still unstable, take the coarsest level and stop for review, so that the user
   chooses with the slider.
-- `scope too broad` — only the coarsest level reaches `τ`, and very stably (0.9 or more). The pool probably mixes
-  unrelated topics, which separate cleanly while everything finer collapses. Ask the user whether the input should be
-  split into two topics.
+
+**A broad scope is not a failure.** Sometimes only the coarsest level reaches `τ`, and very stably (0.9 or more). The
+pool then divides into a few clearly separate areas, while finer divisions are unstable. The clusters are real and
+reproducible, so nothing has failed: it is a fact about the scope. `tools/cluster.py` reports it as `broad scope`. Say
+so in the `Clustering rationale`, and continue at that level without stopping. Whether a few broad clusters are enough
+for the input is a question about the coreset, not about the clusters, and the coverage test (step 7) answers it.
 
 **Single clusters.** The level is stable, but some clusters are not (clusterwise score below 0.6). Here instability is
 information, and the action depends on the pattern:
 
 - `thin cluster` — fewer than 10 papers. It dissolves into its neighbours, which the tool names. Expand that region in a
-  targeted way and rerun. On the first topic, adding ten recent papers turned a 5-paper cluster at 0.18 into a coherent
-  17-paper one.
+  targeted way and rerun. A thin cluster can be a sampling problem rather than a false one, and a handful of added
+  papers may be enough to make it coherent.
 - `clusters trade papers` — two unstable clusters whose papers are grouped together in at least 20% of rerun pairs.
   Their boundary is open in the field itself. Keep both. At selection, give the pair a `bridge` paper, and note the
   tension for the Landscape.
@@ -274,11 +322,10 @@ information, and the action depends on the pattern:
 By default the pass does not stop here; the user reviews the clusters with the finished output. This is affordable
 because verification belongs to a row, not to a cluster: a later change to the clustering costs re-selection and the
 verification of new rows only (see "Changing the clusters after a pass"). Stop and show the user the Clusters table
-before selecting the coreset only when one of these holds:
+before selecting the coreset only when one of these holds (otherwise proceed with coreset generation):
 
 - the input's `Clustering` asks for `review: before coreset`;
-- a whole-clustering diagnostic fires: `no structure`, `no stable level` or `scope too broad` (see "When stability
-  fails");
+- a whole-clustering diagnostic fires: `no structure` or `no stable level` (see "When stability fails");
 - a cluster cannot be rated for alignment from the input;
 - a cluster the input expects is still missing after a targeted expansion.
 
@@ -295,19 +342,42 @@ a manual override.
 
 ### Step 4: select
 
-Fill each cluster's roles according to "Sizing" in `docs/surveys.md`, and record in the `selected because` column why
-each paper fills its role.
+Each coreset paper is selected to play one role in its cluster. Which roles a cluster gets follows its alignment (see
+"Sizing" below). Record in the `selected because` column why each paper fills its role. Why the roles exist, and why
+ranking alone is not enough, is in `docs/coresets.md` ("How coverage is achieved").
 
-- Anchors come from in-degree within the pool.
-- Frontier papers come from step 1 and from recent, high-impact pool entries.
-- Dissent needs a dedicated search for each high-alignment cluster. Search the forward citations of the cluster's anchor
-  and frontier papers, and run relevance queries phrased as challenges: "fails to", "does not", "revisiting", "limits
-  of", "rethinking". If a search finds no dissent, record that the slot is empty and what was searched. An empty dissent
-  slot is information about the cluster, not a failure.
-  - Where the clustering diagnostics report two clusters trading papers, one of them gets a `bridge:<other-id>` paper.
-- Fringe comes last, because its test is relative to the rest of the coreset. Start from the pool papers with the
-  highest fringe scores (see "Clustering method"). Keep a paper only if its `selected because` can name, in one
-  sentence, the idea it carries that no other coreset row does. Five to ten per topic.
+- `anchor` — what the cluster is built on. Anchors come from in-degree within the pool: usually the paper most cited by
+  the other pool papers.
+- `frontier` — where the cluster currently stands: its strongest recent result. Frontier papers come from step 1, where
+  WebSearch usually surfaces them, and from recent, high-impact pool entries.
+- `dissent` — a paper that contradicts the cluster's consensus, breaks one of its assumptions, or reports a negative
+  result against its central claim. Dissent needs a dedicated search for each high-alignment cluster. Search the forward
+  citations of the cluster's anchor and frontier papers, and run relevance queries phrased as challenges: "fails to",
+  "does not", "revisiting", "limits of", "rethinking", etc. If a search finds no dissent, record that the slot is empty
+  and what was searched. An empty dissent slot is information about the cluster, not a failure.
+- `bridge` — a paper that connects two clusters, for example by applying one cluster's method to another's question.
+  Written `bridge:<other-cluster-id>`. It is optional, but bridges are where the Landscape's structure becomes visible.
+  Where the clustering diagnostics report two clusters trading papers, one of them gets a bridge paper.
+- `fringe` — a paper that carries an idea no other coreset row has, and that the field has so far overlooked: it sits
+  far from its nearest neighbours in the pool, for its age. It is placed in the cluster it was computed into, but it
+  does not represent that cluster; it represents what the clusters leave out. Fringe comes last, because its test is
+  relative to the rest of the coreset. Start from the pool papers with the highest fringe scores (see "Clustering
+  method"). Most papers far from their neighbours are there for a good reason. So keep a paper only if its
+  `selected because` can name, in one sentence, the idea it carries that no other coreset row does. Five to ten per
+  topic.
+
+**Sizing.** A cluster gets more rows the more directly it bears on the input, not the more papers it has:
+
+- `high` — anchor, frontier and dissent at minimum. Add a second frontier paper or a bridge where the cluster is
+  internally divided.
+- `medium` — anchor and frontier.
+- `low` — anchor only. That is enough for the Landscape to be honest about the cluster existing.
+
+The number of clusters is not chosen; it is the stable level found in step 3. Where the level below it splits a
+high-alignment cluster into stable sub-clusters, the cluster counts as internally divided and gets the extra frontier or
+bridge. Expect roughly two to four rows per cluster, plus the topic's five to ten `fringe` rows. Past roughly 80 rows,
+check whether any role is filled twice. If none is, the size is legitimate, for example on a topic with many `high`
+clusters; report the count and the reason.
 
 ### Step 5: characterise and verify
 
@@ -334,15 +404,18 @@ directly:
 2. For each candidate, ask two questions. Does it belong to a cluster not yet in the Clusters table? Would it change a
    claim in one of the coreset's targets — a landscape axis, an assumption, a gap, or an answer to a question the
    input's `Coreset Spec` declares? `Questions` and `Reading` are not targets; see `docs/coresets.md`.
-3. Record the result as `K of N sampled candidates changed the output`, and name the ones that did.
+3. Record the result in the pass's entry in the retrieval log, as a `Coverage test` line:
+   `K of N sampled candidates changed the output`. Name each candidate that did, with what it changed: the target and
+   the claim, such as a new gap or a revised assumption. Name any new cluster too. Each round gets its own line. The
+   format is in `docs/formats.md` ("1. Retrieval log").
 
-Stop when a round produces no new cluster and at most one output change. Say so in the log, with the numbers. Otherwise,
-add the papers that changed things in their proper roles, revise the output, and sample again. Two rounds without
-convergence stop the pass: report to the user and ask how to proceed.
+Stop when a round produces no new cluster and at most one output change. Say so in the log's `Stopped because` line,
+with the numbers. Otherwise, add the papers that changed things in their proper roles, revise the output, and sample
+again. Two rounds without convergence stop the pass: report to the user and ask how to proceed.
 
-This replaces an earlier rule based on the fraction of screened candidates already present in the survey. On an active
-topic that fraction falls as the seeds improve, because each better seed opens a larger neighbourhood. On this repo's
-first topic it measured 4–12% on the best seeds and could never have reached its threshold.
+Do not stop on the fraction of screened candidates already present in the survey instead. On an active topic that
+fraction falls as the seeds improve, because each better seed opens a larger neighbourhood, so it may never reach any
+threshold.
 
 ## Later passes
 
@@ -361,8 +434,9 @@ coreset rows.
 
 ### Changing the clusters after a pass
 
-The user steers the clustering through a fixed set of levers. Each can be given in advance, in the input's `Clustering`
-section, or requested after a pass. Membership is not one of them: papers are never moved between clusters by hand.
+The user can steer the clustering through a fixed set of levers. Each can be given in advance, in the input's
+`Clustering` section, or requested after a pass. Membership is not one of them: papers are never moved between clusters
+by hand.
 
 - `Level` — a coarser or finer clustering, chosen with the viewer's slider. Merging two clusters means a coarser level;
   splitting one means a finer level.

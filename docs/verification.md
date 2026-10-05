@@ -55,9 +55,7 @@ Four rules decide the edge cases:
 
 `source` ratchets upward. It is never lowered to express doubt; doubt belongs in the row's text and in the log.
 
-**Verifying the whole coreset** is this operation applied to every row. It is safe to run at any time: verified rows are
-cheap to re-check and cannot be made worse, and the operation is resumable. Dispatch it in disjoint cluster blocks.
-Expect roughly 10k tokens per row.
+**Verifying the whole coreset** is this operation applied to every row of the coreset. It is safe to run at any time: verified rows are cheap to re-check and cannot be made worse, and the operation is resumable. Dispatch it in disjoint cluster blocks. Expect roughly 10k tokens per row.
 
 ## Probes
 

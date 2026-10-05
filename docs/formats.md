@@ -48,8 +48,8 @@ An .md file with at least one section, and several optional ones:
 ## `surveys/<topic>.md`
 
 The factual cache for a topic, and the only input to its output `outputs/<topic.md>`. It contains five sections, in this
-order, and nothing else. This subsection section describes only the *formatting*; for more survey semantics see
-`docs/surveys.md`.
+order, and nothing else. This subsection section describes only the *formatting*. What the pool and coreset are for is
+in `docs/coresets.md`; how each section is produced, including roles and sizing, is in `docs/process.md`.
 
 It is descriptive about the papers: no judgements of quality or importance. Selection is the exception. Choosing a
 coreset is a judgement, so each coreset row records why it was chosen (`Coreset` section), and the `Clusters` section
@@ -75,11 +75,20 @@ One entry per pass, in date order:
   null-model rule: L clusters); τ=<τ>, k=<k>, c=<c>;
   holdout cutoffs <dates>; diagnostics: none | <each case, and the action taken>; manual overrides: none | <what the
   user changed>
+- **Temporal stability:** 4 equal-count segments; snapshots <date> (N papers, stability S), ...; <per cluster, separated
+  by " | ": its id from the Clusters table and since when it exists, e.g. "since 2025-10-09; before that, too few papers
+  (5)", "probably since 2025-03-24 or earlier (that snapshot's stability 0.40)", "new since 2026-05-25; before that,
+  its papers were grouped differently (merged)">
+- **Clustering rationale:** <a short paragraph: why the clusters look as they do — the level and its margin above τ;
+  the spread of cluster scores, with weak clusters named and diagnosed; how decisive the measure choice was; what any
+  steering in the input's `Clustering` section changed; and which clusters are long-standing and which recent>
 - **Clusters:** N (H high, M medium, L low); stopped for review: no | <trigger>; reviewed by user YYYY-MM-DD | not yet
   reviewed
 - **Dissent searches:** <cluster id>: <what was searched> -> <found: id | none found>
 - **Coreset:** N rows
-- **Coverage test:** round R: K of N sampled candidates changed the output (<ids>); new clusters: none | <which>
+- **Coverage test:** round R: K of N sampled candidates changed the output (<id>: <what it changed>, ...); new
+  clusters: none | <which> (one line per round; "what it changed" names the target and the claim, e.g. "gap: <the new
+  gap>" or "assumption: <which one>, revised")
 - **Corrections to existing rows:** <id> — <old text> -> <new text>, and why
 - **Stopped because:** <which condition, with the measured numbers>
 ```
@@ -192,7 +201,8 @@ spec dimensions in the input. For example, if `Assumptions` is part of that spec
 assumptions made by the search work in the coreset, and rank them by likelihood and feasiblity, linking back to the most
 informative dissent papers coreset-wide. In addition, always include at least the following two subsections:
 
-- `Questions` — candidate research questions, with the coreset papers each builds on.
+- `Questions` — candidate research questions, with the coreset papers each builds on. The `fringe` rows are the first
+  place to look for them.
 
 - `Reading` — a prioritised reading list for anyone jumping into this topic, with a one-line rationale per entry.
 

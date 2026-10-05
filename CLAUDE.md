@@ -42,8 +42,7 @@ below, at the moment given below, and skip the rest.
 | `docs/roadmap.md` | main session | at session start; update it before the session ends |
 | `docs/dispatch.md` | main session | before planning a pass or dispatching any subagent |
 | `docs/coresets.md` | main session, `survey-pass` | when a design question turns on what the coreset is for, or before changing a rule about selection, coverage or sizing |
-| `docs/surveys.md` | main session, `survey-pass` | before planning a pass, or judging clusters, roles or coreset size |
-| `docs/process.md` | main session, `survey-pass` | before planning a pass (especially its "Order of operations"), and before any retrieval |
+| `docs/process.md` | main session, `survey-pass` | before planning a pass (especially its "Order of operations"), before any retrieval, and before judging clusters, roles or coreset size |
 | `docs/formats.md` | all | before writing to any `inputs/`, `surveys/`, `outputs/` or `bib/` file |
 | `docs/verification.md` | `survey-pass` | before verifying a row or running a probe |
 | `docs/tooling.md` | all | before running anything in `tools/` |

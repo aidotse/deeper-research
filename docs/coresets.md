@@ -99,7 +99,8 @@ an artefact of the run.
   neighbours, measures how poorly the rest of the pool covers it.
 
 `Sizing follows alignment, not size.` A cluster gets more rows the more directly it bears on the input, not the more
-papers it has (`docs/surveys.md`, "Sizing"). A covering needs one representative per region, however dense the region.
+papers it has (`docs/process.md`, step 4, "Sizing"). A covering needs one representative per region, however dense the
+region.
 
 ## How the two tests are applied
 
