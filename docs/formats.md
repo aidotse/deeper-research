@@ -314,7 +314,7 @@ verifying agents write `evidence/` (`docs/verification.md`, "Recording the evide
 | `evidence/<id>.md` | per verified coreset row: the verbatim quotes each claim rests on, and where they are in the paper | the verifying agent (step 5), one file per row, so parallel agents never share one | reviewers, auditors; `tools/check.py` (`G4`), which finds every full-text quote in the full text | yes: it is the record behind `source` |
 | `fulltext/<id>.txt` (10–70k tokens each) | a paper's full text, flattened | `tools/fulltext.py` (step 5) | the verifying agent, by Grep and section | no: third-party text, regenerable |
 | `references.json` | reference lists for a survey without a pool | `tools/graph.py` | `tools/graph.py` | yes |
-| `history.json`, `match-simulation.json`, `recursive.json`, `fringe-analysis.json` | reports of the experiments in `docs/tooling.md` | `tools/match.py`, `tools/recursive.py`, `tools/fringe.py analyse` | people, and `docs/roadmap.md` | yes |
+| `history.json`, `match-simulation.json`, `recursive.json`, `fringe-analysis.json` | reports of the experiments in `docs/tooling.md` | `tools/match.py`, `tools/recursive.py`, `tools/fringe.py analyse` | people; `recursive.json` and `match-simulation.json` are the evidence for two proposals in `docs/roadmap.md` | yes |
 
 `pool.json` and `clusters.json` are what make the clustering reproducible offline, `fringe.json` with `fringe-screen.md`
 is the record of what the fringe routes found and how it was screened, and `rejected.md` the record of what expansion

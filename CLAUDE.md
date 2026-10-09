@@ -51,10 +51,11 @@ below, at the moment given below, and skip the rest.
 | `docs/responses.md` | all | never separately: it is imported below |
 | `docs/vs_deep_research.md` | human reviewers only | not instructions; skip it |
 
-In particular, `docs/roadmap.md` is the working continuity file. Keep it current: when a decision is taken, a proposal
-is adopted into the spec, or work is left unfinished, update it before the session ends. It is for the main session only
-because it holds proposals that are not yet spec. A proposal becomes spec only when it is moved into one of the spec
-files in the index above.
+In particular, `docs/roadmap.md` is the list of open items: decisions still to take, fixes, known gaps, proposals and
+claims to verify, each with the context it needs and nothing more. None of it is spec, which is why it is for the main
+session only: a proposal becomes spec only when it is moved into one of the spec files in the index above. Keep it
+current before the session ends: add an item when work is left unfinished or a proposal is raised, and delete an item
+once it is done, adopted or dropped. Git history keeps the record of what was removed.
 
 ## Rules
 
