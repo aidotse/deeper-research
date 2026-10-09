@@ -4,12 +4,13 @@ The continuity file. It records where the work stands, so that a new session or 
 without the conversation that produced it. It is for the main session only. Anything under "Open items" is not part of
 the spec; do not follow it in a pass until it is moved into the relevant `docs/` file.
 
-## State (2026-09-29)
+## State (2026-10-09)
 
 - `Spec` — `docs/coresets.md`, `docs/process.md`, `docs/formats.md`, `docs/verification.md`, `docs/dispatch.md`,
-  `docs/tooling.md` and `docs/external_services.md` are current, including everything adopted on 2026-09-29 (below). The
-  user has **not yet reviewed the spec in detail**; that is the next step. The user is also consolidating `CLAUDE.md` by
-  hand.
+  `docs/gates.md`, `docs/tooling.md` and `docs/external_services.md` are current, including everything adopted through
+  the audit of 2026-10-05 to 2026-10-09 (`.audits/2026-10-05-docs-and-tools.md`, now closed).
+- `Branch` — the audit's work is on the branch `audit-phases-1-4`, four commits ahead of `main`, not merged or pushed;
+  merging is the user's call.
 - `Surveys` — `surveys/reasoning.md` is the only topic. It is a legacy survey, written before the coreset spec: no
   Clusters or Pool section, 195 papers all fully characterised (about 10k tokens each, roughly 2M in total), grouped in
   hand-drawn blocks A–Q. It is the test corpus for everything below.
@@ -381,11 +382,24 @@ and, from D1, 10% late additions before a recluster.
    `.audits/2026-10-05-docs-and-tools.md`: issues with remediations, six decisions for the user, and a phased action
    plan. Phases 0–4 are done (2026-10-08 and 2026-10-09), including the dry read, and so is the follow-up: the gates
    (`docs/gates.md`, `tools/gates.py`), adopted 2026-10-09.
-2. Close the tool gaps above.
-3. The fresh coreset run: rename the old input, survey and output to `reasoning-exhaustive`; create a new
-   `inputs/reasoning.md` that lists the old survey as Context; set `review: before coreset` in its `Clustering` section,
-   since this is the first real run, and run steps 1–3 to that review, in the viewer, with token accounting from the
-   start. Pilot the judgement audits (above) on it.
+2. Decide two points before the fresh run (raised 2026-10-09):
+   - `How a previous survey's papers enter the pool` — `CLAUDE.md` says a survey listed as `Context` is a source whose
+     papers enter the new pool, but no procedure says how: added by script as in scope, or screened against the new
+     input like any candidate (recommended, since the new input may scope the topic differently).
+   - `Reused verified rows and the evidence gate` — `CLAUDE.md` lets a verified row be reused without re-verification,
+     but `g4.evidence` requires an evidence file, and `reasoning`'s rows have none. Options: re-verify reused rows
+     (about 10k tokens each); accept an evidence file that records the reuse (the survey and date it was verified in,
+     evidence not kept), listed in a note and sampled first by the G4 audit (recommended); or waive per row.
+3. The fresh coreset run:
+   - Rename the old topic everywhere to `reasoning-exhaustive`: `inputs/`, `surveys/`, `outputs/`, `bib/` and
+     `graphs/reasoning/` (its pool, clustering, fringe sheet and full texts). Left in place, `graphs/reasoning/` would
+     feed the old fringe judgements and clustering into the new pass.
+   - Write a new `inputs/reasoning.md` that lists `surveys/reasoning-exhaustive.md` as `Context`, with
+     `review: before coreset` in its `Clustering` section, since this is the first real run.
+   - Run steps 0–3 down the checklist, passing gates `G0` to `G2`, to the `H13` review in the viewer, with token
+     accounting (`Tokens`) from the first dispatch.
+   - Pilot the judgement audit that falls inside this stretch, `G1`'s screening sample; the `G3`–`G5` audits wait for
+     the coreset stage.
 4. On that real pool, revisit the first-guess thresholds and the findings above.
 
 Separately, at any point: a dedicated session on recursive clustering with a shakedown (see "Ideas raised" and the
