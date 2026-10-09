@@ -266,6 +266,45 @@ so that the cheapest audit, whether a quote supports its cell, needs no new sear
 none; their evidence was never kept, and only re-verification would recover it. Pilot it on the fresh coreset run, and
 adopt it into `docs/gates.md` once the agreement rates of a real pass are known.
 
+**Proposed, not yet spec: pool recall** (2026-10-09; for a fresh session, before the fresh coreset run). The pool is
+grown mainly by citation traversal from step 1's frontier candidates, plus relevance and snippet search and the two
+fringe routes. Three concerns, raised by the user:
+
+- `Shadow papers` — concurrent work on the same idea that does not cite its twin, and is not cited by it. Backward
+  traversal cannot reach it; text search finds it only if the agent's queries match its vocabulary, which is often not
+  yet settled for new work. No route covers papers older than about two months (the `new` route's limit) and younger
+  than a year (the `hidden` route's floor) that are not yet cited.
+- `Prior work traversal skipped` — on `reasoning`, 198 papers outside the pool are cited by at least five pool papers,
+  and the `hidden` route offered one of them, since it picks the least cited by design. `reasoning` is a curated legacy
+  survey, not an expansion's pool, so this overstates a real pass's gap, and many of the 198 will be infrastructure
+  (model reports, benchmarks) that screening would reject.
+- `Size` — 195 papers looks thin for a topic as active as test-time compute and reasoning (the relevant literature
+  probably runs to thousands, `UNVERIFIED`). As designed, pool size is capped by screening cost, about 0.85k tokens per
+  candidate, not by fetching or clustering, which are cheap scripts. And the coverage test checks the coreset against
+  the pool, not the pool against the field, so a thin pool gives a coreset that looks sufficient while missing whole
+  regions. Pool recall is currently unmeasured.
+
+Proposed, to build and pilot together:
+
+1. `Route: co-cited` — outside papers cited by at least k pool papers, whatever their citation count. The data is
+   already in `pool.json`; a script ranks them, and they are screened blind like the fringe candidates.
+2. `Route: coupled` — outside papers that cite at least k pool papers, ranked by the share of their references that are
+   pool papers (bibliographic coupling), restricted to a recent window (about the last twelve months). This is the one
+   that finds shadow papers: a concurrent twin cites the same foundations. It needs one new script fetch, the citers of
+   pool papers from the Graph API, within the window.
+3. `A recall estimate` — capture–recapture between fairly independent routes (text search against `coupled`): the
+   overlap of their in-scope finds estimates how many both missed. Routes are never fully independent (all favour
+   well-connected work), so it is a lower bound on what is missing. Log it in a `Recall` line, as a diagnostic only;
+   `process.md` rightly forbids using "share already found" as a stopping rule.
+4. `Cheaper screening`, so that a larger pool is affordable: a SPECTER2 similarity prefilter that auto-rejects
+   candidates clearly far from the pool and sends only the uncertain band to an agent; or screening by a cheaper model,
+   with the `G1` judgement audit measuring its error rate. Either needs the audit to show it does not lose in-scope
+   papers.
+
+Caps per route (say 50 candidates each, about 85k tokens of screening for both) keep the cost bounded until the recall
+estimate shows whether more is needed. Open: k for each route (first guesses 3–5), the coupling window, the prefilter's
+threshold, and whether cheaper screening is safe enough to adopt.
+
 **Not yet built:**
 
 - Discovery lag: a paper on arXiv but not yet in Semantic Scholar is invisible to Asta, and `tools/pool.py` cannot fetch
@@ -382,7 +421,8 @@ and, from D1, 10% late additions before a recluster.
    `.audits/2026-10-05-docs-and-tools.md`: issues with remediations, six decisions for the user, and a phased action
    plan. Phases 0–4 are done (2026-10-08 and 2026-10-09), including the dry read, and so is the follow-up: the gates
    (`docs/gates.md`, `tools/gates.py`), adopted 2026-10-09.
-2. Decide two points before the fresh run (raised 2026-10-09):
+2. Decide before the fresh run (raised 2026-10-09), in a fresh session: the pool-recall proposal above (new routes, a
+   recall estimate, cheaper screening), and two smaller points:
    - `How a previous survey's papers enter the pool` — `CLAUDE.md` says a survey listed as `Context` is a source whose
      papers enter the new pool, but no procedure says how: added by script as in scope, or screened against the new
      input like any candidate (recommended, since the new input may scope the topic differently).
