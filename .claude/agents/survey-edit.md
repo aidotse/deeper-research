@@ -20,6 +20,8 @@ clusters, selecting roles, verifying claims, running probes — belongs to `surv
 
 ## Rules
 
+- Never Read a JSON file in `graphs/<topic>/`, or `graph.html`, whole; use `jq` for one field (`docs/formats.md`,
+  "`graphs/<topic>/`").
 - Stay inside the scope you were given. Another agent may be editing other blocks of the same file in parallel.
 - Use `Edit`, never `Write`, on the survey. `Write` would destroy concurrent work.
 - Move a row between cluster blocks only to match the computed cluster assignment (`docs/process.md`, step 3). Cluster

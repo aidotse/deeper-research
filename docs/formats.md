@@ -17,8 +17,10 @@ An .md file with at least one section, and several optional ones:
   target, and nothing else. Why the coreset is defined this way is in `docs/coresets.md`.
 
   If the section is omitted, the targets are `Landscape`, `Assumptions` and `Gaps`. An input may add more, such as
-  specific research questions. `Questions` and `Reading` are derived from the targets, so they are never targets
-  themselves. The default targets:
+  specific research questions, one top-level bullet per added target; the defaults still apply unless the section says
+  which to drop. Each target gets its own section in the output. Research questions placed in `Context` steer the search
+  but are not targets, so the coverage test does not check them. `Questions` and `Reading` are derived from the targets,
+  so they are never targets themselves. The default targets:
 
   - `Landscape` — the general clusters, the axes that actually separate them, and where the bridges and tensions are.
 
@@ -68,7 +70,9 @@ An .md file with at least one section, and several optional ones:
 ## `surveys/<topic>.md`
 
 The factual cache for a topic, and the only input to its output `outputs/<topic>.md`. It contains five sections, in this
-order, and nothing else. This section describes only the *formatting*. What the pool and coreset are for is in
+order, and nothing else: under a `# ` title, the `##` headings `Retrieval log`, `Clusters`, `Coreset`, `Pool` and
+`Open work`. On a first pass the main session writes them empty; `tools/assign.py add` writes the Pool table's header
+with its first row. This section describes only the *formatting*. What the pool and coreset are for is in
 `docs/coresets.md`; how each section is produced, including roles and sizing, is in `docs/process.md`.
 
 It is descriptive about the papers: no judgements of quality or importance. Selection is the exception. Choosing a
@@ -108,7 +112,7 @@ One entry per pass, in date order:
 
 - **Preflight:** snippet_search ok | search_papers_by_relevance ok | get_paper ok | get_citations ok | WebSearch ok |
   Graph API ok | arXiv ok | uv ok | Asta key set
-- **Orientation (WebSearch):** "<exact query>", ...
+- **Orientation (WebSearch):** "<exact query>", ...; frontier candidates: <id>, ...
 - **Expansion:** <which papers were traversed, in which direction, with counts>; queries "<exact query>", ...
 - **Errored queries:** none | "<query>" (429, failed after 3 retries; retried at the end of the step: <outcome>)
 - **Recency window:** <the window>, applied to the recency queries only
@@ -140,17 +144,17 @@ One entry per pass, in date order:
 - **Probes:** none | "<question>": searched <phrasings, citation traversals, WebSearch, date ranges> -> found: <ids> |
   survived a refutation attempt
 - **Corrections to existing rows:** <id> — <old text> -> <new text>, and why
-- **Tokens:** <step>: <tokens>, ... (per dispatch, as reported; from the fresh run on)
+- **Tokens:** <step>: <tokens>, ... (per dispatch, from the usage reported when the dispatch returns)
 - **Halts:** none | <id> — <what happened> — <the user's decision, YYYY-MM-DD>; ...
 - **Ended:** finished (F1) | halted (<id>); <the measured numbers>
 ```
 
-The `F1` and `H` IDs are defined in `docs/process.md`, "When a pass ends". Six lines, or parts of them, are printed by
-scripts, ready to paste: the script half of `Preflight` by `tools/preflight.py`; `Pool` by `tools/pool.py`, which
-`tools/assign.py late` also runs; `Fringe` and `Late papers` by `tools/assign.py`; and `Clustering` and
-`Temporal stability` by `tools/cluster.py`. Replace the computed cluster ids (`c1`, `c2`, …) with the Clusters table's
-ids, and each `<action taken>` with what was done. Every other number in the log comes from a script's printout or a
-tool's result, never from counting by hand.
+The `F1` and `H` IDs are defined in `docs/process.md`, "When a pass ends". Who writes each line is in its order of
+operations, column `writes`. Six lines, or parts of them, are printed by scripts, ready to paste: the script half of
+`Preflight` by `tools/preflight.py`; `Pool` by `tools/pool.py`, which `tools/assign.py late` also runs; `Fringe` and
+`Late papers` by `tools/assign.py`; and `Clustering` and `Temporal stability` by `tools/cluster.py`. Replace the
+computed cluster ids (`c1`, `c2`, …) with the Clusters table's ids, and each `<action taken>` with what was done. Every
+other number in the log comes from a script's printout or a tool's result, never from counting by hand.
 
 ### 2. Clusters
 
@@ -210,9 +214,7 @@ written by `tools/assign.py clusters` and `late`.
 
 The data that clustering needs — full reference lists, including references outside the pool, and (e.g. SPECTER2)
 embeddings — is too large for a markdown table. It lives in the pool sidecar, `graphs/<topic>/pool.json`, with the
-clustering report in `graphs/<topic>/clusters.json` alongside. These two files are part of the survey's record: they are
-what makes the clustering reproducible offline. The viewer, `graphs/<topic>/graph.html`, is not: it is rebuilt from them
-and is not committed.
+clustering report in `graphs/<topic>/clusters.json` alongside; see "`graphs/<topic>/`" below.
 
 ### 5. Open work
 
@@ -287,3 +289,35 @@ it is marked `[abstract-only]`, next to the paper's ID. Every output opens with 
 and saying what was missing if the pass continued past a halt (`docs/process.md`, "When a pass ends"). Run
 `python3 tools/check.py <topic>` before treating an output as finished: it lists every `abstract`-sourced paper the
 output cites.
+
+## `graphs/<topic>/`
+
+The working files of a pass: everything the scripts compute that is too large, or too numeric, for the survey. Scripts
+write them, never agents, with one exception: the screening agent fills two columns of `fringe-screen.md`. Sizes are
+from `reasoning` (about 200 pool papers).
+
+| file | what it holds | written by | read by | in git |
+| -- | -- | -- | -- | -- |
+| `pool.json` (1.6 MB) | per pool paper: date, citation count, full reference list, SPECTER2 embedding, fetch date | `tools/pool.py` (step 2, and inside `tools/assign.py late`) | every script that clusters, scores or draws the pool | yes |
+| `clusters.json` (150 KB) | the clustering report: measures, levels, stability, assignment, sub-clusters, fringe scores, diagnostics, cluster history, the match to the previous clustering, and late assignments | `tools/cluster.py` (steps 2 and 3, and any recluster); `tools/assign.py late` and `remap` add to it | `tools/sheets.py`, `assign.py`, `check.py`, `graph.py`, `fringe.py` | yes |
+| `fringe.json` (1.3 MB) | the fringe candidates: route, metadata, references, embedding | `tools/fringe.py collect` (step 2) | `tools/assign.py add-fringe` | yes |
+| `fringe-screen.md` (120 KB, about 30k tokens) | the blind screening sheet: one row per candidate, shuffled, without its route, with the agent's `in scope` (`yes` or `no`) and `reason` | `tools/fringe.py collect` writes the rows, keeping earlier judgements on a rerun; the screening agent fills `in scope` and `reason` (step 2) | `tools/assign.py add-fringe` | yes: the judgements are part of the pass's record |
+| `naming-sheet.md` (about 3k tokens) | per computed cluster: size, stability, since when it exists, diagnostics, most-cited and most recent papers, sub-clusters | `tools/sheets.py` (step 3) | the naming agent (step 3) and the selection agents (step 4) | no: regenerable |
+| `fringe-sheet.md` (about 1k tokens) | the highest fringe scores, with year, cluster, reference count, and whether the paper is a coreset row | `tools/sheets.py` (step 3) | the fringe-selection agent (step 4) and the coverage-test agent (step 7) | no: regenerable |
+| `graph.html` (1.3 MB) | the viewer | `tools/graph.py` (step 3) | the user, in a browser | no: regenerable |
+| `fulltext/<id>.txt` (10–70k tokens each) | a paper's full text, flattened | `tools/fulltext.py` (step 5) | the verifying agent, by Grep and section | no: third-party text, regenerable |
+| `references.json` | reference lists for a survey without a pool | `tools/graph.py` | `tools/graph.py` | yes |
+| `history.json`, `match-simulation.json`, `recursive.json`, `fringe-analysis.json` | reports of the experiments in `docs/tooling.md` | `tools/match.py`, `tools/recursive.py`, `tools/fringe.py analyse` | people, and `docs/roadmap.md` | yes |
+
+`pool.json` and `clusters.json` are what make the clustering reproducible offline, and `fringe.json` with
+`fringe-screen.md` is the record of what the fringe routes found and how it was screened; so all four are committed.
+
+**Never Read a JSON file here, or `graph.html`, whole.** They are mostly embeddings and numbers: `pool.json` alone is
+about 400k tokens. What an agent needs from them reaches it in three ways:
+
+- a script's printout, which the main session hands over with the job (`docs/dispatch.md`, "Briefs");
+- a sheet: `naming-sheet.md`, `fringe-sheet.md`, `fringe-screen.md`. These are written to be read whole;
+- `jq`, for one field, never a whole record, which carries the embedding, for example
+  `jq '.papers["2504.13837"] | {date, citations, reference_count}' graphs/<topic>/pool.json`.
+
+A full text is searched with Grep and read only at the matching sections (`docs/verification.md`).

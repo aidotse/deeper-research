@@ -169,9 +169,9 @@ frontier, the field's vocabulary, OpenReview, lab blogs, system cards, release n
 
 ## Preflight
 
-The preflight check runs at the start of every pass, before step 1. It is done by the `survey-pass` agent dispatched for
-step 1, and its outcome is the first line of the pass's retrieval log. It costs a few calls and a few thousand tokens.
-What it buys is that no pass runs on a missing service without the user knowing.
+The preflight check runs at the start of every pass, before step 1. It is done by a `survey-pass` agent dispatched for
+it alone (`docs/dispatch.md`, "Briefs"), and its outcome is the first line of the pass's retrieval log. It costs a few
+calls and a few thousand tokens. What it buys is that no pass runs on a missing service without the user knowing.
 
 Every check below must pass. If any fails, the pass halts (`H1` in `docs/process.md`, "When a pass ends"): the agent
 returns a `STOP:` report, and the main session tells the user. The one exception is a Graph API 429, which counts as
@@ -189,8 +189,8 @@ reachable.
 | `uv` installed | `python3 tools/preflight.py`; needed from step 2: by `tools/cluster.py` and `tools/fringe.py`, then `tools/fulltext.py` and `tools/assign.py late` |
 | Asta key set | `python3 tools/preflight.py`, which runs `tools/asta_config.py` |
 
-The main session runs `tools/preflight.py` before dispatching the agent for step 1, and passes its printout on: it is
-the second half of the log's `Preflight` line. The agent makes the five tool calls.
+The main session runs `tools/preflight.py` before dispatching the preflight agent, and passes its printout on: it is the
+second half of the log's `Preflight` line. The agent makes the five tool calls.
 
 Why every failure halts:
 

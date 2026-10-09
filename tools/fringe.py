@@ -18,8 +18,8 @@ A third route, `followers` (low-cited citers of each cluster's most-cited paper)
 
 It fetches their metadata, references and embeddings into graphs/<topic>/fringe.json, and writes a blind screening
 sheet, graphs/<topic>/fringe-screen.md: titles and abstracts in shuffled order, without the route, for an agent to
-mark in or out of scope. Each candidate records its arXiv ID or, failing that, its CorpusId; tools/assign.py
-add-fringe then adds the in-scope ones to the pool.
+mark in or out of scope. A rerun keeps the judgements already on the sheet. Each candidate records its arXiv ID or,
+failing that, its CorpusId; tools/assign.py add-fringe then adds the in-scope ones to the pool.
 
 `analyse` adds the in-scope candidates to the pool and reclusters with the chosen measure. Per route, it reports how
 consistently papers keep their cluster-mates across reruns, how close they sit to their nearest neighbours, and whether
@@ -124,12 +124,19 @@ def collect(topic, per_route):
     (d / "fringe.json").write_text(json.dumps({"collected": time.strftime("%Y-%m-%d"), "routes": routes,
                                                 "candidates": cands}, separators=(",", ":")))
 
-    # Blind screening sheet: shuffled, no route, no citation counts.
+    # Blind screening sheet: shuffled, no route, no citation counts. Judgements already on the sheet, from an earlier
+    # collect, are carried over, so a rerun never erases screening work.
+    earlier = {}
+    if (d / "fringe-screen.md").exists():
+        for line in (d / "fringe-screen.md").read_text().splitlines():
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if len(cells) >= 6 and re.fullmatch(r"[0-9a-f]{40}", cells[0]) and cells[4]:
+                earlier[cells[0]] = (cells[4], cells[5])
     order = sorted(cands)
     random.Random(0).shuffle(order)
     clean = lambda s: re.sub(r"\s+", " ", s).replace("|", "/").strip()
-    rows = [f"| {x} | {clean(cands[x]['title'])} | {cands[x]['year'] or ''} | {clean(cands[x]['abstract'])[:700] or '(no abstract)'} |  |  |"
-            for x in order]
+    rows = [f"| {x} | {clean(cands[x]['title'])} | {cands[x]['year'] or ''} | {clean(cands[x]['abstract'])[:700] or '(no abstract)'} | "
+            f"{' | '.join(earlier.get(x, ('', '')))} |" for x in order]
     (d / "fringe-screen.md").write_text(
         "# Fringe screening sheet\n\n"
         f"Candidates for `{topic}`, in shuffled order. Mark `in scope` as `yes` or `no`, with a short reason.\n\n"
@@ -139,7 +146,7 @@ def collect(topic, per_route):
         print(f"{route:9} {len(got):3} candidates; median citations {sorted(m['citations'] for m in got)[len(got) // 2] if got else '-'}; "
               f"with arXiv id {sum(1 for m in got if m['arxiv'])}")
     print(f"wrote {(d / 'fringe.json').relative_to(ROOT)} and {(d / 'fringe-screen.md').relative_to(ROOT)} "
-          f"({len(cands)} unique candidates)")
+          f"({len(cands)} unique candidates; {sum(x in earlier for x in cands)} already judged, carried over)")
 
 
 def main(argv):

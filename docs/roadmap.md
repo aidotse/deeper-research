@@ -368,7 +368,8 @@ and, from D1, 10% late additions before a recluster.
 
 1. The user reviews the spec in detail. An audit of the spec, agent files and tools (2026-10-05) is in
    `.audits/2026-10-05-docs-and-tools.md`: issues with remediations, six decisions for the user, and a phased action
-   plan. Phases 0–3 are done (2026-10-08); continue with Phase 4, the agent-facing layer and a dry read.
+   plan. Phases 0–4 are done (2026-10-08 and 2026-10-09), including the dry read; the audit is closed apart from the
+   open items below.
 2. Close the tool gaps above.
 3. The fresh coreset run: rename the old input, survey and output to `reasoning-exhaustive`; create a new
    `inputs/reasoning.md` that lists the old survey as Context; set `review: before coreset` in its `Clustering` section,

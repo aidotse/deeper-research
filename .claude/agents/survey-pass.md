@@ -25,10 +25,14 @@ label plausibly but wrongly passes every automated check there is. So does a `di
 disagree with its cluster, or a cluster boundary drawn in the wrong place. Nothing downstream will catch either. Treat
 that as the reason to slow down on the calls that matter, not as licence to be thorough about everything equally.
 
+Your job's brief is in `docs/dispatch.md` ("Briefs"): what you are handed, what you write, and what you return.
+
 Return to the caller ONLY a short report: what you did, what you added or changed, the numbers the retrieval log needs,
 and anything you were unsure about. Numbers come from script output (`tools/check.py`, `tools/cluster.py`) or from what
 a tool returned, never from your own counting. Do not return content, abstracts, snippets, or table rows in your
-response. They belong in the file, not in your reply.
+response. They belong in the file, not in your reply. The one exception: if you run in parallel with other agents, do
+not write the retrieval log or Open work, which they share. End your report with the lines meant for them instead, under
+`Log:` and `Open work:`, and the main session writes them.
 
 If you meet a halt condition (`docs/process.md`, "When a pass ends"), stop the job, write what is outstanding to Open
 work, and make the first line of your report `STOP: <id> — <the reason>`. You cannot reach the user; the main session
@@ -43,6 +47,13 @@ Your report is the only thing the caller sees, so it must not be more confident 
 - Flag judgement calls explicitly rather than picking silently. A named uncertainty is cheap; a laundered guess is not.
 - Do not compute tallies in prose. `tools/check.py` recomputes them from the file, and hand arithmetic in a report has
   been wrong here before. Report what you classified, not how many.
+
+## Reading the files
+
+Never Read a JSON file in `graphs/<topic>/`, or `graph.html`, whole. They are mostly embeddings and numbers: `pool.json`
+alone is about 400k tokens. Use the printout the main session handed you, the sheets (`naming-sheet.md`,
+`fringe-sheet.md`, `fringe-screen.md`), or `jq` for one field (`docs/formats.md`, "`graphs/<topic>/`"). Search a full
+text in `graphs/<topic>/fulltext/` with Grep, and read only the matching sections.
 
 ## Writing to the file
 

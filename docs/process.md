@@ -34,40 +34,52 @@ coreset, then the output and the coverage test. The pool and the coreset are bui
 
 ### Order of operations
 
-Each operation is either a script, which is deterministic and costs no tokens, or model judgement, done by the agent
-named. The main session runs the scripts in this table, between dispatches; a subagent runs only the scripts its own job
-needs, such as `tools/fulltext.py` during verification (see `docs/dispatch.md`). Token figures are per pass. Those
-marked `measured` come from previous runs in this repo; the rest are estimates, to be replaced by the per-step token
-accounting in the retrieval log.
+This table is the pass's checklist. Run it from top to bottom, and confirm each row's `done when` before starting the
+next. Each operation is either a script, which is deterministic and costs no tokens, or model judgement. In `run by`,
+`main` means the main session runs the command itself, between dispatches. A quoted name, such as `survey-pass`
+"Orient", is a dispatch with the brief of that name in `docs/dispatch.md` ("Briefs"), which says what the main session
+hands over and what comes back. A subagent runs only the scripts its own job needs, such as `tools/assign.py add` while
+expanding or `tools/fulltext.py` while verifying.
 
-| step | stage | operation | by | what the model reads, and what it does | tokens |
-| -- | -- | -- | -- | -- | -- |
-| 0 | pool | Preflight | script: `tools/preflight.py`, then `survey-pass` | The script checks the Graph API, arXiv, `uv` and the Asta key; the agent makes one cheap call each to four Asta tools and WebSearch. Halts the pass if any check fails (`H1`). See `docs/external_services.md`. | est. under 5k |
-| 1 | pool | Orient | `survey-pass` | Reads WebSearch results for the input's topic, questions and a recency window. Collects frontier candidates and the field's vocabulary, and resolves each to its canonical ID. | est. 50–100k |
-| 2 | pool | Expand | `survey-pass` | Reads Asta traversal and search results: titles and abstracts. Judges each candidate in or out of scope, and adds the in-scope ones with `tools/assign.py add`. | about 0.85k per candidate screened (measured); 250k for 300 candidates |
-| 2 | pool | Fetch pool data | script: `tools/pool.py` | — Fetches citations, reference lists and embeddings; fills `year`, `citations`, `cites`. | 0 |
-| 2 | pool | Provisional clustering | script: `tools/cluster.py` | — Seeds the `new` fringe route. | 0; about 2 min per 200 papers (measured) |
-| 2 | pool | Collect fringe candidates | script: `tools/fringe.py collect` | — Runs the `hidden` and `new` routes; writes the blind screening sheet. | 0 |
-| 2 | pool | Screen fringe candidates | `survey-pass` | Reads the sheet: titles and abstracts, shuffled, without the route. Marks each in or out of scope on the sheet. | about 0.85k per candidate (measured: 123k for 146) |
-| 2 | pool | Add fringe candidates | script: `tools/assign.py add-fringe` | — Adds the in-scope candidates to the Pool table; prints the log's `Fringe` line. | 0 |
-| 2 | pool | Fetch again | script: `tools/pool.py` | — The same fetch, for the added papers. | 0 |
-| 3 | pool | Cluster | script: `tools/cluster.py` | — Chooses the measure and level by stability, applies the input's `granularity` steering, and writes each paper's fringe score. This is the stability test. | 0; about 2 min per 200 papers (measured) |
-| 3 | pool | Write the sheets | script: `tools/sheets.py` | — Writes the naming sheet and the fringe sheet. | 0 |
-| 3 | pool | Name the clusters | `survey-pass` | Reads the naming sheet and the input. Writes one Clusters row per computed cluster: name, definition, alignment, reason and `computed` id; and the `Clustering rationale` in the log. Does not change membership. | est. 20–40k |
-| 3 | pool | Carry names over, on a later pass | script: `tools/assign.py remap` | — Only when the Clusters table already has names: moves them to the clusters they matched; the agent names the rest. | 0 |
-| 3 | pool | Write the clusters | script: `tools/assign.py clusters` | — Writes each pool paper's named cluster into the Pool table. | 0 |
-| 3 | pool | Rewrite the sheets | script: `tools/sheets.py` | — So that the fringe sheet for step 4 shows the names. | 0 |
-| 3 | pool | Build the viewer | script: `tools/graph.py` | — | 0 |
-| 3 | pool | Cluster review, only if triggered | main session and user | Runs only when step 3 halts (see "Cluster review"). Reads the Clusters table and the `Clustering` log line; the user reviews in the viewer. Records the review and any override. | est. under 10k |
-| 4 | coreset | Anchors | script, then `survey-pass` | In-degree within the pool comes from the file: `tools/check.py` prints each cluster's in-degree leaders, and the naming sheet lists each cluster's most-cited pool papers with titles. The agent confirms the pick and writes `selected because`. | est. 1–2k per cluster |
-| 4 | coreset | Frontier | `survey-pass` | Reads the abstracts of each cluster's recent, high-impact pool papers and step 1's candidates. Picks the strongest recent result. | est. 5–10k per cluster |
-| 4 | coreset | Dissent | `survey-pass` | Searches forward citations and runs challenge queries, for each high-alignment cluster. Reads the results and judges whether a paper really contradicts the cluster. | est. 20–50k per high-alignment cluster |
-| 4 | coreset | Fringe | `survey-pass` | Reads the fringe sheet, the abstracts of its papers, and the coreset rows chosen so far. Keeps five to ten that each carry an idea no other row has. | est. 20–40k |
-| 5 | coreset | Characterise and verify | `survey-pass` | Runs `snippet_search` at least twice per row, reads the snippets, and checks every cell against them. See `docs/verification.md`. | about 10k per row (earlier passes); 400–600k for 40–60 rows |
-| 5 | coreset | Bibliography and checks | script: `tools/bib.py`, `tools/check.py` | — | 0 |
-| 6 | output | Write the output | main session | Reads the Clusters section and the coreset: the rows, not the pool. Writes the Landscape, Assumptions, Gaps, Questions and Reading. | est. 60–120k |
-| 7 | output | Coverage test | `survey-pass` | Reads the output and 10–15 unselected pool papers, including a few high fringe scores. For each, judges whether it opens a new cluster or would change a claim. | est. 30–50k per round |
-| 7 | output | Late papers | script: `tools/assign.py late`, or `tools/cluster.py` then `tools/assign.py remap` | — Assigns the round's added papers to clusters, or reclusters and carries the names over (see "Late papers"). | 0 |
+In `writes`, a capitalised name in code, such as `Pool`, is a line of the pass's retrieval-log entry. The main session
+pastes the lines that scripts print; agents write the lines about their own work. Every artifact is described in
+`docs/formats.md`, the working files of `graphs/<topic>/` in its last section. After every dispatch, the main session
+also runs `tools/check.py` (`docs/dispatch.md`). Token figures are per pass. Those marked `measured` come from previous
+runs in this repo; the rest are estimates, to be replaced by the per-step token accounting in the retrieval log.
+
+| step | operation | run by | reads | writes | done when | tokens |
+| -- | -- | -- | -- | -- | -- | -- |
+| 0 | Plan | main: `python3 tools/inputs.py <topic>`; on a later pass, also `python3 tools/check.py <topic>` | the input; on a later pass, the survey's Open work and last log entry | on a first pass, `surveys/<topic>.md` with its five section headings (`docs/formats.md`); the log entry `### Pass YYYY-MM-DD`, with `Dimensions` | the scripts exit 0. If `tools/inputs.py` fails, the user corrects the input before the pass starts; never edit it for them | est. under 10k |
+| 0 | Preflight: scripts | main: `python3 tools/preflight.py` | — | — (the printout goes to the next row) | exit 0. Exit 1 halts the pass (`H1`) | 0 |
+| 0 | Preflight: Asta and WebSearch | `survey-pass` "Preflight" | the script's printout | `Preflight` | the report has no `STOP:` | est. under 5k |
+| 1 | Orient | `survey-pass` "Orient" | WebSearch results for the input's topic and questions, with and without a recency window | Pool rows, by `tools/assign.py add`; `Orientation`, listing the frontier candidates; `Recency window` | every frontier candidate is resolved to its ID and in the pool | est. 50–100k |
+| 2 | Expand and screen | `survey-pass` "Expand" | Asta traversal and search results: titles and abstracts | Pool rows, by `tools/assign.py add`; `Expansion`; `Errored queries`; Open work: papers that could not enter the pool | backward traversal done from every frontier candidate, a relevance search run for every theme step 1 named, and every errored query retried once (`H2` if it still fails) | about 0.85k per candidate screened (measured); 250k for 300 candidates |
+| 2 | Fetch pool data | main: `python3 tools/pool.py <topic>` | — | `pool.json`; the Pool's `year`, `citations` and `cites`; `Pool` | exit 0, and `tools/check.py` notes no unfetched paper | 0 |
+| 2 | Provisional clustering | main: `uv run tools/cluster.py <topic>` | — | `clusters.json`, to seed the `new` route; not logged | exit 0. `STOP: H8` halts the pass | 0; about 2 min per 200 papers (measured) |
+| 2 | Collect fringe candidates | main: `uv run tools/fringe.py collect <topic>` | — | `fringe.json`; the blind screening sheet `fringe-screen.md` | exit 0 | 0 |
+| 2 | Screen fringe candidates | `survey-pass` "Fringe screening" | `fringe-screen.md` | its `in scope` and `reason` columns | every row judged | about 0.85k per candidate (measured: 123k for 146) |
+| 2 | Add fringe candidates | main: `python3 tools/assign.py add-fringe <topic>` | — | Pool rows; `Fringe` | exit 0; it refuses while any row is unjudged | 0 |
+| 2 | Fetch again | main: `python3 tools/pool.py <topic>` | — | as above; `Pool`, replacing the earlier one | as above | 0 |
+| 3 | Cluster | main: `uv run tools/cluster.py <topic>` | — | `clusters.json`; a printout with the diagnostics and the `Clustering` and `Temporal stability` lines | exit 0, and each diagnostic's action taken ("When stability fails"). `STOP: H8`, `no structure` (`H4`), or `no stable level` after an expansion (`H5`) halts the pass | 0; about 2 min per 200 papers (measured) |
+| 3 | Carry names over, on a later pass | main: `python3 tools/assign.py remap <topic>` | — | the Clusters table's `computed` column | exit 0; it lists the clusters left to name | 0 |
+| 3 | Write the sheets | main: `python3 tools/sheets.py <topic>` | — | `naming-sheet.md`; `fringe-sheet.md` | exit 0 | 0 |
+| 3 | Name the clusters | `survey-pass` "Naming" | `naming-sheet.md`; the input; `tools/cluster.py`'s printout | Clusters rows, with `computed` ids; `Clustering` and `Temporal stability`, with names for the computed ids; `Clustering rationale`; `Clusters` | `tools/check.py` passes, so every computed cluster is named once. `H6` and `H7` are found here | est. 20–40k |
+| 3 | Write the clusters | main: `python3 tools/assign.py clusters <topic>` | — | the Pool's `cluster` column | `tools/check.py` passes, with no cluster cell left to fill | 0 |
+| 3 | Rewrite the sheets | main: `python3 tools/sheets.py <topic>` | — | the sheets, now with names | exit 0 | 0 |
+| 3 | Build the viewer | main: `python3 tools/graph.py <topic>` | — | `graph.html` | exit 0 | 0 |
+| 3 | Cluster review, only on `H4`–`H8` or `H13` | main and user | the Clusters table; the `Clustering` line; the viewer | `Halts`; any manual override, in `Clustering` | the user has decided; see "Cluster review" | est. under 10k |
+| 4 | Set up the coreset blocks | main | the Clusters table; the input's dimensions | one `###` block per cluster, in the Clusters table's order, each with the table's header row (`docs/formats.md`, "3. Coreset") | the blocks match the Clusters table | est. under 5k |
+| 4 | Select per cluster: anchor, frontier, dissent | `survey-pass` "Selection", one per block of clusters, in parallel | each cluster's section of `naming-sheet.md`; `tools/check.py`'s in-degree leaders; the frontier candidates in `Orientation`; abstracts and dissent searches through Asta | Coreset rows, every cell drafted from the abstract, `source` `abstract`; `Dissent searches`; `Demotions`, on a later pass; Open work: empty roles | after `python3 tools/bib.py <topic>`, `tools/check.py --stage coreset` passes and notes no missing role that Open work does not explain | est. 6–12k per cluster, plus 20–50k per `high` cluster for dissent |
+| 4 | Bridges, only if `tools/check.py` notes a trading pair without one | `survey-pass` "Bridges", once | the Clusters table; the trading pairs `tools/check.py` notes; the coreset | `bridge:` rows | `tools/check.py` notes no trading pair without a bridge | not yet estimated |
+| 4 | Rewrite the sheets | main: `python3 tools/sheets.py <topic>` | — | `fringe-sheet.md`, with the coreset rows marked | exit 0 | 0 |
+| 4 | Fringe | `survey-pass` "Fringe selection", once | `fringe-sheet.md`; its papers' abstracts through Asta; the coreset rows | `fringe` rows | five to ten rows, or the report says why not | est. 20–40k |
+| 5 | Characterise and verify | `survey-pass` "Verification", one per block of clusters, in parallel | snippets; full text, by `tools/fulltext.py` and Grep | every cell and `source`; `Corrections to existing rows`; Open work: rows needing verification | every row confirmed, corrected, or uncheckable with an Open work entry (`docs/verification.md`). Over 20% uncheckable halts the pass (`H10`) | about 10k per row (earlier passes); 400–600k for 40–60 rows |
+| 5 | Bibliography, checks and sheets | main: `python3 tools/bib.py <topic>`, then `python3 tools/check.py <topic> --stage coreset`, then `python3 tools/sheets.py <topic>` | — | `bib/<topic>.bib`; `Coreset`, from the check's row count; the sheets, for step 7 | all exit 0 | 0 |
+| 6 | Write the output | main | the Clusters section and the coreset rows, never the pool | `outputs/<topic>.md` | `tools/check.py <topic> --stage output` passes | est. 60–120k |
+| 7 | Coverage test | `survey-pass` "Coverage test" | the output; `tools/check.py`'s per-cluster counts; `fringe-sheet.md`; 10–15 sampled candidates | Pool rows, by `tools/assign.py add`, for each candidate that changed a target; `Coverage test` | the line names every candidate that changed a target or opened a cluster | est. 30–50k per round |
+| 7 | Late papers | main: `uv run tools/assign.py late <topic>`; on `RECLUSTER:` (exit 3), `uv run tools/cluster.py <topic>`, then `python3 tools/assign.py remap <topic>` | — | the Pool's `cluster` column; `clusters.json`; `Late papers` | exit 0; after a recluster, the step 3 rows from "Write the sheets" on are done again | 0 |
+| 7 | Revise | the step 4–6 rows, for the added papers and any renamed clusters | as there | rows in roles, verified; the output, revised | as there | as there |
+| 7 | End the round | main | the `Coverage test` line | another round; or `Tokens` and `Ended` | `F1`: no new cluster and at most one output change. Two rounds without convergence halt the pass (`H11`) | est. under 5k |
 
 The expensive steps are verification, about half the total, and screening, which grows with the pool. As a rough
 planning figure, a pass on a topic of about 50 coreset rows is estimated at 1–1.5M tokens. That is an estimate, not yet
@@ -146,7 +158,8 @@ from their decision (see "Cluster review").
 - a single uncheckable row — it follows "Outcomes" in `docs/verification.md`;
 - a pass that runs over or under its cost estimate — report the reason.
 
-Record the end in the log's `Ended` line: `finished (F1)` or `halted (<id>)`, with the measured numbers.
+The main session records the end in the log's `Ended` line: `finished (F1)` or `halted (<id>)`, with the measured
+numbers.
 
 ## Before a pass: the preflight check (step 0)
 
@@ -160,12 +173,16 @@ such as WebSearch alone.
 
 ### Step 1: orient
 
-Run WebSearch from the input's topic, motivation and any stated research questions. Collect candidate frontier papers
-and the vocabulary the field uses, and resolve each candidate to its canonical ID (`docs/formats.md`, "Paper IDs"). Run
-orientation queries without a date restriction. In addition, run a set of recency queries limited to the period since
-the last pass, or the last six months on a first pass, so that recent work is not drowned out. Record that window in the
-log. It applies to the recency queries only: older work is in scope throughout, and step 2's backward traversal is what
-reaches it.
+Run WebSearch from the input's topic, its `Context`, and any research questions it states there or as targets in its
+`Coreset Spec`. Collect candidate frontier papers and the vocabulary the field uses, and resolve each candidate to its
+canonical ID (`docs/formats.md`, "Paper IDs"). Run orientation queries without a date restriction. In addition, run a
+set of recency queries limited to the period since the last pass, or the last six months on a first pass, so that recent
+work is not drowned out. Record that window in the log. It applies to the recency queries only: older work is in scope
+throughout, and step 2's backward traversal is what reaches it.
+
+Add the in-scope candidates to the pool with `tools/assign.py add` (see step 2), and list their IDs in the log's
+`Orientation` line. That line is where step 2 starts its traversal and where step 4 looks for frontier papers, so a
+candidate named only in a report is lost.
 
 Use WebSearch, including OpenReview, lab blogs, system cards and release notes. It surfaces the current frontier and the
 names people use for the themes. It skews recent and well-publicised, which is exactly what this job needs.
@@ -189,9 +206,12 @@ run `python3 tools/pool.py <topic>`, which fetches the metadata and clustering d
 `docs/tooling.md`). Metadata is never fetched through a model's context.
 
 Traversal from the frontier cannot reach papers the field has overlooked, so expansion ends with two fringe routes, run
-by `tools/fringe.py collect` (see "Fringe routes" below). Screen their candidates like any others, on the screening
-sheet; `tools/assign.py add-fringe` adds the in-scope ones to the pool. Then run `tools/pool.py` again. This happens
-before clustering, because adding them changes the clusters.
+by `tools/fringe.py collect` (see "Fringe routes" below). The script writes the candidates to a blind screening sheet,
+`graphs/<topic>/fringe-screen.md`, one row per candidate. A `survey-pass` agent screens them for scope as it would any
+other candidate, filling the sheet's `in scope` column with `yes` or `no` and a short `reason`. Then
+`tools/assign.py add-fringe` adds the in-scope ones to the pool, and `tools/pool.py` runs again. This happens before
+clustering, because adding them changes the clusters. The sheet stays in `graphs/<topic>/` as the record of the
+screening (`docs/formats.md`, "`graphs/<topic>/`").
 
 #### Fringe routes
 
@@ -226,9 +246,10 @@ copied from the input, or from a previous survey's section headings.
 
 Run the clustering method below, which chooses the similarity measure and the level (scale from coarse to fine) from the
 pool's own data. `tools/cluster.py` applies the input's `granularity` steering itself (see `docs/formats.md`), moving to
-another computed level before anything is named. Then write the sheets (`tools/sheets.py`). The naming agent reads the
-naming sheet, names and defines each computed cluster, rates its alignment (how directly it bears on the input's
-questions, or as the input's `alignment` steering sets it), and writes the Clusters section, with each cluster's
+another computed level before anything is named. Then write the sheets (`tools/sheets.py`): `naming-sheet.md` and
+`fringe-sheet.md` in `graphs/<topic>/`, compact summaries of the clustering report for the agents. The naming agent
+reads the naming sheet, names and defines each computed cluster, rates its alignment (how directly it bears on the
+input's questions, or as the input's `alignment` steering sets it), and writes the Clusters section, with each cluster's
 `computed` id, and the `Clustering rationale` (see "Recording it"). `tools/assign.py clusters` then writes every pool
 paper's cluster into the Pool table. Naming is judgement; membership is not. Do not move papers between clusters by
 hand. Build the graph viewer (`tools/graph.py`); it shows the chosen parameters, each cluster's stability, and the level
@@ -366,16 +387,17 @@ Read the result with one caveat. Snapshots are drawn from today's pool, whose ol
 enough to be found and cited today. The history is therefore optimistic: a real earlier pass would have looked messier.
 A cluster that formed only recently is a hint for the `frontier` role and the recency queries.
 
-**Recording it.** Each pass records its clustering in its entry in the retrieval log, the first section of
-`surveys/<topic>.md` (see `docs/formats.md`). The log's `Clustering` line records the measure, the level, the grid, `k`,
-`c`, the cutoffs, and the stability figures that decided them. Next to it, the agent that names the clusters writes a
+**Recording it.** The naming agent records the clustering in the pass's entry in the retrieval log, the first section of
+`surveys/<topic>.md` (see `docs/formats.md`). It copies the `Clustering` line from `tools/cluster.py`'s printout, which
+the main session hands over, with the Clusters table's ids for the computed ones. That line gives the measure, the
+level, the grid, `k`, `c`, the cutoffs, and the stability figures that decided them. Next to it, the agent writes a
 `Clustering rationale`: a short paragraph saying why the clusters look as they do. It covers the level and its margin
 above `τ`, the spread of the clusterwise scores with the weak clusters named and diagnosed, how decisive the measure
 choice was, what any steering in the input's `Clustering` section changed, and which clusters are long-standing and
 which are recent, from the `Temporal stability` line. It interprets the figures rather than repeating them, and it does
-not restate the steering request, which lives in the input. Log entries are never rewritten, so each pass keeps the
-rationale for its own clusters. The full report stays in the sidecar, and the viewer displays the parameters and the
-latest pass's rationale, so the user can see how the clusters were produced.
+not restate the steering request, which lives in the input. Log entries of earlier passes are never rewritten, so each
+pass keeps the rationale for its own clusters. The full report stays in the sidecar, and the viewer displays the
+parameters and the latest pass's rationale, so the user can see how the clusters were produced.
 
 #### When stability fails
 
@@ -406,8 +428,9 @@ information, and the action depends on the pattern:
 
 - `thin cluster` — fewer than 10 papers. It dissolves into its neighbours, which the tool names. Expand that region in a
   targeted way and rerun. A thin cluster can be a sampling problem rather than a false one, and a handful of added
-  papers may be enough to make it coherent. A cluster of fewer than three papers has no clusterwise score, so the tool
-  does not diagnose it. Treat it as thin.
+  papers may be enough to make it coherent. If it is still thin after one targeted expansion, keep it, and say so in the
+  `Clustering rationale`; it does not halt the pass. The fringe routes are not rerun. A cluster of fewer than three
+  papers has no clusterwise score, so the tool does not diagnose it. Treat it as thin.
 - `clusters trade papers` — two unstable clusters whose papers are grouped together in at least 20% of rerun pairs.
   Their boundary is open in the field itself. Keep both. At selection, give the pair a `bridge` paper, and note the
   tension for the Landscape.
@@ -487,9 +510,9 @@ ranking alone is not enough, is in `docs/coresets.md` ("How coverage is achieved
   far from its nearest neighbours in the pool, for its age. It is placed in the cluster it was computed into, but it
   does not represent that cluster; it represents what the clusters leave out. Fringe comes last, because its test is
   relative to the rest of the coreset. Start from the pool papers with the highest fringe scores (see "Clustering
-  method"). Most papers far from their neighbours are there for a good reason. So keep a paper only if its
-  `selected because` can name, in one sentence, the idea it carries that no other coreset row does. Five to ten per
-  topic.
+  method"), listed in `graphs/<topic>/fringe-sheet.md`. Most papers far from their neighbours are there for a good
+  reason. So keep a paper only if its `selected because` can name, in one sentence, the idea it carries that no other
+  coreset row does. Five to ten per topic.
 
 **Sizing.** A cluster gets more rows the more directly it bears on the input, not the more papers it has:
 
@@ -588,6 +611,6 @@ possible.
 
 On a later pass, match the new clustering to the previous one, keep the ids and names of matched clusters, and log
 splits, merges, new clusters and vanished ones. `tools/cluster.py` does the matching (`tools/match.py`, `match`)
-whenever a previous clustering exists, and `tools/assign.py remap` keeps the names; record its output under
-`Clustering rationale`. What is not yet built is the diagnosis for when most clusters fail to match; see
-`docs/roadmap.md`.
+whenever a previous clustering exists, and `tools/assign.py remap` keeps the names. The main session hands both
+printouts to the naming agent, which records the result under `Clustering rationale`. What is not yet built is the
+diagnosis for when most clusters fail to match; see `docs/roadmap.md`.

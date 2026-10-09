@@ -4,6 +4,10 @@ The scripts in `tools/`. The outside services some of them call, and the rules f
 `docs/external_services.md`. They are listed in the order a pass uses them, after two that apply throughout: the paper
 IDs every tool keys on, and the consistency check.
 
+The files they write in `graphs/<topic>/`, with who reads each, are listed in `docs/formats.md` ("`graphs/<topic>/`").
+**Never Read a JSON file there, or `graph.html`, whole**: `pool.json` alone is about 400k tokens. Use the script's
+printout, the sheets, or `jq` for one field.
+
 ## Paper IDs
 
 Every tool keys on the canonical paper ID of `docs/formats.md` ("Paper IDs"): the arXiv ID, or `CorpusId:<n>` for a
@@ -29,7 +33,8 @@ the output exists, else `coreset` if the Coreset section has rows, else `pool`. 
   - once `clusters.json` and the Clusters table exist: every computed cluster named exactly once, and every pool paper's
     `cluster` equal to its computed cluster. An empty cell never fails: it is a late paper awaiting assignment, or, if
     `clusters.json` already assigns the paper, a note to run `tools/assign.py clusters`. A new clustering not yet
-    remapped fails until `tools/assign.py remap` runs.
+    remapped fails until `tools/assign.py remap` runs; this applies only once the Clusters table has names, so never to
+    the provisional clustering of a first pass.
 - `coreset` (steps 4–5):
   - one row per unique paper ID, the required columns, `source` last and parsable, and one column count throughout;
   - dimension values within the sets the input declares;
@@ -46,7 +51,7 @@ the output exists, else `coreset` if the Coreset section has rows, else `pool`. 
 
 It also prints, without failing:
 
-- per cluster: pool size, coreset rows by role, and in-degree leaders within the pool;
+- the number of coreset rows, and per cluster: pool size, coreset rows by role, and in-degree leaders within the pool;
 - clusters missing a role their alignment requires: anchor, frontier and dissent for `high`; anchor and frontier for
   `medium`; anchor for `low`. An empty dissent slot is legitimate if Open work records what was searched;
 - where a cluster's anchor is not its in-degree leader within the pool. That can be deliberate, but it should be;
@@ -113,10 +118,10 @@ with the range of fetch dates.
 `uv run tools/fringe.py collect <topic>` runs the two fringe routes of `docs/process.md`, `hidden` and `new`, at the end
 of step 2. It needs a clustering to seed the `new` route, so run `tools/cluster.py` provisionally first. It fetches the
 candidates' data into `graphs/<topic>/fringe.json`, and writes a blind screening sheet, `fringe-screen.md`, for a
-`survey-pass` agent: shuffled, with the route hidden. The agent marks each `yes` or `no`, and
-`tools/assign.py add-fringe` adds the in-scope ones to the pool. `fringe.json` records each candidate's arXiv ID or,
-failing that, its `CorpusId`. A candidate without a SPECTER2 embedding is dropped before the sheet, since no clustering
-could place it.
+`survey-pass` agent: shuffled, with the route hidden. A rerun keeps the judgements already on the sheet. The agent marks
+each `yes` or `no`, and `tools/assign.py add-fringe` adds the in-scope ones to the pool. `fringe.json` records each
+candidate's arXiv ID or, failing that, its `CorpusId`. A candidate without a SPECTER2 embedding is dropped before the
+sheet, since no clustering could place it.
 
 `tools/cluster.py` writes each pool paper's fringe score to its report, and prints the highest. Step 4 chooses `fringe`
 rows from the fringe sheet (see "Sheets").
@@ -141,9 +146,10 @@ first use.
 
 `python3 tools/sheets.py <topic>` writes two compact sheets next to `clusters.json`, for the agents that would otherwise
 need the large JSON files. `naming-sheet.md` (step 3) gives, per computed cluster: its size and stability, since when it
-exists, its diagnostics, its most-cited and most recent papers, and its sub-clusters. `fringe-sheet.md` (step 4) lists
-the highest fringe scores, with year, cluster, reference count and whether the paper is already a coreset row. On
-`reasoning` they come to about 2.8k and 0.8k tokens. Rerun it after naming, so that the sheets show the names.
+exists, its diagnostics, its most-cited and most recent papers, and its sub-clusters, marked "internally divided" when
+at least two of them score 0.6 or more. `fringe-sheet.md` (step 4) lists the highest fringe scores, with year, cluster,
+reference count and whether the paper is already a coreset row. On `reasoning` they come to about 2.8k and 0.8k tokens.
+Rerun it after naming, so that the sheets show the names.
 
 ## Graph viewer
 

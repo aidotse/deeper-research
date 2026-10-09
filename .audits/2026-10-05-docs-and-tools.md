@@ -610,6 +610,32 @@ it under "Decisions taken" in `docs/roadmap.md`, as `CLAUDE.md` requires.
    start a fresh agent with only `CLAUDE.md` and the index, ask it to plan a pass for a toy input, and compare its plan
    with the checklist.
 
+   Done on 2026-10-09, in one session.
+
+   - A1 and A7: the order-of-operations table in `docs/process.md` now has `run by` (the command, or the brief to
+     dispatch with), `reads`, `writes` (down to the log lines) and `done when`, and is the pass checklist;
+     `docs/dispatch.md` says to run a pass down it. Passive phrasings that hid an owner were rewritten.
+   - A2: `docs/dispatch.md` has a prompt template and eleven briefs. New rules: the main session writes the log lines
+     scripts print (except `Clustering` and `Temporal stability`, which the naming agent writes with names); parallel
+     agents return their log and Open work lines under `Log:` and `Open work:` instead of editing shared sections;
+     `tools/bib.py` runs before `tools/check.py` after any coreset change, since the check compares the two.
+   - A4: "never Read a JSON file in `graphs/<topic>/`, or `graph.html`, whole" is in `docs/formats.md`,
+     `docs/tooling.md` and both agent files, pointing to printouts, the sheets, and `jq` for one field.
+   - Found on the way (raised by the user): no doc said what the files in `graphs/<topic>/` are, who writes and reads
+     them, or which are committed; `docs/process.md` mentioned "the screening sheet" without naming it.
+     `docs/formats.md` now ends with an inventory of `graphs/<topic>/`. Also found: step 1's frontier candidates had no
+     persistent home (now in the pool and the `Orientation` line), and `tools/fringe.py collect` overwrote the screening
+     judgements on a rerun (it now carries them over; the parser read back all 146 on `reasoning`).
+   - Dry read: a fresh agent given only `CLAUDE.md` and a toy input (state-space models) planned a first pass. Its plan
+     matched the checklist row for row. It raised 15 points; 14 were real gaps, all small, and fixed: preflight was
+     still tied to the step 1 agent in `docs/external_services.md`; the survey skeleton's headings were unstated; how an
+     input adds targets; who creates the coreset blocks; that selection drafts every cell (`tools/check.py` fails on an
+     empty dimension); bridges only for trading pairs, with divided clusters handled by selection; sheet rewrites before
+     fringe selection and the coverage test; a thin cluster that stays thin; log lines updated only during their pass;
+     token figures from the usage each dispatch reports; `check.py`'s row count and remap rule; the "internally divided"
+     rule in the sheet. The fifteenth (reading `formats.md`, `tooling.md` and `external_services.md` while planning) is
+     what the index already prescribes.
+
 6. Then continue with "Next steps" 3 and 4 of `docs/roadmap.md`: the fresh coreset run.
 
 Recommended order of value, if time is short: S11 with S1, C7 and W2 (wrong instructions, minutes to fix); then M1 and
