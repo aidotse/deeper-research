@@ -296,10 +296,16 @@ Proposed, to build and pilot together:
    overlap of their in-scope finds estimates how many both missed. Routes are never fully independent (all favour
    well-connected work), so it is a lower bound on what is missing. Log it in a `Recall` line, as a diagnostic only;
    `process.md` rightly forbids using "share already found" as a stopping rule.
-4. `Cheaper screening`, so that a larger pool is affordable: a SPECTER2 similarity prefilter that auto-rejects
-   candidates clearly far from the pool and sends only the uncertain band to an agent; or screening by a cheaper model,
-   with the `G1` judgement audit measuring its error rate. Either needs the audit to show it does not lose in-scope
-   papers.
+4. `Cheaper screening`, so that a larger pool is affordable. Two options, either guarded by the `G1` judgement audit:
+   - `A similarity prefilter that only accepts` — candidates very close (SPECTER2) to existing pool papers enter without
+     an agent reading them; everything else, the far band included, is screened as now. It must never auto-reject the
+     far band: far from the pool is what a fringe paper is, and cross-field work (the spec's own example of fringe) is
+     far in text yet in scope. Rejecting it would also distort the fringe score silently, since the score is a
+     percentile within the pool: with the tail gone, the top percentiles would go to merely unusual papers, and step 4
+     would still fill its quota without any check failing. The risk of accepting is inclusion of a near but off-topic
+     paper, which is visible and correctable, unlike a wrong rejection. The distance routes (`hidden`, `new`, `coupled`)
+     are exempt, and the `G1` audit oversamples far candidates, where scope is hardest to judge.
+   - `Screening by a cheaper model` — no geometric bias; its error rate is what the audit measures.
 
 Caps per route (say 50 candidates each, about 85k tokens of screening for both) keep the cost bounded until the recall
 estimate shows whether more is needed. Open: k for each route (first guesses 3–5), the coupling window, the prefilter's
