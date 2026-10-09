@@ -349,15 +349,19 @@ def diagnose(curves_m, nulls_m, chosen, clusters, exchange, tau, recs, rename):
     by_id = {c["id"]: c for c in clusters}
     unstable = {c["id"] for c in clusters if c["stability"] is not None and c["stability"] < UNSTABLE}
     # A thin cluster that dissolves is absorbed by its neighbours, so its exchange with them is a symptom of being
-    # thin, not an open boundary. Thin clusters are diagnosed first and kept out of the trading pairs.
-    thin = {cid for cid in unstable if by_id[cid]["size"] < SMALL}
+    # thin, not an open boundary. Thin clusters are diagnosed first and kept out of the trading pairs. A cluster too
+    # small for a clusterwise score (fewer than MIN_CLUSTER papers) is thin on its size alone.
+    tiny = {c["id"] for c in clusters if c["stability"] is None}
+    thin = {cid for cid in unstable if by_id[cid]["size"] < SMALL} | tiny
     rates = {(rename[a], rename[b]): x for (a, b), x in exchange.items()}
     for cid in sorted(thin):
         c = by_id[cid]
         into = sorted(((x, b if a == cid else a) for (a, b), x in rates.items() if cid in (a, b)), reverse=True)[:2]
+        score = (f"stability {c['stability']:.2f}" if c["stability"] is not None
+                 else f"no stability score (fewer than {MIN_CLUSTER} papers)")
         out.append({"case": "thin cluster", "clusters": [cid],
-                    "detail": f"{cid}: {c['size']} papers, stability {c['stability']:.2f}; absorbed mostly by "
-                              + ", ".join(f"{o} ({x:.0%})" for x, o in into),
+                    "detail": f"{cid}: {c['size']} papers, {score}"
+                              + ("; absorbed mostly by " + ", ".join(f"{o} ({x:.0%})" for x, o in into) if into else ""),
                     "action": "expand this region in a targeted way (step 2) and rerun"})
     trading = set()
     for (a, b), x in sorted(rates.items(), key=lambda kv: -kv[1]):

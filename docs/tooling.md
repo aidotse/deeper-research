@@ -47,8 +47,8 @@ runs two kinds of check.
 `docs/gates.md`, and coded in `tools/gates.py`, one function per requirement. The check works out which gates the pass
 has reached from the log's `Gates` line and from evidence in the files; `--gate G<n>` also requires every gate up to
 `G<n>`. `--status` prints every gate with its open requirements. Against the last commit, it also checks that earlier
-log entries are intact, and that no pool paper, coreset row or `source` level was lost without a record. Gates apply to
-surveys in the coreset layout only.
+log entries are intact, that no pool paper, coreset row or `source` level was lost without a record, and that no
+verified row was edited without a logged correction. Gates apply to surveys in the coreset layout only.
 
 It also prints, without failing:
 
@@ -238,7 +238,7 @@ and raises anything else.
 
 `python3 tests/gates/faults.py` and `python3 tests/gates/behaviour.py` test the gates of `tools/check.py`. Both build a
 temporary topic, `zz-gate`, from `reasoning`'s data (`tests/gates/build.py`), and remove every file they wrote when they
-finish. `faults.py` injects one fault per gate requirement and confirms that its own requirement catches it.
+finish. `faults.py` injects at least one fault per gate requirement and confirms that its own requirement catches it.
 `behaviour.py` checks what single requirements cannot show: waivers, a pending halt, progress inferred mid-pass and by
 the safety net, the history checks, and `tools/assign.py reject`. Run both after any change to `tools/check.py` or
 `tools/gates.py`; each exits 1 on a miss. Their source is the legacy survey, `reasoning-exhaustive` once the old

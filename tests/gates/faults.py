@@ -1,4 +1,4 @@
-"""One injected fault per gate requirement; each must be caught by its own requirement.
+"""At least one injected fault per gate requirement; each must be caught by its own requirement.
 
 Usage: python3 tests/gates/faults.py (from anywhere). Exit status 1 if any fault is missed.
 """
@@ -6,6 +6,7 @@ import json, re, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build import build, clean, ROOT, T
+from check import link
 S, G, O, I = ROOT / f"surveys/{T}.md", ROOT / f"graphs/{T}", ROOT / f"outputs/{T}.md", ROOT / f"inputs/{T}.md"
 
 def sub(path, a, b, count=1):
@@ -24,7 +25,18 @@ def drop_row(pat):
 def first_row(role):
     return next(l for l in S.read_text().splitlines() if l.startswith("| [") and f"| {role} |" in l)
 
+def blank_pool_cluster(f, pid):
+    """Empty a pool row's `cluster` cell and drop the paper from the computed assignment: an unassigned late paper."""
+    resub(S, rf"(^\| \[[^\n]*\]\({re.escape(link(pid))}\) \| [^|]* \| ){f['names'][f['a'][pid]]}( \|)", r"\1\2")
+    jset("clusters.json", lambda d: d["assignment"].pop(pid))
+
+def no_declared_dimensions(f):
+    """An input without dimensions, whose provisional ones the `Dimensions` line names only in part."""
+    I.write_text(I.read_text().split("## Dimensions")[0])
+    sub(S, "declared in the input", "proposed and adopted provisionally: evidence, measures, elicitation")
+
 F = {
+ "g0.entry": lambda f: sub(S, "### Pass 2026-10-09\n", ""),
  "g0.preflight": lambda f: sub(S, "uv ok", "uv failed"),
  "g0.placeholders": lambda f: sub(S, "step 1: 80k", "<step>: <tokens>"),
  "g0.labels": lambda f: sub(S, "- **Demotions:** none", "- **Demotions:** none\n- **Pool:** 195 papers in scope; metadata fetched x"),
@@ -39,11 +51,13 @@ F = {
  "g1.fringe-added": lambda f: resub(G / "fringe-screen.md", r"\| no \| out of scope \|$", "| yes | in scope |"),
  "g1.fringe-line": lambda f: sub(S, "in scope 3;", "in scope 4;"),
  "g1.pool-line": lambda f: sub(S, "195 papers in scope", "190 papers in scope"),
+ "g1.pool-line ": lambda f: sub(S, "metadata fetched 2026-09-29", "metadata fetched 2026-10-09"),
  "g2.clustered": lambda f: jset("clusters.json", lambda d: d.update(generated="2026-10-01")),
  "g2.named": lambda f: sub(S, "| papers about one |", "|  |"),
  "g2.written": lambda f: resub(S, r"(^\| \[[^\n]*\]\([^)]*\) \| [^|]* \| )five( \|)", r"\1\2"),
  "g2.lines": lambda f: resub(S, r"^- \*\*Clustering rationale:\*\*.*\n", ""),
  "g2.clustering-line": lambda f: sub(S, "measure combined", "measure text"),
+ "g2.clustering-line ": lambda f: jset("clusters.json", lambda d: d.update(rule="tau, moved by user override (8)")),
  "g2.clusters-line": lambda f: sub(S, "6 (2 high", "6 (3 high"),
  "g2.diagnosis-halts": lambda f: jset("clusters.json", lambda d: d["diagnostics"].append({"case": "no structure", "detail": "x"})),
  "g2.review": lambda f: I.write_text(I.read_text() + "\n## Clustering\n\n- `review`: before coreset\n"),
@@ -54,6 +68,8 @@ F = {
  "g3.divided": lambda f: S.write_text(S.read_text().replace([l for l in S.read_text().splitlines() if "| frontier |" in l and l.endswith("| snippet |")][0] + "\n", "", 1)),
  "g3.fringe-quota": lambda f: S.write_text(S.read_text().replace(first_row("fringe") + "\n", "", 1)),
  "g3.cells": lambda f: sub(S, "| accuracy |", "|  |"),
+ "g3.assigned": lambda f: blank_pool_cluster(f, f["rows"][0]),
+ "g3.dimension-columns": no_declared_dimensions,
  "g4.evidence": lambda f: (G / "evidence" / (f["verified"][3].replace("/", "_").replace(":", "_") + ".md")).unlink(),
  "g4.evidence ": lambda f: sub(G / "evidence" / (f["verified"][1].replace("/", "_").replace(":", "_") + ".md"), "`result`, ", ""),
  "g4.evidence  ": lambda f: sub(G / "evidence" / (f["verified"][0].replace("/", "_").replace(":", "_") + ".md"), "improves accuracy by two points", "raises accuracy by two points"),

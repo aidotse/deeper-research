@@ -740,7 +740,9 @@ Done on 2026-10-09, structured as gates (`G0` ready to `G5` pass ended), as agre
 
 3. [x] Priority 1 and 2 rows, as 39 requirements with IDs (`g0.preflight` … `g5.end-lines`). Row 3 became `g0.labels`;
    row 19 (sheet currency) stays a matter of the checklist, since the sheets are not committed; row 13 is covered by
-   `tools/assign.py late`'s refusal and `g5.late-empty`.
+   `tools/assign.py late`'s refusal and `g5.late-empty`. Correction (remediation check, 2026-10-09): the code has 43
+   requirements, these 39 plus `g4.evidence` (item 8) and `g0.entry`, `g3.assigned` and `g3.dimension-columns`, which
+   had no fault of their own until that check added them.
 
 4. [x] Priority 3: the history checks (rows 37–39) run by default against `HEAD`, not behind a flag; row 40 and the
    absence phrases (33) are notes. Rows 25 and 36 are left out: a fringe row's score is shown on the fringe sheet, and

@@ -440,7 +440,7 @@ information, and the action depends on the pattern:
   targeted way and rerun. A thin cluster can be a sampling problem rather than a false one, and a handful of added
   papers may be enough to make it coherent. If it is still thin after one targeted expansion, keep it, and say so in the
   `Clustering rationale`; it does not halt the pass. The fringe routes are not rerun. A cluster of fewer than three
-  papers has no clusterwise score, so the tool does not diagnose it. Treat it as thin.
+  papers has no clusterwise score, so the tool diagnoses it as thin on its size alone.
 - `clusters trade papers` — two unstable clusters whose papers are grouped together in at least 20% of rerun pairs.
   Their boundary is open in the field itself. Keep both. At selection, give the pair a `bridge` paper, and note the
   tension for the Landscape.
@@ -501,8 +501,9 @@ is processed, so a round has at most one recluster, and two rounds without conve
 ### Step 4: select
 
 Each coreset paper is selected to play one role in its cluster. Which roles a cluster gets follows its alignment (see
-"Sizing" below). Record in the `selected because` column why each paper fills its role. Why the roles exist, and why
-ranking alone is not enough, is in `docs/coresets.md` ("How coverage is achieved").
+"Sizing" below). Record in the `selected because` column why each paper fills its role. Only a paper with a cluster can
+take a role: one added to the pool after step 3 is a late paper, and is assigned first (see "Late papers"). Why the
+roles exist, and why ranking alone is not enough, is in `docs/coresets.md` ("How coverage is achieved").
 
 - `anchor` — what the cluster is built on. Anchors come from in-degree within the pool: usually the paper most cited by
   the other pool papers.
@@ -550,7 +551,9 @@ snippets do not reach the claim. WebSearch may corroborate a claim about a paper
 ### Step 6: write the output
 
 Write the output in the main session, from the Clusters section and the coreset rows alone, never from the pool. Its
-analyses and format are in `docs/formats.md`.
+analyses and format are in `docs/formats.md`. A claim that needs a paper not yet in the coreset needs that paper added
+first: to the pool with `tools/assign.py add` if it is not there, as a late paper (see "Late papers"), then to the
+coreset in a role, verified.
 
 ### Step 7: the coverage test
 

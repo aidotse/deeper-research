@@ -117,7 +117,8 @@ class Ctx:
         self.entries = log_entries(secs.get("Retrieval log", ""))
         self.cur = self.entries[-1] if self.entries else None
         self.L = self.cur["lines"] if self.cur else {}
-        self.date = self.cur["date"] if self.cur else None
+        # Without an entry, g0.entry fails; the empty date keeps the date comparisons of other requirements working.
+        self.date = self.cur["date"] if self.cur else ""
         self.first_pass = len(self.entries) <= 1
         self.open_work = labelled(secs.get("Open work", "").splitlines())
         self.halts, self.waived, self.declared = halts(self.L), waivers(self.L), gate_line(self.L)
@@ -303,12 +304,23 @@ def r_fringe_line(c):
     return f"`Fringe` disagrees with the files: {'; '.join(problems)}; paste the line `add-fringe` prints" if problems else None
 
 
+def fetched_range(c):
+    """The fetch dates of the pool's records, as tools/pool.py prints them: one date, or `<first> to <last>`."""
+    dates = sorted({(c.records.get(p) or {}).get("fetched") for p in c.pool | c.coreset_ids} - {None})
+    return "unknown" if not dates else dates[0] if len(dates) == 1 else f"{dates[0]} to {dates[-1]}"
+
+
 def r_pool_line(c):
     if (m := need_lines(c, "Pool")):
         return m
-    n = re.search(r"(\d+) papers in scope", c.line("Pool"))
-    return None if n and int(n.group(1)) == len(c.pool) else (
-        f"`Pool` does not say {len(c.pool)} papers in scope; paste the line `tools/pool.py` prints")
+    text, problems = c.line("Pool"), []
+    n = re.search(r"(\d+) papers in scope", text)
+    if not (n and int(n.group(1)) == len(c.pool)):
+        problems.append(f"does not say {len(c.pool)} papers in scope")
+    when = fetched_range(c)
+    if f"metadata fetched {when}" not in text:
+        problems.append(f"does not say `metadata fetched {when}`, the fetch dates in pool.json")
+    return f"`Pool` {'; '.join(problems)}; paste the line `tools/pool.py` prints" if problems else None
 
 
 def r_clustered(c):
@@ -352,6 +364,16 @@ def r_clustering_matches(c):
     n = re.search(r"level (\d+) clusters", text)
     if not n or int(n.group(1)) != len(c.report.get("clusters", [])):
         problems.append(f"level is not {len(c.report.get('clusters', []))} clusters")
+    # The rule, with any granularity steering or --level override that moved the level, as tools/cluster.py recorded it.
+    rule = c.report.get("rule", "")
+    r = re.search(r"clusters by rule (.+?), stability", text)
+    if not r or r.group(1).strip() != rule:
+        problems.append(f"the rule is not `{rule}`")
+    overrides = text.partition("manual overrides:")[2]
+    if "user override" in rule and "--level" not in overrides:
+        problems.append("the --level override is not logged under `manual overrides`")
+    if "--level" in overrides and "user override" not in rule:
+        problems.append("`manual overrides` logs a --level that clusters.json does not record")
     return f"`Clustering` disagrees with clusters.json: {'; '.join(problems)}" if problems else None
 
 
@@ -705,15 +727,24 @@ def history(c):
     gone = sorted(p for p in old_pool - c.pool if p not in record)
     if gone:
         failures.append(f"pool papers removed since the last commit without H12 or a logged merge: {gone[:8]}")
-    old_rows = {row_id(l): cs for h, cs, _, l in table_rows(osecs.get("Coreset", "")) if h and h[0] == "paper"}
+    old_rows = {row_id(l): dict(zip(h, cs)) for h, cs, _, l in table_rows(osecs.get("Coreset", ""))
+                if h and h[0] == "paper"}
     gone = sorted(p for p in set(old_rows) - c.coreset_ids if p and p not in record)
     if gone:
         failures.append(f"coreset rows removed since the last commit without a `Demotions` or `Corrections` entry: {gone[:8]}")
-    now_rows = {row_id(l): cs for _, cs, _, l in c.rows}
-    lowered = sorted(p for p in set(old_rows) & set(now_rows) if p and
-                     SOURCE_RANK.get(now_rows[p][-1], 0) < SOURCE_RANK.get(old_rows[p][-1], 0))
+    now_rows = {row_id(l): dict(zip(h, cs)) for h, cs, _, l in c.rows}
+    both = sorted(p for p in set(old_rows) & set(now_rows) if p)
+    lowered = [p for p in both if SOURCE_RANK.get(now_rows[p].get("source"), 0) < SOURCE_RANK.get(old_rows[p].get("source"), 0)]
     if lowered:
         failures.append(f"`source` lowered since the last commit (it only ratchets up): {lowered}")
+    # A verified row is edited only as a logged correction (docs/process.md, "Rules for re-runs"). A row still
+    # `abstract` is a draft, and verification may rewrite it freely.
+    corrections = " ".join(c.L.get("Corrections to existing rows", []))
+    edited = [p for p in both if old_rows[p].get("source") in ("snippet", "full-text") and p not in corrections
+              and any(k != "source" and k in now_rows[p] and now_rows[p][k] != v for k, v in old_rows[p].items())]
+    if edited:
+        failures.append(f"verified rows changed since the last commit without a `Corrections to existing rows` entry "
+                        f"naming them: {edited[:8]}")
     old_input = committed(ROOT / "inputs" / f"{c.topic}.md")
     if old_input is not None and old_input != read(ROOT / "inputs" / f"{c.topic}.md"):
         notes.append(f"inputs/{c.topic}.md changed since the last commit; only the user edits the input")

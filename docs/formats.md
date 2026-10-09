@@ -40,7 +40,8 @@ An .md file with at least one section, and several optional ones:
 
 - `Dimensions` (optional): cross-cutting attributes to extract for every coreset paper. See `Analytic dimensions` below.
   Declare each as a top-level bullet that opens with its name and its allowed values, in this form, so that the tools
-  can read it; any explanation may follow:
+  can read it; any explanation may follow, in the bullet or in prose or nested bullets under it. Every top-level bullet
+  in the section is read as a dimension, and `tools/inputs.py` fails on one not in this form:
 
   ```text
   - **`evidence`** — values: `proven`, `derived`, `empirical`, `fitted`, `position`. What kind of claim ...
@@ -285,7 +286,8 @@ informative dissent papers coreset-wide. After the targets, always include these
 Outputs are regenerable views over surveys, and may be rewritten freely.
 
 Mark any proposed concept or idea that goes beyond the survey material with its closest prior art from the coreset. If
-an output needs a claim not present in the survey, add the paper to the coreset first, in a role, and verify it.
+an output needs a claim not present in the survey, add the paper to the coreset first, in a role, and verify it. A paper
+not yet in the pool enters it as a late paper, and takes a role only once assigned (`docs/process.md`, "Late papers").
 
 Outputs must carry their provenance. Every coreset row should be verified, so the default is that everything an output
 cites has been checked against body text. Where a row could not be — its `source` is `abstract` — every claim resting on

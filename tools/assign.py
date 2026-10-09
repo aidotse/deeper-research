@@ -25,9 +25,10 @@ clusters    Writes each pool paper's computed cluster (graphs/<topic>/clusters.j
             under the name the Clusters table's `computed` column gives it. Run after naming (step 3), and after any
             recluster and remap. Membership is never written by hand.
 late        Processes the late papers as one batch (docs/process.md, "Late papers"): pool papers added after the last
-            full clustering. Fetches their data (tools/pool.py), assigns each to the cluster most common among its k
-            nearest clustered papers under the chosen measure, records the assignment in clusters.json, writes the Pool
-            column, and prints the log's `Late papers` line. Each paper is assigned against the clustering as it
+            full clustering. Fetches their data (tools/pool.py), assigns each to the cluster its k nearest clustered
+            papers favour under the chosen measure, each voting with its similarity (by text, for a paper with no
+            positive similarity under that measure), records the assignment in clusters.json, writes the Pool column,
+            and prints the log's `Late papers` line. Each paper is assigned against the clustering as it
             stood, never against other late papers, so the result does not depend on order. If late papers would
             exceed 10% of the pool, it assigns nothing and exits 3: rerun tools/cluster.py instead.
 remap       After a recluster, moves each named cluster's `computed` id to the new cluster it matched (clusters.json,

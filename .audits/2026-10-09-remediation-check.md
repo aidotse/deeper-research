@@ -105,6 +105,42 @@ the 15-of-15 late-assignment holdout, still cited in `docs/tooling.md:105-107`; 
 faults (superseded by `tests/gates/`); the end-to-end run with three papers without an arXiv ID; the AMS link serving a
 web page; and the two-unnamed-runs and `--level 5` baseline tests of the Phase 3 verification.
 
+## Fixes, made in the same session
+
+Every gap above was fixed after this report was written, on the user's instruction. The inventory below records the
+state as found.
+
+01. `D1 and S3` — fixed. Step 4 (`docs/process.md`, "Step 4: select") says that only a paper with a cluster takes a
+    role; step 6 says how a paper a claim needs enters, as a late paper; the outputs rule (`docs/formats.md`, outputs)
+    and "Probes" (`docs/verification.md`) point to "Late papers", the latter naming `tools/assign.py add` and `late`.
+02. `C9` — fixed in code, as the audit asked. `diagnose` in `tools/cluster.py` reports a cluster without a clusterwise
+    score as `thin cluster` ("no stability score (fewer than 3 papers)"); `docs/process.md` ("When stability fails")
+    says so. Tested by calling `diagnose` with a 2-paper cluster. `reasoning` has no cluster that small, so its
+    committed `clusters.json` is unchanged and still valid.
+03. `inputs.py` — fixed. Every top-level bullet in `Dimensions` must be a dimension in the D4 form, or the input fails;
+    `docs/formats.md` (`Dimensions`) says so. Tested: both malformed bullets fail; prose, the bold form and nested
+    bullets pass; `inputs/reasoning.md` passes.
+04. `Row 39` — fixed. `history` in `tools/gates.py` fails a verified row (`snippet` or `full-text`) whose cells changed
+    since the last commit without a `Corrections to existing rows` entry naming it; an `abstract` row stays free to
+    rewrite. `docs/gates.md` ("History") and `docs/tooling.md` describe it. Three new behaviour tests.
+05. `Row 11` — fixed. `g1.pool-line` also requires `metadata fetched <dates>` to match the fetch dates in `pool.json`.
+    The fixture's `Pool` line now carries the real dates; a new fault.
+06. `Row 12` — fixed. `g2.clustering-line` also requires the line's rule, with any steering or override, to be the one
+    in `clusters.json`, and a `--level` override to be logged under `manual overrides`, and only then. A new fault.
+07. `assign.py late` docstring — fixed.
+08. `Faults per requirement` — fixed: new faults for `g0.entry`, `g3.assigned` and `g3.dimension-columns`, so every
+    requirement has its own. `docs/tooling.md` now says "at least one fault per gate requirement". The `g0.entry` fault
+    found a real bug: with no `### Pass` entry, `tools/check.py` crashed in `g1.rejected`, comparing a date with `None`,
+    instead of reporting `g0.entry`. Fixed in `tools/gates.py` (`Ctx.date`).
+09. `Counts` — on a closer look, "39 of 39 faults" and "16 of 16 behaviours" were right when written; item 8 added the
+    four evidence faults and one behaviour. Only the requirement count was off. A dated correction was added to item 3
+    of the audit file. Commit `901d5ca`'s message cannot be changed.
+10. `docs/external_services.md` sentence — fixed.
+11. `C7` — confirmed by the user: `/permissions` lists `mcp__asta__*` as allowed.
+
+After the fixes: `python3 tests/gates/faults.py` 48 of 48; `python3 tests/gates/behaviour.py` 20 of 20;
+`python3 tools/check.py reasoning` OK; `python3 tools/inputs.py reasoning` exit 0; `mdformat --check .` passes.
+
 ## Claim inventory
 
 ### Decisions

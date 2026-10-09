@@ -103,7 +103,9 @@ The check also compares the survey with the last commit, where one exists. It fa
   (`docs/process.md`, "Rules for re-runs");
 - a pool paper was removed without `H12` or a logged merge;
 - a coreset row was removed without a `Demotions` or `Corrections` entry;
-- a row's `source` was lowered.
+- a row's `source` was lowered;
+- a cell of a verified row (`source` `snippet` or `full-text`) was changed without a `Corrections to existing rows`
+  entry naming the paper. A row still `abstract` is a draft, which verification rewrites freely.
 
 It notes, without failing, an input changed since the last commit: only the user edits the input.
 

@@ -112,7 +112,7 @@ which finds better papers. It is about what each route needs:
 - `Volume` — the `hidden` route ranks every paper the pool cites by how little it is cited for its age. On `reasoning`,
   195 pool papers cite 3,772 distinct papers, 7,760 references in all. Through Asta, every one of those records would
   pass through an agent's context, to be thrown away by a rule a script applies exactly. Only the shortlist, up to 60
-  per route (116 on `reasoning`), papers, is worth a model's attention, and that is what the blind screening reads.
+  papers per route (116 on `reasoning`), is worth a model's attention, and that is what the blind screening reads.
 - `Data Asta does not return` — the fringe score is computed from SPECTER2 embeddings, and also from full reference
   lists when the chosen measure uses references. Asta's paper fields include no embeddings. Reference lists it can
   return, but fetching them for every pool paper would put them all through an agent's context.

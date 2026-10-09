@@ -77,9 +77,10 @@ def read_input(topic):
     for b in bullets(secs.get("Dimensions", [])):
         m = DIM.match(b)
         if not m:
-            if b.startswith("- **"):
-                problems.append(f"input: dimension not in the form ``- **`name`** — values: `a`, `b``` (a lowercase "
-                                f"name in backticks): {b[:60]!r}")
+            # Every top-level bullet here declares a dimension (docs/formats.md); one in another form would otherwise
+            # be dropped silently, and its values never checked.
+            problems.append(f"input: dimension not in the form ``- **`name`** — values: `a`, `b``` (a lowercase "
+                            f"name in bold backticks): {b[:60]!r}")
             continue
         v = VALUES.search(b)
         if not v:

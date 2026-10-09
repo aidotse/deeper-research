@@ -83,6 +83,27 @@ check("history: earlier entry edited", any("log entry of 2026-09-01" in x for x 
 check("history: coreset row removed without Demotions", any("coreset rows removed" in x for x in hf), str(hf))
 check("history: source lowered", any("lowered" in x for x in hf), str(hf))
 
+# 6a history: a verified row edited needs a logged correction; a draft (`abstract`) row does not
+def history_of(text):
+    S.write_text(text)
+    secs = chk.sections(text)
+    rows, ids, ab = chk.check_coreset(secs["Coreset"], dims, "coreset", [], [])
+    st = chk.check_structure(T, secs, rows, ids, [], [])
+    return gates.history(gates.Ctx(T, secs, st, rows, ids, ab, O.read_text(), dims, steer, read_targets(T)[0]))[0]
+f = build()
+committed_text = S.read_text()
+vrow = next(l for l in committed_text.splitlines() if l.startswith("| [") and l.endswith("| snippet |"))
+arow = next(l for l in committed_text.splitlines() if l.startswith("| [") and l.endswith("| abstract |"))
+vid = chk.row_id(vrow)
+edited = committed_text.replace(vrow, vrow.replace("| does a thing |", "| does another thing |"), 1)
+hf = history_of(edited)
+check("history: verified cell changed without Corrections", any("verified rows changed" in x for x in hf), str(hf))
+hf = history_of(edited.replace("- **Corrections to existing rows:** none",
+                               f"- **Corrections to existing rows:** {vid} — does a thing -> does another thing, per the full text"))
+check("history: verified cell changed with a Corrections entry passes", not any("verified rows changed" in x for x in hf), str(hf))
+hf = history_of(committed_text.replace(arow, arow.replace("| does a thing |", "| does another thing |"), 1))
+check("history: an abstract-sourced row may be rewritten", not any("verified rows changed" in x for x in hf), str(hf))
+
 # 6b evidence: full text absent -> note, not failure
 f = build(); import shutil; shutil.rmtree(G / "fulltext")
 code, out = run("--gate", "G5")

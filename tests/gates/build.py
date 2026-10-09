@@ -88,6 +88,9 @@ def build():
                         for c, n in names.items())
     pool_rows = "\n".join(f"| [{titles[p].replace('|', '/')}]({link(p)}) | {pool['papers'][p].get('year') or ''} | {names[a[p]]} | 1 |  |"
                           for p in sorted(a))
+    fetched = sorted({pool["papers"][p].get("fetched") for p in a} - {None})
+    when = ("unknown" if not fetched else fetched[0] if len(fetched) == 1
+            else f"{fetched[0]} to {fetched[-1]}")   # as tools/pool.py prints it
     fr1, fr2 = rows["c1"][-4][0], rows["c2"][-4][0]   # two anchors as frontier candidates
     changed = rows["c3"][0][0]
     survey = f"""# Survey: {T}
@@ -105,7 +108,7 @@ def build():
 - **Recency window:** 2026-04-09 to {DATE}, applied to the recency queries only
 - **Fringe:** collected {DATE}: hidden 60, new 60 candidates ({unique} unique); in scope 3; added to the pool 3, of
   which 0 without an arXiv ID; left out 0
-- **Pool:** {len(a)} papers in scope; metadata fetched {DATE}
+- **Pool:** {len(a)} papers in scope; metadata fetched {when}
 - **Clustering:** measure {rep['measure']} (grid mean stability: x); level {len(rep['clusters'])} clusters by rule tau,
   stability 0.80; diagnostics: thin cluster: six -> expanded; manual overrides: none
 - **Temporal stability:** 4 equal-count segments; one since 2025-01

@@ -105,4 +105,5 @@ not just the pool:
 
 Record in the log what the probe searched and what it found. Report the result as either "found: <papers>", which enter
 the coreset in a role, or "survived a refutation attempt: <what was searched>". Never report absence more strongly than
-the search that tested it.
+the search that tested it. A paper a probe finds is a late paper: add it to the pool with `tools/assign.py add`; it
+takes a role only once `tools/assign.py late` has assigned it a cluster (`docs/process.md`, "Late papers").
