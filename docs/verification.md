@@ -18,8 +18,8 @@ row is still unsupported.
 Fall back to the paper's full text in two cases: when snippet search returns no body text for the paper, and when a
 claim rests on a table or a figure caption, which snippets exclude. Fetch it with
 `uv run tools/fulltext.py <topic> <id>` (see `docs/tooling.md`), then search the file with Grep for the terms the claim
-turns on, and read only the matching sections. A whole paper is 10–70k tokens, so do not read it end to end. Quote what
-you rely on, and set `source` to `full-text`.
+turns on, and read only the matching sections. A whole paper is 10–70k tokens, so do not read it end to end. Set
+`source` to `full-text`.
 
 Then check every cell:
 
@@ -31,6 +31,30 @@ Then check every cell:
   classification out of an unverified summary and then marking it verified launders a guess into a fact.
 - `role` and `selected because` — still true in the light of the body text. A paper selected as dissent that turns out
   to agree with its cluster is a selection error, not a characterisation detail.
+
+### Recording the evidence
+
+Write down what each claim rests on, as you verify it, in `graphs/<topic>/evidence/<id>.md` (a slash or colon in the ID
+becomes `_`, as for full texts). The snippets and sections you read are otherwise lost when your context ends, and a row
+nobody can trace back to its text cannot be reviewed or audited. One bullet per piece of evidence:
+
+```text
+# Evidence: <id>
+
+- `method summary` — snippet — "<the sentence that says what the paper does>"
+- `result`, `evidence` — full-text, <section heading> — "<the sentence with the headline number> ... <its condition>"
+```
+
+- `cells` — the cells the quote supports, each in backticks. Every verified row needs at least `method summary`,
+  `result`, and each declared dimension whose value is not `n/a`.
+- `source` — `snippet`, `full-text` or `abstract`, then, after a comma, where in the paper: the section heading or the
+  `[page N]` marker of the full-text file, or the section snippet search reported.
+- `quote` — verbatim, in double quotes. Elide with `...`, never paraphrase. A sentence or two is enough; this is a
+  pointer for a reviewer, not a copy of the paper.
+
+`tools/check.py` requires the file for every row not `abstract`-sourced, and finds every `full-text` quote in the
+fetched full text, ignoring punctuation and line breaks (`docs/gates.md`, `G4`). A quote it cannot find there is a
+paraphrase, which is a claim presented as retrieved. A correction replaces the evidence it corrects.
 
 Four rules decide the edge cases:
 
@@ -46,7 +70,7 @@ Four rules decide the edge cases:
 
 **Outcomes.** Each row ends in exactly one of three states:
 
-- **Confirmed** — set `source` to `snippet` or `full-text`.
+- **Confirmed** — set `source` to `snippet` or `full-text`, with the evidence recorded.
 - **Corrected** — fix the cell in place, set `source`, and log the old and new text in the current pass's entry.
   Corrections are never silent.
 - **Uncheckable** — no body text is available: snippet search returns none, and there is no full text: for an arXiv

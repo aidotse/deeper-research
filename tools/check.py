@@ -1,28 +1,30 @@
 #!/usr/bin/env python3
-"""Consistency check for one topic's pipeline artifacts.
+"""Consistency check for one topic's pipeline artifacts, and the gates of a pass.
 
-Usage: python3 tools/check.py <topic> [--stage pool|coreset|output]
+Usage: python3 tools/check.py <topic> [--gate G<n>] [--status]
 
-The stage says how far the pass has got, and so what must already hold. Without --stage it is inferred: `output` if
-outputs/<topic>.md exists, else `coreset` if the Coreset section has rows, else `pool`.
+Two kinds of check, both failing with exit status 1:
 
-  pool     (steps 1-3) the input's format; the survey's sections and their order; the Clusters table; the Pool table
-           (columns, paper links, unique IDs, known clusters; no paper twice, whether under two IDs, as two records with one
-           title, or as a CorpusId row for a paper that has an arXiv ID); and, once clustering is recorded, that every pool
-           paper's `cluster` is its computed cluster, through the Clusters table's `computed` column.
-  coreset  (steps 4-5) adds the Coreset section: one row per unique paper ID, the required columns, `source` last,
-           declared dimension values, blocks headed by known clusters in the Clusters table's order, valid roles and
-           bridges, every coreset paper in the pool and in the block of its computed cluster, and coreset/bib parity.
-  output   (steps 6-7) adds the output: every cited paper ID in the coreset; every citation of an `abstract`-sourced
-           paper marked [abstract-only], with a legend before the first section; and the required sections.
+  integrity  whatever exists must be well formed. The input's format; the survey's sections and their order; the
+             Clusters table; the Pool table (columns, paper links, unique IDs, known clusters; no paper twice, whether
+             under two IDs, as two records with one title, or as a CorpusId row for a paper that has an arXiv ID); every
+             pool paper's `cluster` its computed cluster, through the Clusters table's `computed` column; once the
+             Coreset has rows, one row per unique paper ID, the required columns, `source` last, declared dimension
+             values, blocks headed by known clusters in the Clusters table's order, valid roles and bridges, every
+             coreset paper in the pool and in the block of its computed cluster, and coreset/bib parity; once the
+             output exists, every cited paper ID in the coreset, every citation of an `abstract`-sourced paper marked
+             [abstract-only] with a legend before the first section, and a section per target plus Questions and
+             Reading.
+  gates      what each step must have left behind, G0 to G5 (tools/gates.py, docs/gates.md). The gates the pass has
+             reached are worked out from the files; `--gate G<n>` also requires every gate up to G<n>, which is how the
+             main session checks a gate before starting the next step. `--status` prints every gate's open
+             requirements: what the run has done, and what remains.
 
-It also prints, without failing: each cluster's in-degree leaders within the pool, per-cluster role coverage against
-the cluster's alignment, anchors that are not an in-degree leader, the fringe quota, clusters that trade papers but
-have no bridge, the `source` tally, and pool papers still waiting for a cluster.
+It also prints, without failing: each cluster's in-degree leaders within the pool and role coverage, anchors that are
+not an in-degree leader, the `source` tally, and pool papers still waiting for a cluster.
 
-Surveys written before the coreset structure (no `## Clusters` section) get only the checks that apply to them.
-
-Exit status is 1 if any check fails, so it can gate a pass.
+Surveys written before the coreset structure (no `## Clusters` section) get only the integrity checks that apply to
+them, and no gates. Exit status 2 is a usage error.
 """
 
 import json
@@ -60,7 +62,6 @@ MARKED = re.compile(r"(?:v\d+)?[\s*,;:()\]]*\[abstract-only\]")
 CLUSTER_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 SURVEY_SECTIONS = ["Retrieval log", "Clusters", "Coreset", "Pool", "Open work"]
-OUTPUT_SECTIONS = ["Landscape", "Assumptions", "Gaps", "Questions", "Reading"]
 POOL_COLUMNS = ["paper", "year", "cluster", "citations", "cites"]
 CORESET_COLUMNS = ["paper", "venue+year", "role", "selected because", "method name", "method summary",
                    "datasets / models", "metric", "result"]
@@ -70,7 +71,9 @@ NEEDED = {"high": ("anchor", "frontier", "dissent"), "medium": ("anchor", "front
 FRINGE_QUOTA = (5, 10)  # per topic, not per cluster
 ABSTRACT_SHARE = 0.2  # above this share of abstract-sourced rows after step 5, the pass halts (H10)
 SOURCES = {"abstract", "snippet", "full-text"}
-STAGES = ("pool", "coreset", "output")
+# Phrases that claim absence, which only a probe may support (docs/verification.md, "Probes").
+ABSENCE = re.compile(r"\b(?:has not been (?:studied|explored|addressed)|no (?:prior )?work (?:on|has)|nobody has|"
+                     r"no one has|has never been)\b", re.I)
 
 
 def read(path):
@@ -151,14 +154,6 @@ def row_id(line):
     return m.group(1) if m else None
 
 
-def infer_stage(secs, output):
-    if output is not None:
-        return "output"
-    if any(h and h[0] == "paper" for h, _, _, _ in table_rows(secs.get("Coreset", ""))):
-        return "coreset"
-    return "pool"
-
-
 # --- the coreset table ----------------------------------------------------------------------------
 
 
@@ -193,8 +188,7 @@ def check_coreset(table, dims, layout, failures, notes):
 
     if layout == "coreset" and rows:
         share = sources.count("abstract") / len(rows)
-        notes.append(f"{share:.0%} of coreset rows are abstract-sourced; after step 5, more than "
-                     f"{ABSTRACT_SHARE:.0%} halts the pass (H10)")
+        print(f"         {share:.0%} abstract-sourced; after step 5, more than {ABSTRACT_SHARE:.0%} halts the pass (H10)")
         for h in {tuple(h) for h, _, _, _ in rows}:
             missing = [c for c in CORESET_COLUMNS if c not in h]
             if missing:
@@ -222,12 +216,13 @@ def check_coreset(table, dims, layout, failures, notes):
 
 
 def read_clusters(secs, failures):
-    """The Clusters table: {id: alignment}, and the `computed` column as {computed id: named id}."""
-    clusters, computed = {}, {}
+    """The Clusters table: {id: alignment}, the `computed` column as {computed id: named id}, and the rows."""
+    clusters, computed, rows = {}, {}, []
     for h, c, _, _ in table_rows(secs["Clusters"]):
         if not h or h[0] != "id":
             continue
         row = dict(zip(h, c))
+        rows.append(row)
         cid, alignment = row["id"], row.get("alignment", "")
         if not CLUSTER_ID.match(cid):
             failures.append(f"cluster id {cid!r} is not kebab-case")
@@ -241,7 +236,7 @@ def read_clusters(secs, failures):
                 failures.append(f"computed cluster {row['computed']} is named twice in the Clusters table")
             computed[row["computed"]] = cid
     print(f"clusters: {len(clusters)} ({', '.join(f'{a} {list(clusters.values()).count(a)}' for a in ['high', 'medium', 'low'])})")
-    return clusters, computed
+    return clusters, computed, rows
 
 
 def read_pool(secs, clusters, failures):
@@ -376,9 +371,9 @@ def leaders(cid, pool, pool_cluster, indeg):
     return lead, top
 
 
-def check_structure(topic, secs, rows, coreset_ids, stage, failures, notes):
-    """Checks for surveys using clusters, roles and a pool."""
-    clusters, computed = read_clusters(secs, failures)
+def check_structure(topic, secs, rows, coreset_ids, failures, notes):
+    """Checks for surveys using clusters, roles and a pool. Returns what the gates read."""
+    clusters, computed, cluster_rows = read_clusters(secs, failures)
     pool, pool_cluster, cites, titles = read_pool(secs, clusters, failures)
     check_duplicates(topic, titles, failures, notes)
     report = check_computed(topic, pool, pool_cluster, clusters, computed, failures, notes)
@@ -395,16 +390,18 @@ def check_structure(topic, secs, rows, coreset_ids, stage, failures, notes):
             if q != p:
                 indeg[q] += 1
 
-    if stage == "pool":
+    out = {"clusters": clusters, "computed": computed, "cluster_rows": cluster_rows, "pool": pool,
+           "pool_cluster": pool_cluster, "titles": titles, "report": report, "roles": {}, "bridges": set()}
+    if not rows:
         for cid, alignment in clusters.items():
             print(f"  {cid} [{alignment}]: pool {sum(1 for p in pool if pool_cluster.get(p) == cid)}")
             leaders(cid, pool, pool_cluster, indeg)
-        return
+        return out
 
-    header = rows[0][0] if rows else []
-    if rows and "role" not in header:
+    header = rows[0][0]
+    if "role" not in header:
         failures.append("Coreset section has no `role` column")
-        return
+        return out
     ri = header.index("role") if rows else None
     order = [b.split(" — ")[0].strip() for b in
              (line[4:].strip() for line in secs["Coreset"].splitlines() if line.startswith("### "))]
@@ -441,35 +438,25 @@ def check_structure(topic, secs, rows, coreset_ids, stage, failures, notes):
     if missing:
         failures.append(f"coreset papers missing from the pool: {missing}")
 
-    n_fringe = sum(r.get("fringe", 0) for r in roles.values())
-    if not FRINGE_QUOTA[0] <= n_fringe <= FRINGE_QUOTA[1]:
-        notes.append(f"{n_fringe} fringe row(s); the quota is {FRINGE_QUOTA[0]}-{FRINGE_QUOTA[1]} per topic")
     for cid, alignment in clusters.items():
         r = roles[cid]
         shown = ", ".join(f"{k} {v}" for k, v in sorted(r.items())) or "no rows"
-        print(f"  {cid} [{alignment}]: pool {sum(1 for p in pool if pool_cluster.get(p) == cid)}; coreset {shown}")
         gaps = [k for k in NEEDED.get(alignment, ()) if not r.get(k)]
-        if gaps:
-            notes.append(f"{cid} is {alignment}-alignment but has no {', '.join(gaps)}"
-                         + ("; an empty dissent slot is fine if Open work records what was searched"
-                            if gaps == ["dissent"] else ""))
+        print(f"  {cid} [{alignment}]: pool {sum(1 for p in pool if pool_cluster.get(p) == cid)}; coreset {shown}"
+              + (f"; missing {', '.join(gaps)}" if gaps else ""))
         lead, top = leaders(cid, pool, pool_cluster, indeg)
         if anchors[cid] and lead and not anchors[cid] & lead:
             notes.append(f"{cid}: anchor {sorted(anchors[cid])} is not the in-degree leader {sorted(lead)} ({top}); "
                          "fine if deliberate")
 
-    for d in (report or {}).get("diagnostics", []):
-        if d.get("case") == "clusters trade papers":
-            pair = [computed.get(x) for x in d.get("clusters", [])]
-            if None not in pair and frozenset(pair) not in bridges:
-                notes.append(f"{pair[0]} and {pair[1]} trade papers, but no bridge row joins them "
-                             "(docs/process.md, \"When stability fails\")")
+    out.update(roles=roles, bridges=bridges)
+    return out
 
 
 # --- output ---------------------------------------------------------------------------------------
 
 
-def check_output(output, coreset_ids, abstract, layout, failures, notes):
+def check_output(output, coreset_ids, abstract, layout, targets, failures, notes):
     out_ids = set(LINK.findall(output)) | set(BARE_ID.findall(output))
     print(f"output:  {len(out_ids)} cited IDs")
     if out_ids - coreset_ids:
@@ -490,15 +477,21 @@ def check_output(output, coreset_ids, abstract, layout, failures, notes):
     if risky:
         notes.append(f"{len(risky)} abstract-sourced paper(s) cited in the output: {risky}")
     if layout == "coreset":
-        missing = [s for s in OUTPUT_SECTIONS if s not in sections(output)]
+        missing = [s for s in targets + ["Questions", "Reading"] if s not in sections(output)]
         if missing:
-            failures.append(f"output lacks required section(s): {missing} (docs/formats.md, outputs)")
+            failures.append(f"output lacks required section(s): {missing}: one per target, then Questions and Reading "
+                            "(docs/formats.md, outputs)")
+        absent = sorted({output.count("\n", 0, m.start()) + 1 for m in ABSENCE.finditer(output)})
+        if absent:
+            notes.append(f"output claims absence (line {', '.join(map(str, absent))}); only a probe supports that, and "
+                         "an unrepresented connection is \"not represented in the coreset\"")
 
 
 def main(argv):
-    stage = argv[argv.index("--stage") + 1] if "--stage" in argv else None
-    args = [a for a in argv if not a.startswith("--") and a != stage]
-    if len(args) != 1 or (stage is not None and stage not in STAGES):
+    gate = argv[argv.index("--gate") + 1] if "--gate" in argv else None
+    status = "--status" in argv
+    args = [a for a in argv if not a.startswith("--") and a != gate]
+    if len(args) != 1 or (gate is not None and not re.fullmatch(r"G[0-5]", gate)):
         print(__doc__.strip())
         return 2
     topic = args[0]
@@ -509,15 +502,14 @@ def main(argv):
     bib = read(ROOT / "bib" / f"{topic}.bib")
     output = read(ROOT / "outputs" / f"{topic}.md")
 
-    from inputs import read_input
-    dims, _, problems = read_input(topic)
+    from inputs import read_input, read_targets
+    dims, steering, problems = read_input(topic)
+    targets, more = read_targets(topic)
     dims = dims or {}
-    failures, notes = list(problems), []
+    failures, notes = list(problems) + more, []
     secs = sections(survey)
     layout = "coreset" if "Clusters" in secs else "legacy"
-    inferred = stage is None
-    stage = stage or infer_stage(secs, output)
-    print(f"stage:   {stage}" + (" (inferred)" if inferred else "") + f"; layout: {layout}")
+    print(f"layout:  {layout}")
 
     if layout == "coreset":
         found = [s for s in section_order(survey) if s in SURVEY_SECTIONS]
@@ -527,16 +519,18 @@ def main(argv):
         print(f"FAIL  surveys/{topic}.md has no `## Coreset` section")
         return 1
 
+    has_rows = any(h and h[0] == "paper" for h, _, _, _ in table_rows(secs.get("Coreset", "")))
     rows, coreset_ids, abstract = [], set(), set()
-    if layout == "legacy" or stage != "pool":
+    if layout == "legacy" or has_rows:
         rows, coreset_ids, abstract = check_coreset(secs.get("Coreset", ""), dims, layout, failures, notes)
 
+    structure = None
     if layout == "coreset" and "Clusters" in secs and "Pool" in secs:
-        check_structure(topic, secs, rows, coreset_ids, stage, failures, notes)
+        structure = check_structure(topic, secs, rows, coreset_ids, failures, notes)
     elif layout == "legacy":
-        print("layout:  legacy (no Clusters section); cluster, role and pool checks skipped")
+        print("layout:  legacy (no Clusters section); cluster, role, pool and gate checks skipped")
 
-    if stage != "pool":
+    if rows:
         if bib is None:
             failures.append(f"bib/{topic}.bib does not exist; run `python3 tools/bib.py {topic}`")
         else:
@@ -547,11 +541,17 @@ def main(argv):
             if in_bib - coreset_ids:
                 failures.append(f"in bib but not coreset: {sorted(in_bib - coreset_ids)}")
 
-    if stage == "output":
-        if output is None:
-            failures.append(f"outputs/{topic}.md does not exist")
-        else:
-            check_output(output, coreset_ids, abstract, layout, failures, notes)
+    if output is not None:
+        check_output(output, coreset_ids, abstract, layout, targets, failures, notes)
+
+    if layout == "coreset":
+        import gates
+        ctx = gates.Ctx(topic, secs, structure, rows, coreset_ids, abstract, output, dims, steering, targets)
+        g_fail, g_notes = gates.run(ctx, int(gate[1]) if gate else None, status)
+        failures += g_fail
+        notes += g_notes
+    elif gate or status:
+        failures.append("gates apply only to surveys in the coreset layout")
 
     print()
     for n in notes:

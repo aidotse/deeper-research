@@ -35,11 +35,12 @@ coreset, then the output and the coverage test. The pool and the coreset are bui
 ### Order of operations
 
 This table is the pass's checklist. Run it from top to bottom, and confirm each row's `done when` before starting the
-next. Each operation is either a script, which is deterministic and costs no tokens, or model judgement. In `run by`,
-`main` means the main session runs the command itself, between dispatches. A quoted name, such as `survey-pass`
-"Orient", is a dispatch with the brief of that name in `docs/dispatch.md` ("Briefs"), which says what the main session
-hands over and what comes back. A subagent runs only the scripts its own job needs, such as `tools/assign.py add` while
-expanding or `tools/fulltext.py` while verifying.
+next. The gate rows, `G0` to `G5`, check by script that the steps before them left everything they should
+(`docs/gates.md`). Each operation is either a script, which is deterministic and costs no tokens, or model judgement. In
+`run by`, `main` means the main session runs the command itself, between dispatches. A quoted name, such as
+`survey-pass` "Orient", is a dispatch with the brief of that name in `docs/dispatch.md` ("Briefs"), which says what the
+main session hands over and what comes back. A subagent runs only the scripts its own job needs, such as
+`tools/assign.py add` while expanding or `tools/fulltext.py` while verifying.
 
 In `writes`, a capitalised name in code, such as `Pool`, is a line of the pass's retrieval-log entry. The main session
 pastes the lines that scripts print; agents write the lines about their own work. Every artifact is described in
@@ -52,14 +53,16 @@ runs in this repo; the rest are estimates, to be replaced by the per-step token 
 | 0 | Plan | main: `python3 tools/inputs.py <topic>`; on a later pass, also `python3 tools/check.py <topic>` | the input; on a later pass, the survey's Open work and last log entry | on a first pass, `surveys/<topic>.md` with its five section headings (`docs/formats.md`); the log entry `### Pass YYYY-MM-DD`, with `Dimensions` | the scripts exit 0. If `tools/inputs.py` fails, the user corrects the input before the pass starts; never edit it for them | est. under 10k |
 | 0 | Preflight: scripts | main: `python3 tools/preflight.py` | — | — (the printout goes to the next row) | exit 0. Exit 1 halts the pass (`H1`) | 0 |
 | 0 | Preflight: Asta and WebSearch | `survey-pass` "Preflight" | the script's printout | `Preflight` | the report has no `STOP:` | est. under 5k |
-| 1 | Orient | `survey-pass` "Orient" | WebSearch results for the input's topic and questions, with and without a recency window | Pool rows, by `tools/assign.py add`; `Orientation`, listing the frontier candidates; `Recency window` | every frontier candidate is resolved to its ID and in the pool | est. 50–100k |
-| 2 | Expand and screen | `survey-pass` "Expand" | Asta traversal and search results: titles and abstracts | Pool rows, by `tools/assign.py add`; `Expansion`; `Errored queries`; Open work: papers that could not enter the pool | backward traversal done from every frontier candidate, a relevance search run for every theme step 1 named, and every errored query retried once (`H2` if it still fails) | about 0.85k per candidate screened (measured); 250k for 300 candidates |
+| 0 | Gate `G0` | main: `python3 tools/check.py <topic> --gate G0` | — | `Gates` | passes (`docs/gates.md`) | 0 |
+| 1 | Orient | `survey-pass` "Orient" | WebSearch results for the input's topic and questions, with and without a recency window | Pool rows, by `tools/assign.py add`; rejections, by `tools/assign.py reject`; `Orientation`, listing the frontier candidates; `Recency window` | every frontier candidate is resolved to its ID and in the pool | est. 50–100k |
+| 2 | Expand and screen | `survey-pass` "Expand" | Asta traversal and search results: titles and abstracts | Pool rows, by `tools/assign.py add`; rejections, by `tools/assign.py reject`; `Expansion`; `Errored queries`; Open work: papers that could not enter the pool | backward traversal done from every frontier candidate, a relevance search run for every theme step 1 named, and every errored query retried once (`H2` if it still fails) | about 0.85k per candidate screened (measured); 250k for 300 candidates |
 | 2 | Fetch pool data | main: `python3 tools/pool.py <topic>` | — | `pool.json`; the Pool's `year`, `citations` and `cites`; `Pool` | exit 0, and `tools/check.py` notes no unfetched paper | 0 |
 | 2 | Provisional clustering | main: `uv run tools/cluster.py <topic>` | — | `clusters.json`, to seed the `new` route; not logged | exit 0. `STOP: H8` halts the pass | 0; about 2 min per 200 papers (measured) |
 | 2 | Collect fringe candidates | main: `uv run tools/fringe.py collect <topic>` | — | `fringe.json`; the blind screening sheet `fringe-screen.md` | exit 0 | 0 |
 | 2 | Screen fringe candidates | `survey-pass` "Fringe screening" | `fringe-screen.md` | its `in scope` and `reason` columns | every row judged | about 0.85k per candidate (measured: 123k for 146) |
 | 2 | Add fringe candidates | main: `python3 tools/assign.py add-fringe <topic>` | — | Pool rows; `Fringe` | exit 0; it refuses while any row is unjudged | 0 |
 | 2 | Fetch again | main: `python3 tools/pool.py <topic>` | — | as above; `Pool`, replacing the earlier one | as above | 0 |
+| 2 | Gate `G1` | main: `python3 tools/check.py <topic> --gate G1` | — | `Gates` | passes | 0 |
 | 3 | Cluster | main: `uv run tools/cluster.py <topic>` | — | `clusters.json`; a printout with the diagnostics and the `Clustering` and `Temporal stability` lines | exit 0, and each diagnostic's action taken ("When stability fails"). `STOP: H8`, `no structure` (`H4`), or `no stable level` after an expansion (`H5`) halts the pass | 0; about 2 min per 200 papers (measured) |
 | 3 | Carry names over, on a later pass | main: `python3 tools/assign.py remap <topic>` | — | the Clusters table's `computed` column | exit 0; it lists the clusters left to name | 0 |
 | 3 | Write the sheets | main: `python3 tools/sheets.py <topic>` | — | `naming-sheet.md`; `fringe-sheet.md` | exit 0 | 0 |
@@ -67,19 +70,23 @@ runs in this repo; the rest are estimates, to be replaced by the per-step token 
 | 3 | Write the clusters | main: `python3 tools/assign.py clusters <topic>` | — | the Pool's `cluster` column | `tools/check.py` passes, with no cluster cell left to fill | 0 |
 | 3 | Rewrite the sheets | main: `python3 tools/sheets.py <topic>` | — | the sheets, now with names | exit 0 | 0 |
 | 3 | Build the viewer | main: `python3 tools/graph.py <topic>` | — | `graph.html` | exit 0 | 0 |
+| 3 | Gate `G2` | main: `python3 tools/check.py <topic> --gate G2` | — | `Gates` | passes | 0 |
 | 3 | Cluster review, only on `H4`–`H8` or `H13` | main and user | the Clusters table; the `Clustering` line; the viewer | `Halts`; any manual override, in `Clustering` | the user has decided; see "Cluster review" | est. under 10k |
 | 4 | Set up the coreset blocks | main | the Clusters table; the input's dimensions | one `###` block per cluster, in the Clusters table's order, each with the table's header row (`docs/formats.md`, "3. Coreset") | the blocks match the Clusters table | est. under 5k |
-| 4 | Select per cluster: anchor, frontier, dissent | `survey-pass` "Selection", one per block of clusters, in parallel | each cluster's section of `naming-sheet.md`; `tools/check.py`'s in-degree leaders; the frontier candidates in `Orientation`; abstracts and dissent searches through Asta | Coreset rows, every cell drafted from the abstract, `source` `abstract`; `Dissent searches`; `Demotions`, on a later pass; Open work: empty roles | after `python3 tools/bib.py <topic>`, `tools/check.py --stage coreset` passes and notes no missing role that Open work does not explain | est. 6–12k per cluster, plus 20–50k per `high` cluster for dissent |
+| 4 | Select per cluster: anchor, frontier, dissent | `survey-pass` "Selection", one per block of clusters, in parallel | each cluster's section of `naming-sheet.md`; `tools/check.py`'s in-degree leaders; the frontier candidates in `Orientation`; abstracts and dissent searches through Asta | Coreset rows, every cell drafted from the abstract, `source` `abstract`; `Dissent searches`; `Demotions`, on a later pass; Open work: empty roles | after `python3 tools/bib.py <topic>`, `tools/check.py` passes | est. 6–12k per cluster, plus 20–50k per `high` cluster for dissent |
 | 4 | Bridges, only if `tools/check.py` notes a trading pair without one | `survey-pass` "Bridges", once | the Clusters table; the trading pairs `tools/check.py` notes; the coreset | `bridge:` rows | `tools/check.py` notes no trading pair without a bridge | not yet estimated |
 | 4 | Rewrite the sheets | main: `python3 tools/sheets.py <topic>` | — | `fringe-sheet.md`, with the coreset rows marked | exit 0 | 0 |
-| 4 | Fringe | `survey-pass` "Fringe selection", once | `fringe-sheet.md`; its papers' abstracts through Asta; the coreset rows | `fringe` rows | five to ten rows, or the report says why not | est. 20–40k |
-| 5 | Characterise and verify | `survey-pass` "Verification", one per block of clusters, in parallel | snippets; full text, by `tools/fulltext.py` and Grep | every cell and `source`; `Corrections to existing rows`; Open work: rows needing verification | every row confirmed, corrected, or uncheckable with an Open work entry (`docs/verification.md`). Over 20% uncheckable halts the pass (`H10`) | about 10k per row (earlier passes); 400–600k for 40–60 rows |
-| 5 | Bibliography, checks and sheets | main: `python3 tools/bib.py <topic>`, then `python3 tools/check.py <topic> --stage coreset`, then `python3 tools/sheets.py <topic>` | — | `bib/<topic>.bib`; `Coreset`, from the check's row count; the sheets, for step 7 | all exit 0 | 0 |
-| 6 | Write the output | main | the Clusters section and the coreset rows, never the pool | `outputs/<topic>.md` | `tools/check.py <topic> --stage output` passes | est. 60–120k |
+| 4 | Fringe | `survey-pass` "Fringe selection", once | `fringe-sheet.md`; its papers' abstracts through Asta; the coreset rows | `fringe` rows | `tools/check.py` passes | est. 20–40k |
+| 4 | Gate `G3` | main: `python3 tools/check.py <topic> --gate G3` | — | `Gates` | passes | 0 |
+| 5 | Characterise and verify | `survey-pass` "Verification", one per block of clusters, in parallel | snippets; full text, by `tools/fulltext.py` and Grep | every cell and `source`; `graphs/<topic>/evidence/<id>.md` per row; `Corrections to existing rows`; Open work: rows needing verification | every row confirmed, corrected, or uncheckable with an Open work entry (`docs/verification.md`). Over 20% uncheckable halts the pass (`H10`) | about 10k per row (earlier passes); 400–600k for 40–60 rows |
+| 5 | Bibliography, checks and sheets | main: `python3 tools/bib.py <topic>`, then `python3 tools/check.py <topic>`, then `python3 tools/sheets.py <topic>` | — | `bib/<topic>.bib`; `Coreset`, from the check's row count; the sheets, for step 7 | all exit 0 | 0 |
+| 5 | Gate `G4` | main: `python3 tools/check.py <topic> --gate G4` | — | `Gates` | passes | 0 |
+| 6 | Write the output | main | the Clusters section and the coreset rows, never the pool | `outputs/<topic>.md` | `tools/check.py <topic>` passes | est. 60–120k |
 | 7 | Coverage test | `survey-pass` "Coverage test" | the output; `tools/check.py`'s per-cluster counts; `fringe-sheet.md`; 10–15 sampled candidates | Pool rows, by `tools/assign.py add`, for each candidate that changed a target; `Coverage test` | the line names every candidate that changed a target or opened a cluster | est. 30–50k per round |
 | 7 | Late papers | main: `uv run tools/assign.py late <topic>`; on `RECLUSTER:` (exit 3), `uv run tools/cluster.py <topic>`, then `python3 tools/assign.py remap <topic>` | — | the Pool's `cluster` column; `clusters.json`; `Late papers` | exit 0; after a recluster, the step 3 rows from "Write the sheets" on are done again | 0 |
 | 7 | Revise | the step 4–6 rows, for the added papers and any renamed clusters | as there | rows in roles, verified; the output, revised | as there | as there |
 | 7 | End the round | main | the `Coverage test` line | another round; or `Tokens` and `Ended` | `F1`: no new cluster and at most one output change. Two rounds without convergence halt the pass (`H11`) | est. under 5k |
+| 7 | Gate `G5` | main: `python3 tools/check.py <topic> --gate G5` | — | `Gates` | passes; the pass is over | 0 |
 
 The expensive steps are verification, about half the total, and screening, which grows with the pool. As a rough
 planning figure, a pass on a topic of about 50 coreset rows is estimated at 1–1.5M tokens. That is an estimate, not yet
@@ -99,8 +106,9 @@ How a halt works:
 1. The agent that meets the condition stops its job and writes what is outstanding to Open work (`docs/formats.md`).
 2. A subagent cannot reach the user. It returns a report whose first line is `STOP: <id> — <the reason>`, with the
    measured numbers.
-3. The main session tells the user and waits. The user decides whether and how the pass continues. The decision goes
-   into the log's `Halts` line.
+3. The main session records the halt in the log's `Halts` line with the decision `pending`, tells the user, and waits.
+   The user decides whether and how the pass continues, and the decision replaces `pending`. Until then no gate after
+   the last one passed can pass (`docs/gates.md`).
 4. If the pass continues past something missing, such as a failed service, the output's legend says what was missing.
 
 A halt is not always a fault. `no structure`, for example, is a finding about the field.
@@ -201,8 +209,10 @@ Use Asta.
 - `search_papers_by_relevance` and `snippet_search` fill in clusters that traversal does not reach.
 - Asta supports date-restricted queries. Use them to keep recent work represented.
 
-Add each in-scope paper to the Pool table with `python3 tools/assign.py add <topic> <paper-id> ...`, never by hand. Then
-run `python3 tools/pool.py <topic>`, which fetches the metadata and clustering data for every pool paper by script (see
+Add each in-scope paper to the Pool table with `python3 tools/assign.py add <topic> <paper-id> ...`, never by hand.
+Record each candidate judged out of scope with `python3 tools/assign.py reject <topic> <paper-id> <reason>`: a rejection
+is a judgement too, and one that is not recorded can be neither reviewed nor redone (`docs/gates.md`). Then run
+`python3 tools/pool.py <topic>`, which fetches the metadata and clustering data for every pool paper by script (see
 `docs/tooling.md`). Metadata is never fetched through a model's context.
 
 Traversal from the frontier cannot reach papers the field has overlooked, so expansion ends with two fringe routes, run
@@ -501,8 +511,9 @@ ranking alone is not enough, is in `docs/coresets.md` ("How coverage is achieved
 - `dissent` — a paper that contradicts the cluster's consensus, breaks one of its assumptions, or reports a negative
   result against its central claim. Dissent needs a dedicated search for each high-alignment cluster. Search the forward
   citations of the cluster's anchor and frontier papers, and run relevance queries phrased as challenges: "fails to",
-  "does not", "revisiting", "limits of", "rethinking", etc. If a search finds no dissent, record that the slot is empty
-  and what was searched. An empty dissent slot is information about the cluster, not a failure.
+  "does not", "revisiting", "limits of", "rethinking", etc. Quote, in `selected because`, the paper's claim that
+  contradicts the cluster. If a search finds no dissent, record that the slot is empty and what was searched. An empty
+  dissent slot is information about the cluster, not a failure.
 - `bridge` — a paper that connects two clusters, for example by applying one cluster's method to another's question.
   Written `bridge:<other-cluster-id>`. It is optional, but bridges are where the Landscape's structure becomes visible.
   Where the clustering diagnostics report two clusters trading papers, one of them gets a bridge paper.

@@ -17,10 +17,12 @@ An .md file with at least one section, and several optional ones:
   target, and nothing else. Why the coreset is defined this way is in `docs/coresets.md`.
 
   If the section is omitted, the targets are `Landscape`, `Assumptions` and `Gaps`. An input may add more, such as
-  specific research questions, one top-level bullet per added target; the defaults still apply unless the section says
-  which to drop. Each target gets its own section in the output. Research questions placed in `Context` steer the search
-  but are not targets, so the coverage test does not check them. `Questions` and `Reading` are derived from the targets,
-  so they are never targets themselves. The default targets:
+  specific research questions, one top-level bullet per added target, in the form
+  `` - **`<Name>`** — <what the output must say about it> ``. The defaults still apply unless dropped with a bullet
+  `` - `drop`: `<Name>`  ``. Other prose in the section is allowed; `tools/inputs.py` prints the targets it reads. Each
+  target gets its own section in the output. Research questions placed in `Context` steer the search but are not
+  targets, so the coverage test does not check them. `Questions` and `Reading` are derived from the targets, so they are
+  never targets themselves. The default targets:
 
   - `Landscape` — the general clusters, the axes that actually separate them, and where the bridges and tensions are.
 
@@ -110,11 +112,12 @@ One entry per pass, in date order:
 ```text
 ### Pass YYYY-MM-DD
 
+- **Gates:** G0 YYYY-MM-DD, G1 YYYY-MM-DD, ... (each gate as it passes; `docs/gates.md`)
 - **Preflight:** snippet_search ok | search_papers_by_relevance ok | get_paper ok | get_citations ok | WebSearch ok |
   Graph API ok | arXiv ok | uv ok | Asta key set
 - **Orientation (WebSearch):** "<exact query>", ...; frontier candidates: <id>, ...
 - **Expansion:** <which papers were traversed, in which direction, with counts>; queries "<exact query>", ...
-- **Errored queries:** none | "<query>" (429, failed after 3 retries; retried at the end of the step: <outcome>)
+- **Errored queries:** none | "<query>" (429, failed after 3 retries; retried at the end of the step: ok | failed)
 - **Recency window:** <the window>, applied to the recency queries only
 - **Fringe:** collected YYYY-MM-DD: hidden H, new W candidates (U unique); in scope S; added to the pool A, of which
   C without an arXiv ID; left out X
@@ -145,7 +148,8 @@ One entry per pass, in date order:
   survived a refutation attempt
 - **Corrections to existing rows:** <id> — <old text> -> <new text>, and why
 - **Tokens:** <step>: <tokens>, ... (per dispatch, from the usage reported when the dispatch returns)
-- **Halts:** none | <id> — <what happened> — <the user's decision, YYYY-MM-DD>; ...
+- **Halts:** none | <id> — <what happened> — <the user's decision, YYYY-MM-DD> | pending; ...
+- **Waivers:** none | <requirement id> — <why> — <the user's decision, YYYY-MM-DD>; ...
 - **Ended:** finished (F1) | halted (<id>); <the measured numbers>
 ```
 
@@ -186,7 +190,7 @@ uses the same columns:
 | `paper` | title, linked by its ID (see "Paper IDs") |
 | `venue+year` | publication venue and year; `arXiv YYYY-MM` if unpublished |
 | `role` | `anchor`, `frontier`, `dissent`, `fringe`, or `bridge:<cluster-id>` |
-| `selected because` | one sentence on why this paper fills this role, e.g. "highest in-degree in cluster (31)" |
+| `selected because` | one sentence on why this paper fills this role, e.g. "highest in-degree in cluster (31)"; for `dissent`, quoting the paper's claim that contradicts the cluster |
 | `method name` | the method's actual name, if the paper introduces one |
 | `method summary` | two sentences on what the paper does and how, including the assumptions the result depends on |
 | `datasets / models` | the datasets and models of the headline evaluation |
@@ -293,24 +297,28 @@ output cites.
 ## `graphs/<topic>/`
 
 The working files of a pass: everything the scripts compute that is too large, or too numeric, for the survey. Scripts
-write them, never agents, with one exception: the screening agent fills two columns of `fringe-screen.md`. Sizes are
-from `reasoning` (about 200 pool papers).
+write them, never agents, with two exceptions: the screening agent fills two columns of `fringe-screen.md`, and the
+verifying agents write `evidence/` (`docs/verification.md`, "Recording the evidence"). Sizes are from `reasoning` (about
+200 pool papers).
 
 | file | what it holds | written by | read by | in git |
 | -- | -- | -- | -- | -- |
 | `pool.json` (1.6 MB) | per pool paper: date, citation count, full reference list, SPECTER2 embedding, fetch date | `tools/pool.py` (step 2, and inside `tools/assign.py late`) | every script that clusters, scores or draws the pool | yes |
 | `clusters.json` (150 KB) | the clustering report: measures, levels, stability, assignment, sub-clusters, fringe scores, diagnostics, cluster history, the match to the previous clustering, and late assignments | `tools/cluster.py` (steps 2 and 3, and any recluster); `tools/assign.py late` and `remap` add to it | `tools/sheets.py`, `assign.py`, `check.py`, `graph.py`, `fringe.py` | yes |
 | `fringe.json` (1.3 MB) | the fringe candidates: route, metadata, references, embedding | `tools/fringe.py collect` (step 2) | `tools/assign.py add-fringe` | yes |
+| `rejected.md` | the candidates judged out of scope in orientation and expansion: paper, date, reason | `tools/assign.py reject` (steps 1 and 2, targeted expansions) | reviewers; `tools/check.py` (`G1`) | yes: the judgements are part of the pass's record |
 | `fringe-screen.md` (120 KB, about 30k tokens) | the blind screening sheet: one row per candidate, shuffled, without its route, with the agent's `in scope` (`yes` or `no`) and `reason` | `tools/fringe.py collect` writes the rows, keeping earlier judgements on a rerun; the screening agent fills `in scope` and `reason` (step 2) | `tools/assign.py add-fringe` | yes: the judgements are part of the pass's record |
 | `naming-sheet.md` (about 3k tokens) | per computed cluster: size, stability, since when it exists, diagnostics, most-cited and most recent papers, sub-clusters | `tools/sheets.py` (step 3) | the naming agent (step 3) and the selection agents (step 4) | no: regenerable |
 | `fringe-sheet.md` (about 1k tokens) | the highest fringe scores, with year, cluster, reference count, and whether the paper is a coreset row | `tools/sheets.py` (step 3) | the fringe-selection agent (step 4) and the coverage-test agent (step 7) | no: regenerable |
 | `graph.html` (1.3 MB) | the viewer | `tools/graph.py` (step 3) | the user, in a browser | no: regenerable |
+| `evidence/<id>.md` | per verified coreset row: the verbatim quotes each claim rests on, and where they are in the paper | the verifying agent (step 5), one file per row, so parallel agents never share one | reviewers, auditors; `tools/check.py` (`G4`), which finds every full-text quote in the full text | yes: it is the record behind `source` |
 | `fulltext/<id>.txt` (10–70k tokens each) | a paper's full text, flattened | `tools/fulltext.py` (step 5) | the verifying agent, by Grep and section | no: third-party text, regenerable |
 | `references.json` | reference lists for a survey without a pool | `tools/graph.py` | `tools/graph.py` | yes |
 | `history.json`, `match-simulation.json`, `recursive.json`, `fringe-analysis.json` | reports of the experiments in `docs/tooling.md` | `tools/match.py`, `tools/recursive.py`, `tools/fringe.py analyse` | people, and `docs/roadmap.md` | yes |
 
-`pool.json` and `clusters.json` are what make the clustering reproducible offline, and `fringe.json` with
-`fringe-screen.md` is the record of what the fringe routes found and how it was screened; so all four are committed.
+`pool.json` and `clusters.json` are what make the clustering reproducible offline, `fringe.json` with `fringe-screen.md`
+is the record of what the fringe routes found and how it was screened, and `rejected.md` the record of what expansion
+screened out, and `evidence/` the record behind each verified row; so all of them are committed.
 
 **Never Read a JSON file here, or `graph.html`, whole.** They are mostly embeddings and numbers: `pool.json` alone is
 about 400k tokens. What an agent needs from them reaches it in three ways:

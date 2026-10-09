@@ -10,6 +10,7 @@ Usage:
   python3 tools/assign.py clusters <topic>
   uv run tools/assign.py late <topic>
   python3 tools/assign.py remap <topic>
+  python3 tools/assign.py reject <topic> <paper-id> <reason ...>
 
 add         Adds papers to the Pool table by canonical ID (docs/formats.md, "Paper IDs"): an arXiv ID, or CorpusId:<n>
             for a paper without one. Each row is a title linked by its ID, with the other cells empty. Titles come
@@ -32,6 +33,9 @@ late        Processes the late papers as one batch (docs/process.md, "Late paper
 remap       After a recluster, moves each named cluster's `computed` id to the new cluster it matched (clusters.json,
             `previous`), clears the ids of clusters that did not match, and lists new clusters still to be named.
             Until it has run, `clusters` refuses, so that old names cannot land on new clusters.
+reject      Records a candidate screened out of scope, with a one-line reason, in graphs/<topic>/rejected.md: the trace
+            of a judgement that would otherwise leave none (docs/gates.md). Used in steps 1 and 2 and in targeted
+            expansions; the fringe routes record theirs on their own sheet. Refuses a paper already in the pool.
 
 Calls to Semantic Scholar are unauthenticated; no key or user identifier is sent.
 """
@@ -196,6 +200,8 @@ def add_fringe(topic):
                 cands[s]["arxiv"] = arxiv_of(rec)
             elif rec and (rec.get("externalIds") or {}).get("CorpusId"):
                 cands[s]["corpus"] = f"CorpusId:{rec['externalIds']['CorpusId']}"
+        # Keep the resolved IDs, so that tools/check.py can find every in-scope candidate in the pool.
+        (d / "fringe.json").write_text(json.dumps(data, separators=(",", ":")))
     titled = {cands[s].get("arxiv") or cands[s].get("corpus"): cands[s]["title"] for s in yes
               if cands[s].get("arxiv") or cands[s].get("corpus")}
     no_id = [s for s in yes if not (cands[s].get("arxiv") or cands[s].get("corpus"))]
@@ -326,10 +332,47 @@ def remap(topic):
     return 0
 
 
+REJECTED_HEADER = """# Rejected candidates: {topic}
+
+Candidates screened out of scope in orientation, expansion and targeted expansions, one row per judgement, written by
+`tools/assign.py reject`. The fringe routes' judgements are in `fringe-screen.md`. See docs/gates.md.
+
+| paper | date | reason |
+| -- | -- | -- |
+"""
+
+
+def reject(topic, pid, reason):
+    if not ID.match(pid):
+        sys.exit(f"{pid!r} is not a canonical paper ID (docs/formats.md, \"Paper IDs\")")
+    reason = " ".join(reason).replace("|", "/").strip()
+    if not reason:
+        sys.exit("give a one-line reason")
+    pool = {row_id(l) for h, _, _, l in table_rows(sections(survey_path(topic).read_text()).get("Pool", ""))
+            if h and h[0] == "paper"}
+    if pid in pool:
+        sys.exit(f"{pid} is in the pool; a paper leaves the pool only with the user's permission (H12)")
+    path = topic_dir(topic) / "rejected.md"
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(REJECTED_HEADER.format(topic=topic))
+    today = time.strftime("%Y-%m-%d")
+    text = path.read_text()
+    if any(c[0].startswith(f"[{pid}]") and c[1] == today for h, c, _, _ in table_rows(text) if h and h[0] == "paper"):
+        print(f"{pid} is already recorded as rejected today")
+        return 0
+    path.write_text(text.rstrip("\n") + f"\n| [{pid}]({link(pid)}) | {today} | {reason} |\n")
+    print(f"recorded {pid} as out of scope in {path.relative_to(ROOT)}")
+    return 0
+
+
 def main(argv):
     commands = {"add": lambda t: add(t, argv[2:]), "add-fringe": add_fringe, "clusters": write_clusters,
-                "late": late, "remap": remap}
-    if len(argv) < 2 or argv[0] not in commands or (argv[0] != "add" and len(argv) != 2):
+                "late": late, "remap": remap, "reject": lambda t: reject(t, argv[2], argv[3:])}
+    if argv and argv[0] == "reject" and len(argv) < 4:
+        print(__doc__.strip())
+        return 2
+    if len(argv) < 2 or argv[0] not in commands or (argv[0] not in ("add", "reject") and len(argv) != 2):
         print(__doc__.strip())
         return 2
     return commands[argv[0]](argv[1])

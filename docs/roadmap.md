@@ -16,10 +16,10 @@ the spec; do not follow it in a pass until it is moved into the relevant `docs/`
 - `Tools` — all built and tested on `reasoning`: `tools/check.py`, `tools/bib.py`, `tools/pool.py`, `tools/cluster.py`,
   `tools/fringe.py`, `tools/fulltext.py`, `tools/graph.py` (viewer), plus the experiments `tools/recursive.py` and
   `tools/match.py`. Added on 2026-10-08 (audit Phases 2–3): `tools/assign.py` (the Pool table writer, late papers,
-  remap), `tools/inputs.py`, `tools/sheets.py`, `tools/preflight.py`, `tools/asta_config.py` and `tools/net.py`. The
-  coreset-layout paths were tested on a temporary topic built from `reasoning`'s data, since no real coreset survey
-  exists yet. See `docs/tooling.md`. Python tools that need numpy and Leiden run with `uv run`; the rest are standard
-  library.
+  remap), `tools/inputs.py`, `tools/sheets.py`, `tools/preflight.py`, `tools/asta_config.py` and `tools/net.py`; on
+  2026-10-09, `tools/gates.py`, the gates `tools/check.py` runs. The coreset-layout paths were tested on a temporary
+  topic built from `reasoning`'s data, since no real coreset survey exists yet. See `docs/tooling.md`. Python tools that
+  need numpy and Leiden run with `uv run`; the rest are standard library.
 - `Data` — everything derived from a survey lives in `graphs/<topic>/`. For `reasoning`: `graph.html` (viewer),
   `pool.json` (embeddings, reference lists), `clusters.json` (clustering report), `references.json` (legacy reference
   cache), the fringe experiment's `fringe.json`, `fringe-screen.md` and `fringe-analysis.json`, the recursive clustering
@@ -247,13 +247,28 @@ Caveat for all of these: one corpus, and a curated survey rather than a real poo
 
 **Tool gaps, to close before a real pass:**
 
-- `tools/check.py` does not check the retrieval log's lines (`Clustering`, `Temporal stability`, `Coverage test`), nor
-  flag a line still holding a `<...>` placeholder from a script's printout.
-
 - The viewer's dark-mode palette fails the `dataviz` validator's lightness band (5 of the first 6 hues too light on the
   dark surface; found 2026-10-05). Its 18-hue palette predates the reference palette's dark steps; re-step it and rerun
   `scripts/validate_palette.js --mode dark`. Light mode passes, with a contrast warning on two hues that the text labels
   cover.
+
+**Proposed, not yet spec: judgement audits** (2026-10-09). The gates (`docs/gates.md`) check that every judgement was
+recorded, not that it was right. To measure that, at a gate, an independent `survey-pass` agent re-judges a small random
+sample without seeing the original verdicts, and the agreement rate goes into a new log line, `Audits`:
+
+- at `G1`: about 20 screening decisions, in and out of scope, drawn from the Pool, `rejected.md` and `fringe-screen.md`;
+- at `G3`: every `dissent` row (does it contradict its cluster?), and the alignment ratings of the `high` clusters;
+- at `G4`: about 5 verified rows, re-verified from the body text;
+- at `G5`: two or three coverage-test candidates (would this change a claim?).
+
+It measures the error rate of each kind of judgement rather than proving any single call right, as the coverage test
+does for the coreset as a whole. Estimated 50–100k tokens per pass, under 10% of one. Below a first-guess agreement (say
+80%), the gate would flag the disagreements for the main session, and halt if they concentrate in one kind of judgement.
+Prerequisite, now done: the traces the audits sample (rejections recorded by `tools/assign.py reject`, dissent rows
+quoting their contradiction). Also done: each verified row's evidence, kept in `graphs/<topic>/evidence/` (2026-10-09),
+so that the cheapest audit, whether a quote supports its cell, needs no new search. `reasoning`'s 195 legacy rows have
+none; their evidence was never kept, and only re-verification would recover it. Pilot it on the fresh coreset run, and
+adopt it into `docs/gates.md` once the agreement rates of a real pass are known.
 
 **Not yet built:**
 
@@ -306,7 +321,8 @@ and, from D1, 10% late additions before a recluster.
 
 - Field statistics from a random pool sample, labelled from abstracts, run on demand like a probe.
 
-- Measuring whether two agents agree on the coverage test's "would this change a claim".
+- Measuring whether two agents agree on the coverage test's "would this change a claim". Now part of the judgement
+  audits below.
 
 - Recursive clustering with a shakedown, conservative by design (tested on `reasoning`, see Findings; not adopted).
   Round 1 is the global clustering. In each later round, every leaf is tried as 2–6 parts, and a part becomes a new leaf
@@ -368,13 +384,13 @@ and, from D1, 10% late additions before a recluster.
 
 1. The user reviews the spec in detail. An audit of the spec, agent files and tools (2026-10-05) is in
    `.audits/2026-10-05-docs-and-tools.md`: issues with remediations, six decisions for the user, and a phased action
-   plan. Phases 0–4 are done (2026-10-08 and 2026-10-09), including the dry read; the audit is closed apart from the
-   open items below.
+   plan. Phases 0–4 are done (2026-10-08 and 2026-10-09), including the dry read, and so is the follow-up: the gates
+   (`docs/gates.md`, `tools/gates.py`), adopted 2026-10-09.
 2. Close the tool gaps above.
 3. The fresh coreset run: rename the old input, survey and output to `reasoning-exhaustive`; create a new
    `inputs/reasoning.md` that lists the old survey as Context; set `review: before coreset` in its `Clustering` section,
    since this is the first real run, and run steps 1–3 to that review, in the viewer, with token accounting from the
-   start.
+   start. Pilot the judgement audits (above) on it.
 4. On that real pool, revisit the first-guess thresholds and the findings above.
 
 Separately, at any point: a dedicated session on recursive clustering with a shakedown (see "Ideas raised" and the

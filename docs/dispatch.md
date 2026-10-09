@@ -27,15 +27,18 @@ dispatched as an incremental pass (`docs/process.md`, "Changing the clusters aft
   verify one row as a subagent's report makes you doubt, is fine. Scripts in tools/ are exempt: their results go to
   files, not into your context.
 - Run a pass down the order of operations in `docs/process.md`: it is the checklist. Confirm each row's `done when`
-  before starting the next.
+  before starting the next. At each gate row, run `python3 tools/check.py <topic> --gate G<n>`, and do not start the
+  next step until it passes (`docs/gates.md`). To resume a pass in a new session, start from
+  `python3 tools/check.py <topic> --status`.
 - Run the scripts of the order of operations yourself, between dispatches, and hand the next subagent the printout it
   needs. A subagent runs only the scripts its own job needs, such as `tools/fulltext.py` during verification. A script
   that fails after its own retries halts the pass (`H3`).
 - Write the log lines that scripts print, and those about your own decisions: `Dimensions`, `Pool`, `Fringe`, `Coreset`,
-  `Late papers`, `Tokens`, `Halts` and `Ended`; and Open work's `Clusters not yet reviewed by the user`. Agents write
-  the lines about their own work. `Clustering` and `Temporal stability` are printed by `tools/cluster.py` but written by
-  the naming agent, which replaces the computed cluster ids with names. A pass's log entry is written as the pass goes;
-  a line may be updated until the pass ends, never after.
+  `Late papers`, `Gates`, `Waivers`, `Tokens`, `Halts` and `Ended`; and Open work's
+  `Clusters not yet reviewed by the user`. Agents write the lines about their own work. `Clustering` and
+  `Temporal stability` are printed by `tools/cluster.py` but written by the naming agent, which replaces the computed
+  cluster ids with names. A pass's log entry is written as the pass goes; a line may be updated until the pass ends,
+  never after.
 - Subagents may run in parallel **only on disjoint sections of the survey**. Cluster blocks partition the Coreset table
   naturally, so parallel verification or selection work splits by cluster. The pool is a single table, so only one agent
   writes to it at a time. Group the clusters into a few blocks per agent, spreading the `high` ones, which cost the
@@ -74,14 +77,16 @@ Every report follows `.claude/agents/survey-pass.md`: what was done, what was ad
   (`docs/external_services.md`, "Preflight"), and writes the `Preflight` line, both halves. Returns: ok, or `STOP: H1`.
 - **Orient** (step 1). Hand over: the recency window, which is the time since the last pass, or six months on a first
   pass; on a later pass, the previous `Orientation` line. The agent runs WebSearch, resolves each candidate to its ID,
-  and adds the in-scope ones with `tools/assign.py add`. Writes: Pool rows; `Orientation`, with the frontier candidates;
-  `Recency window`. Returns: the themes the field names, as a short list of phrases, for the next brief.
+  adds the in-scope ones with `tools/assign.py add`, and records the rest with `tools/assign.py reject`. Writes: Pool
+  rows; rejections; `Orientation`, with the frontier candidates; `Recency window`. Returns: the themes the field names,
+  as a short list of phrases, for the next brief.
 - **Expand** (step 2, and every targeted expansion). Hand over: the themes from the orient report; on a targeted
   expansion, the region instead, and why: a thin cluster, `no stable level`, a missing expected cluster, or a new
-  cluster the coverage test proposed. The agent traverses and searches through Asta, screens for scope, and adds with
-  `tools/assign.py add`. Writes: Pool rows; `Expansion`; `Errored queries`; Open work: papers that could not enter the
-  pool. Returns: what was traversed and searched, and `assign.py`'s refusals. One agent at a time, since it writes the
-  pool.
+  cluster the coverage test proposed. The agent traverses and searches through Asta, screens for scope, adds with
+  `tools/assign.py add`, and records every rejection with `tools/assign.py reject`. Writes: Pool rows; rejections;
+  `Expansion`, naming each frontier candidate it traversed; `Errored queries`; Open work: papers that could not enter
+  the pool. Returns: what was traversed and searched, and `assign.py`'s refusals. One agent at a time, since it writes
+  the pool.
 - **Fringe screening** (step 2). Hand over: the path `graphs/<topic>/fringe-screen.md`. The agent judges each row in or
   out of scope from its title and abstract, as in expansion, without looking up its route or citations, which would
   unblind it. Writes: the `in scope` and `reason` cells, row by row. Returns: the rows it was unsure about.
@@ -93,10 +98,11 @@ Every report follows `.claude/agents/survey-pass.md`: what was done, what was ad
 - **Selection** (step 4), one agent per block of clusters, in parallel. Hand over: the block's cluster ids and their
   alignment, and the lines of the `tools/check.py` printout for those clusters (pool size, roles filled, in-degree
   leaders). The agent fills anchor, frontier and dissent per "Sizing" (`docs/process.md`, step 4), and the extra
-  frontier or bridge for a `high` cluster that `naming-sheet.md` marks internally divided. It drafts every cell from the
-  abstract, dimensions included, with `source` `abstract`; verification re-derives them from the body text. On a later
-  pass, it keeps every verified row that still fills a role, and demotes the rest. Writes: Coreset rows, in its blocks
-  only. Returns, under `Log:`, its parts of `Dissent searches` and `Demotions`, and under `Open work:`, its empty roles.
+  frontier or bridge for a `high` cluster that `naming-sheet.md` marks internally divided. A dissent row's
+  `selected because` quotes the claim that contradicts the cluster. It drafts every cell from the abstract, dimensions
+  included, with `source` `abstract`; verification re-derives them from the body text. On a later pass, it keeps every
+  verified row that still fills a role, and demotes the rest. Writes: Coreset rows, in its blocks only. Returns, under
+  `Log:`, its parts of `Dissent searches` and `Demotions`, and under `Open work:`, its empty roles.
 - **Bridges** (step 4), once, after selection, and only if `tools/check.py` notes a pair of clusters that trade papers
   without a bridge. Hand over: those pairs. Writes: `bridge:` rows. Returns: pairs left without a bridge, and why.
 - **Fringe selection** (step 4), once, last. Hand over: the path of `fringe-sheet.md`, rewritten after selection. The
@@ -105,8 +111,8 @@ Every report follows `.claude/agents/survey-pass.md`: what was done, what was ad
   the near misses.
 - **Verification** (step 5), one agent per block of clusters, in parallel. Hand over: the block's cluster ids, and which
   rows: all, or only those still `abstract`. The agent follows `docs/verification.md`, fetching full text with
-  `tools/fulltext.py`. Writes: the rows' cells and `source`. Returns, under `Log:`, its `Corrections to existing rows`,
-  and under `Open work:`, its rows needing verification.
+  `tools/fulltext.py`. Writes: the rows' cells and `source`, and each row's evidence file. Returns, under `Log:`, its
+  `Corrections to existing rows`, and under `Open work:`, its rows needing verification.
 - **Coverage test** (step 7), once per round. Hand over: the round's number; the per-cluster lines of the
   `tools/check.py` printout; the recency window for the fresh query. The agent draws the sample (`docs/process.md`, step
   7), using `fringe-sheet.md` for the fringe scores, judges each candidate against the output, and adds every candidate

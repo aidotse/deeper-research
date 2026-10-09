@@ -16,53 +16,53 @@ everywhere.
 
 ## Consistency check
 
-`python3 tools/check.py <topic> [--stage pool|coreset|output]` verifies that a topic's artifacts agree. Run it after
-every subagent returns, after every script that writes to the survey, and before treating an output as finished. It
-exits 1 on failure, so it can gate a pass, and 2 on a usage error; a failure the responsible agent cannot fix halts the
-pass (`H9` in `docs/process.md`, "When a pass ends").
+`python3 tools/check.py <topic> [--gate G<n>] [--status]` checks a topic's artifacts. Run it after every dispatch, after
+every script that writes to the survey, and at each gate row of the checklist. It exits 1 on failure and 2 on a usage
+error; a failure the responsible agent cannot fix halts the pass (`H9` in `docs/process.md`, "When a pass ends"). It
+runs two kinds of check.
 
-The stage says how far the pass has got, and so what must already hold. Without `--stage` it is inferred: `output` if
-the output exists, else `coreset` if the Coreset section has rows, else `pool`. Each stage adds to the one before.
+**Integrity**: whatever exists must be well formed, at every moment.
 
-- `pool` (steps 1–3):
-  - the input's format, as `tools/inputs.py` reads it;
-  - the survey's five sections, in order; - Clusters: ids unique and kebab-case, alignments valid, and every row with a
-    `computed` id; and, if it has rows, a `graphs/<topic>/clusters.json` to name;
-  - Pool: the required columns, a paper link per row, unique IDs, and only known clusters; no paper listed twice, under
-    two IDs or as two records with the same title; and no `CorpusId` row for a paper that has an arXiv ID;
-  - once `clusters.json` and the Clusters table exist: every computed cluster named exactly once, and every pool paper's
-    `cluster` equal to its computed cluster. An empty cell never fails: it is a late paper awaiting assignment, or, if
-    `clusters.json` already assigns the paper, a note to run `tools/assign.py clusters`. A new clustering not yet
-    remapped fails until `tools/assign.py remap` runs; this applies only once the Clusters table has names, so never to
-    the provisional clustering of a first pass.
-- `coreset` (steps 4–5):
-  - one row per unique paper ID, the required columns, `source` last and parsable, and one column count throughout;
-  - dimension values within the sets the input declares;
-  - blocks headed by known cluster ids, in the Clusters table's order;
-  - valid roles, and every `bridge:` target a known cluster other than the row's own;
-  - every coreset paper in the pool, and in the block of the cluster it was computed into;
-  - coreset and bib holding the same IDs.
-- `output` (steps 6–7):
-  - every paper ID cited in the output in the coreset;
-  - every citation of an `abstract`-sourced paper followed directly by `[abstract-only]`. Only whitespace, bold markers
-    and punctuation may sit between them, and no other ID. If the output cites any such paper, it explains the marker
-    before its first `##` section;
-  - the sections `Landscape`, `Assumptions`, `Gaps`, `Questions` and `Reading` (`docs/formats.md`).
+- the input's format, as `tools/inputs.py` reads it, including the `Coreset Spec` targets;
+- the survey's five sections, in order;
+- Clusters: ids unique and kebab-case, alignments valid, and every row with a `computed` id; and, if it has rows, a
+  `graphs/<topic>/clusters.json` to name;
+- Pool: the required columns, a paper link per row, unique IDs, and only known clusters; no paper listed twice, under
+  two IDs or as two records with the same title; and no `CorpusId` row for a paper that has an arXiv ID;
+- once `clusters.json` and the Clusters table exist: every computed cluster named exactly once, and every pool paper's
+  `cluster` equal to its computed cluster. An empty cell is a late paper awaiting assignment, or, if `clusters.json`
+  already assigns the paper, a cell `tools/assign.py clusters` has yet to write. A new clustering not yet remapped fails
+  until `tools/assign.py remap` runs; this applies only once the Clusters table has names, so never to the provisional
+  clustering of a first pass;
+- once the Coreset has rows: one row per unique paper ID, the required columns, `source` last and parsable, and one
+  column count throughout; dimension values within the sets the input declares; blocks headed by known cluster ids, in
+  the Clusters table's order; valid roles, and every `bridge:` target a known cluster other than the row's own; every
+  coreset paper in the pool, and in the block of the cluster it was computed into; coreset and bib holding the same IDs;
+- once the output exists: every paper ID it cites in the coreset; every citation of an `abstract`-sourced paper followed
+  directly by `[abstract-only]`, with only whitespace, bold markers and punctuation between them, and no other ID, and,
+  if the output cites any such paper, a legend before its first `##` section; a section per target, then `Questions` and
+  `Reading` (`docs/formats.md`).
+
+**Gates**: what each step must have left behind, from `G0` (ready) to `G5` (pass ended). They are described in
+`docs/gates.md`, and coded in `tools/gates.py`, one function per requirement. The check works out which gates the pass
+has reached from the log's `Gates` line and from evidence in the files; `--gate G<n>` also requires every gate up to
+`G<n>`. `--status` prints every gate with its open requirements. Against the last commit, it also checks that earlier
+log entries are intact, and that no pool paper, coreset row or `source` level was lost without a record. Gates apply to
+surveys in the coreset layout only.
 
 It also prints, without failing:
 
-- the number of coreset rows, and per cluster: pool size, coreset rows by role, and in-degree leaders within the pool;
-- clusters missing a role their alignment requires: anchor, frontier and dissent for `high`; anchor and frontier for
-  `medium`; anchor for `low`. An empty dissent slot is legitimate if Open work records what was searched;
+- the number of coreset rows, and per cluster: pool size, coreset rows by role, missing roles, and in-degree leaders
+  within the pool;
 - where a cluster's anchor is not its in-degree leader within the pool. That can be deliberate, but it should be;
-- the number of `fringe` rows, when it is outside the quota of five to ten per topic;
-- two clusters that trade papers with no bridge row between them;
 - coreset columns that are not declared dimensions;
 - the `source` tally, the share of `abstract`-sourced rows against `H10`'s 20%, and which `abstract`-sourced papers the
   output cites;
+- phrases in the output that claim absence, which only a probe supports;
+- requirements the user has waived, and an input changed since the last commit;
 - pool papers not yet fetched, and late papers awaiting assignment.
 
-Surveys written before the coreset structure (no Clusters section) get only the checks that apply to them.
+Surveys written before the coreset structure (no Clusters section) get only the integrity checks that apply to them.
 
 ## Preflight
 
@@ -73,9 +73,10 @@ and the Asta key. It prints their part of the log's `Preflight` line, and exits 
 ## Input
 
 `python3 tools/inputs.py <topic>` prints what the tools read from `inputs/<topic>.md`: the declared dimensions with
-their allowed values, and the `Clustering` steering. It fails on an unknown section, a missing `Topic`, a dimension
-without values, or an unknown `Clustering` field or value, so a typo cannot silently drop a request. `tools/check.py`,
-`tools/graph.py` and `tools/cluster.py` read the input through it. The format is in `docs/formats.md`.
+their allowed values, the `Clustering` steering, and the coreset's targets from `Coreset Spec`. It fails on an unknown
+section, a missing `Topic`, a dimension without values, or an unknown `Clustering` field or value, so a typo cannot
+silently drop a request. `tools/check.py`, `tools/graph.py` and `tools/cluster.py` read the input through it. The format
+is in `docs/formats.md`.
 
 ## Pool table
 
@@ -94,6 +95,9 @@ without values, or an unknown `Clustering` field or value, so a typo cannot sile
   favour, each voting with its similarity, records the assignment in `clusters.json` (`late`), writes the column, and
   prints the log's `Late papers` line. If late papers would exceed 10% of the pool, it assigns nothing, prints
   `RECLUSTER:` and exits 3: recluster instead.
+- `python3 tools/assign.py reject <topic> <paper-id> <reason>` records a candidate judged out of scope in
+  `graphs/<topic>/rejected.md`, with the date and the reason, so that the judgement can be reviewed (`docs/gates.md`).
+  It refuses a paper already in the pool: leaving the pool needs the user's permission (`H12`).
 - `python3 tools/assign.py remap <topic>` runs after a recluster. It moves each name to the new cluster it matched,
   clears the ones that did not match, and lists the new clusters to name. Until it has run, `clusters` refuses, so old
   names cannot land on new clusters.

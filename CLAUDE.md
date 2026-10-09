@@ -45,10 +45,11 @@ below, at the moment given below, and skip the rest.
 | `docs/process.md` | main session, `survey-pass` | before planning a pass (especially its "Order of operations"), before any retrieval, and before judging clusters, roles or coreset size |
 | `docs/formats.md` | all | before writing to any `inputs/`, `surveys/`, `outputs/` or `bib/` file |
 | `docs/verification.md` | `survey-pass` | before verifying a row or running a probe |
+| `docs/gates.md` | main session, human reviewers | before planning a pass, and when reviewing one |
 | `docs/tooling.md` | all | before running anything in `tools/` |
 | `docs/external_services.md` | all | before the first call to Asta, WebSearch or any outside service, and at the preflight check |
 | `docs/responses.md` | all | never separately: it is imported below |
-| `docs/vs_deep_research.md` | humans only | not instructions; skip it |
+| `docs/vs_deep_research.md` | human reviewers only | not instructions; skip it |
 
 In particular, `docs/roadmap.md` is the working continuity file. Keep it current: when a decision is taken, a proposal
 is adopted into the spec, or work is left unfinished, update it before the session ends. It is for the main session only

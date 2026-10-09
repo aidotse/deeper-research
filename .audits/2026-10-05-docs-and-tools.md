@@ -640,3 +640,132 @@ it under "Decisions taken" in `docs/roadmap.md`, as `CLAUDE.md` requires.
 
 Recommended order of value, if time is short: S11 with S1, C7 and W2 (wrong instructions, minutes to fix); then M1 and
 C4 (silent errors in the data); then S2 and S3 with T3 (needed before any real pass).
+
+## Follow-up (2026-10-09): what `tools/check.py` should enforce
+
+Raised by the user after Phase 4: the duty to produce each artifact is in the checklist (`docs/process.md`, "Order of
+operations"), stated imperatively and reached from the index, but nothing enforces it. A skipped step is mostly silent.
+Skipping the fringe routes, for example, fails nothing: `tools/check.py` never asks whether `fringe-screen.md` exists,
+whether every row is judged, or whether the log has a `Fringe` line. The pass would simply lack overlooked papers, which
+is exactly the failure that leaves no trace.
+
+The principle: **every `done when`, and every rule, that can be read off the files should fail `tools/check.py`, not
+rest on an agent's diligence.** What is left to agents should be judgement only. Below, every place the checklist and
+the spec rely on agents is assessed, row by row and rule by rule.
+
+### Design prerequisites
+
+- `Progress, not only stage.` The check runs after every dispatch, so it must require only what the pass has reached.
+  Infer progress from the artifacts, each implying the steps before it: Pool rows (step 1 done), `fringe-screen.md` of
+  this pass (step 2 reached its fringe routes), Clusters rows (step 3), Coreset rows (step 4), no `abstract` row without
+  an Open work entry, or the output existing (step 5), output (step 6), a `Coverage test` line (step 7), `Ended` (pass
+  over). `--stage` stays as an override.
+- `Halts suspend requirements.` If the current entry's `Halts` line holds an open halt, or `Ended` is `halted (<id>)`,
+  requirements for later steps are skipped and the halt is reported.
+- `The current pass's entry.` Parse the last `### Pass YYYY-MM-DD` entry into labelled lines. Earlier entries are only
+  checked against git (below).
+- `Legacy surveys.` `reasoning` has the legacy layout; all new checks apply to the coreset layout only, so it keeps
+  passing.
+- `Format changes these need`, small: the `Coreset` line gains the fringe count and, outside five to ten, the reason;
+  `Coreset Spec` targets become parseable bullets, read by `tools/inputs.py`; `Halts` entries end with the user's
+  decision in a fixed form (`continued`, `stopped`, or what changed), so open halts are detectable.
+- `A fixture topic` for tests, built from `reasoning`'s data as in Phase 3, with one fault injected per new check.
+
+### Assessment
+
+`now` is how it is held today: `fail`, `note` (printed, never fails), or `agent` (nothing checks it). `enforce` is the
+proposal. Priority 1 catches a skipped step or a broken rule that would otherwise leave no trace; 2 catches drift
+between the log and the files; 3 needs git history.
+
+| # | relied on | now | enforce | prio |
+| -- | -- | -- | -- | -- |
+| 1 | The current entry has every log line its progress requires: `Dimensions`, `Preflight`, `Orientation`, `Recency window`, `Expansion`, `Errored queries`, `Fringe`, `Pool` by step 3; `Clustering`, `Temporal stability`, `Clustering rationale`, `Clusters` by step 4; `Dissent searches`, `Coreset` by step 6; `Coverage test` by step 7; `Tokens`, `Halts`, `Ended` at the end | agent | fail | 1 |
+| 2 | No log line still holds a `<...>` placeholder or a computed id (`c1`, `c2`, …) | agent (the open roadmap item) | fail | 1 |
+| 3 | Each label appears once per entry, except `Coverage test` (one per round) | agent | fail | 2 |
+| 4 | `Preflight` shows all nine checks passing, or `Halts` holds `H1` | agent | fail | 1 |
+| 5 | Every frontier candidate in `Orientation` is a Pool row (step 1's `done when`) | agent | fail | 1 |
+| 6 | Every frontier candidate appears in `Expansion` as traversed backward (step 2's `done when`, the part a file can show) | agent | fail | 2 |
+| 7 | Every `Errored queries` entry has a retry outcome; one still failing needs `H2` in `Halts` | agent | fail | 2 |
+| 8 | No paper is unfetched once the pool is clustered, apart from late papers | note | fail from step 3 | 1 |
+| 9 | The fringe routes ran this pass: `fringe.json` collected on or after the pass date, `fringe-screen.md` present with every row judged and reasoned | agent | fail from step 3 | 1 |
+| 10 | Every `yes` on the screening sheet is a Pool row (`add-fringe` ran), and the `Fringe` line's counts match the sheet and `fringe.json` | agent | fail from step 3 | 1 |
+| 11 | `Pool` matches the files: paper count and fetch-date range of `pool.json` | agent | fail | 2 |
+| 12 | `clusters.json` is from this pass (generated on or after the pass date) once Clusters rows exist, and `Clustering`'s measure and level match it, including a logged `--level` override | agent | fail | 2 |
+| 13 | Late papers since the last clustering stay under 10% of the pool, else a recluster is due (`assign.py late` refuses, but a skipped `late` run goes unnoticed) | agent | fail | 2 |
+| 14 | Late queue empty when the pass ends, and no coreset row for an unassigned paper | note | fail at `Ended` | 1 |
+| 15 | Every Clusters row has a name, definition, alignment and reason, none a placeholder; `Clustering rationale` is not empty | agent | fail | 1 |
+| 16 | `Clusters` line counts (N, high, medium, low) match the table; "not yet reviewed" matches Open work's `Clusters not yet reviewed` | agent | fail | 2 |
+| 17 | `review: before coreset` in the input: no Coreset rows unless `Halts` records `H13` with the user's decision | agent | fail | 1 |
+| 18 | A diagnostic `no structure`, or `no stable level` after a rerun, in `clusters.json`: `Halts` records `H4` or `H5` | agent | fail | 1 |
+| 19 | The sheets are current: `naming-sheet.md` shows the Clusters table's names, `fringe-sheet.md`'s coreset flags match the coreset | agent | fail at the step that reads them; since the sheets are not committed, only when present | 2 |
+| 20 | Every role a cluster's alignment requires is filled, or Open work's `Empty roles` names that cluster and role with what was searched | note | fail | 1 |
+| 21 | Every `high` cluster has a `Dissent searches` entry, whether or not dissent was found | agent | fail | 1 |
+| 22 | Every pair `clusters.json` reports as trading papers has a bridge, or an `Empty roles` entry | note | fail | 1 |
+| 23 | Every `high` cluster `clusters.json` marks divided has a second frontier or a bridge, or an `Empty roles` entry | agent | fail | 2 |
+| 24 | Fringe rows number five to ten, or the `Coreset` line gives the reason | note | fail | 2 |
+| 25 | Every fringe row is among the higher fringe scores (a paper the score never flagged needs its reason in `selected because`) | agent | note | 3 |
+| 26 | No required Coreset cell is empty; `selected because` is a sentence, not a placeholder | partly (dimensions only) | fail | 1 |
+| 27 | After step 5, every `abstract` row is listed in Open work's `Rows needing verification` | agent | fail from step 6 | 1 |
+| 28 | Over 20% `abstract` rows after step 5: `Halts` records `H10` | note | fail from step 6 | 1 |
+| 29 | `Coreset` line count matches the table | agent | fail | 2 |
+| 30 | `Dimensions` line agrees with the input; provisional dimensions named there match the Coreset columns | note (undeclared columns) | fail | 2 |
+| 31 | The output has a section per target, including targets the `Coreset Spec` adds | partly (fixed five) | fail | 2 |
+| 32 | Every `Questions` and `Reading` entry cites at least one coreset paper | agent | fail | 2 |
+| 33 | No absence claim outside a probe: phrases like "has not been studied", "no work on" | agent | note | 3 |
+| 34 | `finished (F1)` only after a converged round (no new cluster, at most one change); a second unconverged round needs `H11`; `halted (<id>)` matches a `Halts` entry | agent | fail | 1 |
+| 35 | Every candidate a `Coverage test` line says changed the output is in the pool with a cluster, and in the coreset | agent | fail at `Ended` | 1 |
+| 36 | Every probe named in `Probes` is resolved in Open work's `Probes requested` | agent | note | 3 |
+| 37 | Earlier passes' log entries are unchanged against `HEAD` | agent | fail | 3 |
+| 38 | No pool paper removed since `HEAD` unless `Halts` records `H12` with permission | agent | fail | 3 |
+| 39 | No coreset row removed since `HEAD` without a `Demotions` entry; no `source` lowered; no verified cell changed without a `Corrections` entry | agent | fail | 3 |
+| 40 | The input was not edited by an agent during the pass (changed against `HEAD`) | agent | note: the user may edit it | 3 |
+
+What stays judgement, and so with the agents and the main session's spot checks: whether screening was right, whether
+step 2 searched every theme step 1 named, alignment ratings, `H6` and `H7`, whether a dissent row disagrees, whether a
+claim is supported by the text retrieved, whether a candidate really changed the output, and the content of the
+`Clustering rationale`. `tools/check.py` can check that each of these was recorded, not that it was right.
+
+### Todo
+
+Done on 2026-10-09, structured as gates (`G0` ready to `G5` pass ended), as agreed with the user.
+
+1. [x] Format changes: instead of a reason in the `Coreset` line, a general `Waivers` line, which only the main session
+   writes, with the user's decision; `Coreset Spec` targets as `` - **`Name`** — ... `` bullets and `` - `drop`: ... ``,
+   read by `tools/inputs.py` (`read_targets`); `Halts` decisions `pending` until the user decides; errored-query
+   outcomes `ok | failed`; a `Gates` line.
+
+2. [x] `tools/gates.py`: the current entry parsed into labelled lines; progress from the `Gates` line plus a safety net
+   of evidence in the files; a pending halt holds later gates; coreset layout only. `--stage` is gone: integrity checks
+   apply to whatever exists, and gates say what must exist.
+
+3. [x] Priority 1 and 2 rows, as 39 requirements with IDs (`g0.preflight` … `g5.end-lines`). Row 3 became `g0.labels`;
+   row 19 (sheet currency) stays a matter of the checklist, since the sheets are not committed; row 13 is covered by
+   `tools/assign.py late`'s refusal and `g5.late-empty`.
+
+4. [x] Priority 3: the history checks (rows 37–39) run by default against `HEAD`, not behind a flag; row 40 and the
+   absence phrases (33) are notes. Rows 25 and 36 are left out: a fringe row's score is shown on the fringe sheet, and
+   probe status has no fixed form yet.
+
+5. [x] Traces, the precondition for auditing judgement: `tools/assign.py reject` records rejections in
+   `graphs/<topic>/rejected.md` (`g1.rejected`); dissent rows quote their contradiction (`g3.dissent-quoted`).
+   `add-fringe` now saves the IDs it resolves, so that `g1.fringe-added` can find every in-scope candidate.
+
+6. [x] A fixture topic, `zz-gate`, built from `reasoning`'s data and removed afterwards: the clean pass passes
+   `--gate G5`; 39 of 39 injected faults are caught by their own requirement; 16 of 16 behaviours hold (waiver, pending
+   halt, inference mid-pass and by safety net, `H13` satisfying the review, three history faults, `reject`, legacy
+   surveys unaffected). `reasoning` still passes.
+
+7. [x] `docs/gates.md`, a new file for the main session and human reviewers, indexed in `CLAUDE.md`; a gate row per gate
+   in the checklist; `docs/tooling.md`, `docs/formats.md`, `docs/dispatch.md` and `survey-pass.md` updated; the
+   roadmap's open item removed, and the judgement audits added there as a proposal.
+
+8. [x] Added on the user's question, the same day: a verified row now keeps its evidence. Before, it stored only
+   conclusions and a `source` label; the snippets and sections the agent read were lost with its context, and
+   `docs/verification.md` said "quote what you rely on" without saying where. Now each verified row has
+   `graphs/<topic>/evidence/<id>.md` with verbatim quotes per claim (`method summary`, `result`, each dimension not
+   `n/a`), one file per row so parallel agents never share one; `g4.evidence` requires it, and finds every full-text
+   quote in the fetched full text, ignoring punctuation and line breaks, which catches a paraphrase presented as a
+   quote. Fixture: 4 more faults, all caught (missing file, uncovered claim, paraphrase, malformed line); a missing full
+   text is a note, not a failure.
+
+Do this before the fresh coreset run (`docs/roadmap.md`, "Next steps" 3), so that the first real pass is checked.

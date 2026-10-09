@@ -55,6 +55,14 @@ alone is about 400k tokens. Use the printout the main session handed you, the sh
 `fringe-sheet.md`, `fringe-screen.md`), or `jq` for one field (`docs/formats.md`, "`graphs/<topic>/`"). Search a full
 text in `graphs/<topic>/fulltext/` with Grep, and read only the matching sections.
 
+## Leaving a trace
+
+Every judgement you make must be recorded where it can be reviewed, because a judgement that leaves no trace cannot be
+checked or redone (`docs/gates.md`). Record each candidate you judge out of scope with
+`python3 tools/assign.py reject <topic> <paper-id> <reason>`; quote, in a `dissent` row's `selected because`, the claim
+that contradicts the cluster; when verifying, keep the quotes each claim rests on in the row's evidence file
+(`docs/verification.md`, "Recording the evidence"); and record an empty role in Open work with what was searched.
+
 ## Writing to the file
 
 - Write each row as you finish characterising it. Do not batch writes to the end — agents die on spend limits and

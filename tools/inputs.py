@@ -3,13 +3,14 @@
 
 Usage: python3 tools/inputs.py <topic>
 
-Prints what the tools take from the input — the declared dimensions with their allowed values, and the `Clustering`
-steering — and exits 1 if the input breaks the format in docs/formats.md: an unknown section, a missing `Topic`, a
-dimension without values, or an unknown `Clustering` field or value. A typo such as `review: before-coreset` would
+Prints what the tools take from the input — the declared dimensions with their allowed values, the `Clustering`
+steering, and the coreset's targets — and exits 1 if the input breaks the format in docs/formats.md: an unknown section,
+a missing `Topic`, a dimension without values, an unknown `Clustering` field or value, or a `Coreset Spec` bullet that is
+neither a target nor a `drop`. A typo such as `review: before-coreset` would
 otherwise silently skip the halt it asks for.
 
 `tools/check.py` and `tools/graph.py` import `read_input` for the dimensions, and `tools/cluster.py` for the
-`granularity` steering.
+`granularity` steering; `tools/check.py` imports `read_targets` for the output's sections.
 """
 
 import re
@@ -20,12 +21,16 @@ ROOT = Path(__file__).resolve().parent.parent
 SECTIONS = {"Topic", "Context", "Coreset Spec", "Dimensions", "Clustering"}
 CLUSTERING = {"granularity", "expect", "exclude", "alignment", "review"}
 ALIGNMENTS = {"high", "medium", "low"}
+DEFAULT_TARGETS = ["Landscape", "Assumptions", "Gaps"]
+DERIVED = ["Questions", "Reading"]  # always in the output, never targets
 
 # A dimension: a top-level bullet `- **`name`** — values: `a`, `b` or `c`. Any prose after.`
 DIM = re.compile(r"^- \*\*`([a-z0-9][a-z0-9-]*)`\*\*")
 VALUES = re.compile(r"values:\s*((?:`[^`]+`(?:\s*,\s*|\s+or\s+|\s+and\s+|,\s*or\s+)?)+)")
 # A Clustering field: a top-level bullet `- `key`: value`.
 FIELD = re.compile(r"^- `([^`]+)`:\s*(.*)$")
+# An added target: a top-level bullet `- **`Name`** — what the output must say about it`.
+TARGET = re.compile(r"^- \*\*`([^`]+)`\*\*")
 
 
 def sections(text):
@@ -106,6 +111,33 @@ def read_input(topic):
     return dims, steering, problems
 
 
+def read_targets(topic):
+    """Return (targets, problems): the output sections the coreset must stay stable against (docs/formats.md, `Coreset
+    Spec`). The defaults apply unless dropped with `- `drop`: `Name``; each `- **`Name`** — ...` bullet adds one."""
+    path = ROOT / "inputs" / f"{topic}.md"
+    if not path.exists():
+        return list(DEFAULT_TARGETS), []
+    targets, problems = list(DEFAULT_TARGETS), []
+    for b in bullets(sections(path.read_text()).get("Coreset Spec", [])):
+        m, f = TARGET.match(b), FIELD.match(b)
+        if m:
+            name = m.group(1).strip()
+            if name in DERIVED:
+                problems.append(f"input: `{name}` is always in the output and is never a target")
+            elif name not in targets:
+                targets.append(name)
+        elif f and f.group(1) == "drop":
+            for name in re.findall(r"`([^`]+)`", f.group(2)):
+                if name in DEFAULT_TARGETS and name in targets:
+                    targets.remove(name)
+                else:
+                    problems.append(f"input: `drop` names {name!r}, which is not a default target")
+        else:
+            problems.append(f"input: `Coreset Spec` bullet is neither a target (``- **`Name`** — ...``) nor a "
+                            f"`drop`: {b[:60]!r}")
+    return targets, problems
+
+
 def main(argv):
     if len(argv) != 1:
         print(__doc__.strip())
@@ -118,6 +150,9 @@ def main(argv):
         print("clustering steering: " + ("none" if not steering else ""))
         for key, value in steering.items():
             print(f"  {key}: {value}")
+    targets, more = read_targets(argv[0])
+    problems = problems + more
+    print(f"targets: {', '.join(targets)}; then {', '.join(DERIVED)}")
     for p in problems:
         print(f"FAIL  {p}")
     return 1 if problems else 0
