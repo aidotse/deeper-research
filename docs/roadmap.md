@@ -34,9 +34,11 @@ issues of lesser impact, would show the remediation worked. Two cautions for the
 run, so a shorter list may mean a less thorough audit; and the remediation added a good deal of new surface (gates,
 evidence, briefs), which can carry new issues.
 
-- `Before the session` (the user) — move `.audits/` out of the repo, for example to `~/audits-stash/`, and start the
-  session with the prompt below instead of the usual start. The auditor must not read this roadmap: its "Open items"
-  serve as a control, known gaps a thorough blind audit should find again.
+- `Before the session` (the user) — copy the prompt below, then move `.audits/` and `docs/roadmap.md` out of the repo,
+  for example to `~/audits-stash/`, and start the session with the prompt. Moving the roadmap too makes the blindness
+  certain rather than a matter of instruction: `CLAUDE.md` tells every session to read it at the start, which the prompt
+  would have to override. The auditor must not see it, because its "Open items" serve as a control, known gaps a
+  thorough blind audit should find again. Restore both before the comparison.
 
 - `The prompt` —
 
@@ -54,7 +56,7 @@ evidence, briefs), which can carry new issues.
   .audits/<today>-docs-and-tools-blind.md.
   ```
 
-- `Then, in the same session` — once the blind report is written, restore `.audits/` and compare, in
+- `Then, in the same session` — once the blind report is written, restore `.audits/` and the roadmap, and compare, in
   `.audits/<date>-comparison.md`. Classify each new issue as still present from the old audit (a remediation gap),
   introduced by the remediation, new (it was there before but the old audit missed it), or a rediscovered open item from
   this roadmap (the control); and each old issue as not found again (fixed, or missed: check which). Count by dimension
