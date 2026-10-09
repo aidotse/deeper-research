@@ -245,12 +245,7 @@ Caveat for all of these: one corpus, and a curated survey rather than a real poo
 
 ## Open items
 
-**Tool gaps, to close before a real pass:**
-
-- The viewer's dark-mode palette fails the `dataviz` validator's lightness band (5 of the first 6 hues too light on the
-  dark surface; found 2026-10-05). Its 18-hue palette predates the reference palette's dark steps; re-step it and rerun
-  `scripts/validate_palette.js --mode dark`. Light mode passes, with a contrast warning on two hues that the text labels
-  cover.
+**Small, not blocking:** on the citation map, the large group labels overlap nodes where the map is dense.
 
 **Proposed, not yet spec: judgement audits** (2026-10-09). The gates (`docs/gates.md`) check that every judgement was
 recorded, not that it was right. To measure that, at a gate, an independent `survey-pass` agent re-judges a small random

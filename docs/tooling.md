@@ -163,9 +163,12 @@ other papers in the set cite them; edges are citations within the set. The map n
 you zoom in, most-cited first, and full titles on hover. It offers three layouts: a citation map; tiles grouped by the
 chosen attribute; and a timeline, with submission date left to right and one row per survey cluster. On the citation
 map, a dragged paper pulls its links like elastic and springs back when released. Colour follows the chosen attribute:
-cluster, citation community, declared dimension or verification source. It also has search, a date histogram to filter
-by dragging, a group list with each group's papers, a side panel showing a paper's full survey row or a group's cohesion
-and outside links, and a table view. The URL hash records the current view, so a view can be bookmarked.
+cluster, citation community, declared dimension or verification source. It uses the eight hues of the `dataviz`
+reference palette, validated in both light and dark mode; past eight groups the hues repeat as hollow rings, then as
+tinted fills, rather than adding hues that colourblind readers could not tell apart. Every group is also named on the
+map, in the list and in the table. It also has search, a date histogram to filter by dragging, a group list with each
+group's papers, a side panel showing a paper's full survey row or a group's cohesion and outside links, and a table
+view. The URL hash records the current view, so a view can be bookmarked.
 
 Its main job is cluster review. Alongside the survey's own clusters it computes **citation communities** (Louvain
 modularity over the citation graph) and reports, for each cluster, the share of its citation links that stay inside it.

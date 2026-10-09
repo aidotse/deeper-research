@@ -22,7 +22,11 @@
 <title>Survey graph</title>
 <style>
   /* Colour roles from the dataviz reference palette. Light and dark are each
-     selected steps, not an automatic flip. */
+     selected steps, not an automatic flip. The eight series hues are the
+     reference categorical palette in its validated order; both modes pass the
+     validator (2026-10-09). In light mode three hues sit below 3:1 on the
+     surface, so groups are always named too: on the map, in the list, in the
+     tooltip and in the table. */
   .viz-root {
     color-scheme: light;
     --page: #f4f3ef;
@@ -37,7 +41,7 @@
     --neutral: #b4b3ad;
     --glass: rgba(252, 252, 251, 0.80);
     --shadow: 0 1px 2px rgba(0,0,0,.06), 0 8px 28px rgba(0,0,0,.08);
-    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #9b59d0; --series-5: #e34948; --series-6: #e0a100; --series-7: #17a2b8; --series-8: #e87ba4; --series-9: #8d6e4a; --series-10: #7cb342; --series-11: #3949ab; --series-12: #00897b; --series-13: #c2185b; --series-14: #afb42b; --series-15: #5d4037; --series-16: #4dd0e1; --series-17: #ba68c8; --series-18: #9ccc65;
+    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948;
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) .viz-root {
@@ -46,7 +50,7 @@
       --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
       --grid: #2c2c2a; --baseline: #45443f; --border: rgba(255, 255, 255, 0.09); --neutral: #5d5c57;
       --glass: rgba(26, 26, 25, 0.78); --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 32px rgba(0,0,0,.45);
-      --series-1: #3987e5; --series-2: #f07a45; --series-3: #23c28a; --series-4: #b07ae6; --series-5: #ef5f5e; --series-6: #f0b429; --series-7: #2bb8cc; --series-8: #f08fb4; --series-9: #a8876a; --series-10: #8fc85a; --series-11: #6272d6; --series-12: #1aa393; --series-13: #e0457f; --series-14: #c6cc3c; --series-15: #8d6e63; --series-16: #6ee0ee; --series-17: #cc85d8; --series-18: #b0da80;
+      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
     }
   }
   :root[data-theme="dark"] .viz-root {
@@ -55,7 +59,7 @@
     --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
     --grid: #2c2c2a; --baseline: #45443f; --border: rgba(255, 255, 255, 0.09); --neutral: #5d5c57;
     --glass: rgba(26, 26, 25, 0.78); --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 32px rgba(0,0,0,.45);
-    --series-1: #3987e5; --series-2: #f07a45; --series-3: #23c28a; --series-4: #b07ae6; --series-5: #ef5f5e; --series-6: #f0b429; --series-7: #2bb8cc; --series-8: #f08fb4; --series-9: #a8876a; --series-10: #8fc85a; --series-11: #6272d6; --series-12: #1aa393; --series-13: #e0457f; --series-14: #c6cc3c; --series-15: #8d6e63; --series-16: #6ee0ee; --series-17: #cc85d8; --series-18: #b0da80;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
   }
 
   * { box-sizing: border-box; }
@@ -367,18 +371,23 @@ function paperName(n) {
 
 // --- colour encodings ------------------------------------------------------------------------------
 //
-// One hue per group, from an 18-hue categorical palette, in a fixed order so
-// that a group keeps its colour whatever is filtered (colour follows the
-// entity, never its rank). Past about eight hues some pairs are close, so
-// identity never rests on colour alone: every group is also named on the map,
-// in the list, in the tooltip and in the table. Beyond eighteen groups the
-// hues repeat as hollow rings. `n/a` and missing values are neutral grey,
-// which is de-emphasis, not a group.
+// One colour per group, in a fixed order, so that a group keeps its colour
+// whatever is filtered (colour follows the entity, never its rank). The eight
+// validated hues are never extended with generated ones: past eight groups no
+// set of hues keeps every pair apart, least of all for colourblind readers.
+// Instead the eight hues repeat with a second channel: groups 1-8 are solid,
+// 9-16 hollow rings, 17-24 tinted (a pale fill inside a ring), which covers the
+// largest clustering level (22) and a legacy survey's hand-drawn blocks. Beyond
+// 24 the tinted style repeats, and only the name tells groups apart. Identity
+// never rests on colour alone: every group is also named on the map, in the
+// list, in the tooltip and in the table. `n/a` and missing values are neutral
+// grey, which is de-emphasis, not a group.
 
-const PALETTE = 18;
+const PALETTE = 8, STYLES = ["solid", "hollow", "tinted"];
 function encoding(keys) {
   const m = new Map();
-  keys.forEach((k, i) => m.set(k, { slot: (i % PALETTE) + 1, style: i < PALETTE ? "solid" : "hollow" }));
+  keys.forEach((k, i) => m.set(k, { slot: (i % PALETTE) + 1,
+    style: STYLES[Math.min(Math.floor(i / PALETTE), STYLES.length - 1)] }));
   return m;
 }
 
@@ -1330,8 +1339,11 @@ const sinceText = id => {
   const s = CL.history.clusters[id].statement;
   return s.charAt(0).toUpperCase() + s.slice(1) + ".";
 };
+function computedEnc(id) {
+  return MODES.find(m => m.id === "computed").enc.get(id);
+}
 function computedColour(id) {
-  const e = MODES.find(m => m.id === "computed").enc.get(id);
+  const e = computedEnc(id);
   return e ? css(`--series-${e.slot}`) : css("--neutral");
 }
 function historySection() {
@@ -1340,10 +1352,10 @@ function historySection() {
   return [
     el("dt", { text: "Since when" }),
     el("dd", {},
-      el("p", { style: "margin:0 0 4px", text: `The pool as it stood at ${h.cutoffs.length} earlier dates, chosen so that each period adds the same number of papers, clustered with today's settings. Each bar shows how many papers of today's clusters already existed; a solid segment means the cluster was already found, a faint one that its papers existed but did not yet form it. Under each date: the snapshot's papers and its own stability; a snapshot below τ is itself unreliable, so what it finds is marked "probably".` }),
+      el("p", { style: "margin:0 0 4px", text: `The pool as it stood at ${h.cutoffs.length} earlier dates, chosen so that each period adds the same number of papers, clustered with today's settings. Each bar shows how many papers of today's clusters already existed; a segment drawn in the cluster's own colour and style means the cluster was already found, a faint dashed one that its papers existed but did not yet form it. Under each date: the snapshot's papers and its own stability; a snapshot below τ is itself unreliable, so what it finds is marked "probably".` }),
       historyChart(),
       ...CL.clusters.filter(c => h.clusters[c.id]).map(c => el("div", { style: "display:flex;gap:6px;align-items:baseline;margin:3px 0" },
-        el("span", { style: `flex:none;width:10px;height:10px;border-radius:2px;background:${computedColour(c.id)}` }),
+        (() => { const sw = swatch(computedEnc(c.id)); sw.style.flex = "none"; return sw; })(),
         el("span", {}, el("b", { text: c.name + ": " }), sinceText(c.id)))),
       el("p", { class: "empty", text: "Snapshots are drawn from today's pool, whose older papers are the ones still relevant today, so this history is optimistic: a real earlier pass would have looked messier. Post-processing only: it does not change the clusters." }),
     ),
@@ -1375,9 +1387,15 @@ function historyChart() {
     for (const sg of col.seg) {
       if (!sg.n) continue;
       const y1 = Y(base + sg.n), y0 = Y(base), colour = computedColour(sg.id);
+      const style = (computedEnc(sg.id) || {}).style || "solid";
       const hgt = Math.max(1, y0 - y1 - 2);  // a 2px surface gap between stacked segments
-      const r = add("rect", { x, y: y1, width: w, height: hgt, rx: 2, fill: colour, "fill-opacity": sg.found ? 1 : 0.22,
-        stroke: sg.found ? "none" : colour, "stroke-width": sg.found ? 0 : 1 });
+      // Found: the cluster's own style (solid, hollow or tinted). Not yet found: faint, with a dashed outline.
+      const r = add("rect", sg.found
+        ? { x, y: y1, width: w, height: hgt, rx: 2, fill: style === "hollow" ? css("--surface-1") : colour,
+            "fill-opacity": style === "tinted" ? 0.35 : 1, stroke: style === "solid" ? "none" : colour,
+            "stroke-width": style === "solid" ? 0 : 1.5 }
+        : { x, y: y1, width: w, height: hgt, rx: 2, fill: colour, "fill-opacity": 0.12, stroke: colour,
+            "stroke-width": 1, "stroke-dasharray": "2 2" });
       const tt = svgEl("title");
       tt.textContent = `${sg.name}, ${col.label === "today" ? "today" : "before " + col.label}: ${sg.n} paper${sg.n === 1 ? "" : "s"}; ` +
         (sg.found ? "found as a cluster" : sg.why);
