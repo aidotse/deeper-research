@@ -636,7 +636,7 @@ it under "Decisions taken" in `docs/roadmap.md`, as `CLAUDE.md` requires.
      rule in the sheet. The fifteenth (reading `formats.md`, `tooling.md` and `external_services.md` while planning) is
      what the index already prescribes.
 
-6. Then continue with "Next steps" 3 and 4 of `docs/roadmap.md`: the fresh coreset run.
+6. Then continue with `docs/roadmap.md`, "Start here": two audits of this work, then the fresh coreset run.
 
 Recommended order of value, if time is short: S11 with S1, C7 and W2 (wrong instructions, minutes to fix); then M1 and
 C4 (silent errors in the data); then S2 and S3 with T3 (needed before any real pass).
@@ -768,4 +768,4 @@ Done on 2026-10-09, structured as gates (`G0` ready to `G5` pass ended), as agre
    quote. Fixture: 4 more faults, all caught (missing file, uncovered claim, paraphrase, malformed line); a missing full
    text is a note, not a failure.
 
-Do this before the fresh coreset run (`docs/roadmap.md`, "Next steps" 3), so that the first real pass is checked.
+Do this before the fresh coreset run (`docs/roadmap.md`, "Start here", D), so that the first real pass is checked.

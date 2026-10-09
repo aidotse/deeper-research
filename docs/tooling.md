@@ -234,6 +234,16 @@ key; the session-start hook and the preflight check run it (`docs/external_servi
 retry that every fetching script shares: it retries a 429, a 500, 502, 503 or 504, a dropped connection or a timeout,
 and raises anything else.
 
+## Tests
+
+`python3 tests/gates/faults.py` and `python3 tests/gates/behaviour.py` test the gates of `tools/check.py`. Both build a
+temporary topic, `zz-gate`, from `reasoning`'s data (`tests/gates/build.py`), and remove every file they wrote when they
+finish. `faults.py` injects one fault per gate requirement and confirms that its own requirement catches it.
+`behaviour.py` checks what single requirements cannot show: waivers, a pending halt, progress inferred mid-pass and by
+the safety net, the history checks, and `tools/assign.py reject`. Run both after any change to `tools/check.py` or
+`tools/gates.py`; each exits 1 on a miss. Their source is the legacy survey, `reasoning-exhaustive` once the old
+`reasoning` is renamed, and `reasoning` until then.
+
 ## Formatting
 
 Markdown in this repo is formatted with mdformat, configured in `.mdformat.toml`. It runs automatically when a turn

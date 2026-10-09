@@ -4,13 +4,106 @@ The continuity file. It records where the work stands, so that a new session or 
 without the conversation that produced it. It is for the main session only. Anything under "Open items" is not part of
 the spec; do not follow it in a pass until it is moved into the relevant `docs/` file.
 
+## Start here: the plan
+
+Agreed with the user on 2026-10-09. The audit of 2026-10-05 has been worked through, on the branch `audit-phases-1-4`
+(not merged into `main`; the user decides when). Before the first real pass, two audit sessions check that work. Each is
+a fresh session, in the order below, and each writes its report to `.audits/`.
+
+### A. Audit the remediations
+
+Did we do everything the audit says was done? Two gaps of this kind were already found while remediating: the preflight
+was still tied to the step 1 agent in `docs/external_services.md` after `docs/process.md` had moved it, and
+`docs/verification.md` said "quote what you rely on" without saying where. The typical gap is a rule changed in one file
+but still stated the old way in another.
+
+- `Inputs` — `.audits/2026-10-05-docs-and-tools.md`: every issue (C, M, S, W, A, T), the "Done" notes under each phase
+  of its action plan, and the ticked todo of its follow-up section; and the commit messages on `audit-phases-1-4`
+  (`git log main..audit-phases-1-4`), which make further claims.
+- `Method` — check every claim against the code and the docs, not against the notes. Re-run what can be re-run:
+  `python3 tools/check.py reasoning`, `python3 tests/gates/faults.py`, `python3 tests/gates/behaviour.py`,
+  `mdformat --check .`. Subagents may take one dimension each.
+- `Output` — `.audits/<date>-remediation-check.md`: per issue or claim, `done`, `partial`, `not done` or `regressed`,
+  with the evidence. Write the report first; then fix the small gaps (effort `S`) in the same session, marking each as
+  fixed in the report, and add the larger ones to "Open items" below.
+
+### B. A fresh, blind audit, and the comparison
+
+A new audit along the original's dimensions, without knowing what it found, then compared with it. Fewer issues, or
+issues of lesser impact, would show the remediation worked. Two cautions for the comparison: audits vary from run to
+run, so a shorter list may mean a less thorough audit; and the remediation added a good deal of new surface (gates,
+evidence, briefs), which can carry new issues.
+
+- `Before the session` (the user) — move `.audits/` out of the repo, for example to `~/audits-stash/`, and start the
+  session with the prompt below instead of the usual start. The auditor must not read this roadmap: its "Open items"
+  serve as a control, known gaps a thorough blind audit should find again.
+
+- `The prompt` —
+
+  ```text
+  Audit this repository's spec, agent files and tools, from scratch. This audit must be blind to earlier ones: do not
+  read docs/roadmap.md, do not look for or read any earlier audit, and do not read git history (log, diffs, blame).
+  Scope: every file in docs/ except roadmap.md, CLAUDE.md, .claude/agents/*.md, .claude/settings.json, all of tools/
+  (for tools/recursive.py, the docstring only), and tests/. Check claims against the code, against the data in
+  graphs/reasoning/, and against the live Asta tool schemas. Change nothing. Group issues in six dimensions:
+  C, the docs and the code disagree; M, a method bug; S, inconsistencies and gaps in the spec; W, how the docs are
+  wired (index, cross-references, who reads what and when); A, whether the docs work as instructions for agents (who
+  does what, with which inputs, and when a step is done); T, tool work the spec needs but lacks. For each issue give an
+  ID, the evidence (file and line), why it matters, a suggested remediation, an effort (S, M or L), and a status:
+  verified against code or data, or likely. Also list what you checked and found to hold. Write the report to
+  .audits/<today>-docs-and-tools-blind.md.
+  ```
+
+- `Then, in the same session` — once the blind report is written, restore `.audits/` and compare, in
+  `.audits/<date>-comparison.md`. Classify each new issue as still present from the old audit (a remediation gap),
+  introduced by the remediation, new (it was there before but the old audit missed it), or a rediscovered open item from
+  this roadmap (the control); and each old issue as not found again (fixed, or missed: check which). Count by dimension
+  and effort.
+
+### C. Decide before the fresh run
+
+- `Pool recall` — the proposal under "Open items": the `co-cited` and `coupled` routes, a recall estimate, and cheaper
+  screening. Build what is adopted before the run, since the run is where the new pool is built.
+- `How a previous survey's papers enter the pool` — `CLAUDE.md` says a survey listed as `Context` is a source whose
+  papers enter the new pool, but no procedure says how: added by script as in scope, or screened against the new input
+  like any candidate (recommended, since the new input may scope the topic differently).
+- `Reused verified rows and the evidence gate` — `CLAUDE.md` lets a verified row be reused without re-verification, but
+  `g4.evidence` requires an evidence file, and `reasoning`'s rows have none. Options: re-verify reused rows (about 10k
+  tokens each); accept an evidence file that records the reuse (the survey and date it was verified in, evidence not
+  kept), listed in a note and sampled first by the `G4` audit (recommended); or waive per row.
+
+### D. The fresh coreset run: a full pass, as a measured simulation
+
+The first real pass, run end to end, to see what goes to plan and what does not.
+
+- `Rename` the old topic everywhere to `reasoning-exhaustive`: `inputs/`, `surveys/`, `outputs/`, `bib/` and
+  `graphs/reasoning/` (its pool, clustering, fringe sheet and full texts). Left in place, `graphs/reasoning/` would feed
+  the old fringe judgements and clustering into the new pass. `tests/gates/` finds the renamed source by itself.
+- `Input` — a new `inputs/reasoning.md` that lists `surveys/reasoning-exhaustive.md` as `Context`, with
+  `review: before coreset` in its `Clustering` section, since this is the first real run.
+- `Run` all of the checklist (`docs/process.md`, "Order of operations"), gates `G0` to `G5`, halting at `H13` after `G2`
+  for the user's review in the viewer, then continuing. `Tokens` from the first dispatch. Pilot the judgement audits
+  (under "Open items") at each gate.
+- `Measure and report`, in `.audits/<date>-fresh-run.md`: pool size against coreset size, per cluster and in total;
+  tokens per step against the checklist's estimates; every gate failure and halt, and what resolved it; the recall
+  estimate, if built; the audits' agreement rates; and what did not go to plan.
+
+### E. After the run
+
+Revisit the first-guess thresholds ("Open items") and the findings below on the real pool; adopt or drop the judgement
+audits and the pool-recall measures on the evidence of the run.
+
+Separately, at any point: a dedicated session on recursive clustering with a shakedown (see "Ideas raised" and the
+Findings entry). Decide the open points, build the nameability test, and rerun `tools/recursive.py` on the fresh pool,
+the real test, before anything moves into the spec.
+
 ## State (2026-10-09)
 
 - `Spec` — `docs/coresets.md`, `docs/process.md`, `docs/formats.md`, `docs/verification.md`, `docs/dispatch.md`,
   `docs/gates.md`, `docs/tooling.md` and `docs/external_services.md` are current, including everything adopted through
   the audit of 2026-10-05 to 2026-10-09 (`.audits/2026-10-05-docs-and-tools.md`, now closed).
-- `Branch` — the audit's work is on the branch `audit-phases-1-4`, four commits ahead of `main`, not merged or pushed;
-  merging is the user's call.
+- `Branch` — the audit's work is on the branch `audit-phases-1-4`, ahead of `main`, not merged or pushed; merging is the
+  user's call.
 - `Surveys` — `surveys/reasoning.md` is the only topic. It is a legacy survey, written before the coreset spec: no
   Clusters or Pool section, 195 papers all fully characterised (about 10k tokens each, roughly 2M in total), grouped in
   hand-drawn blocks A–Q. It is the test corpus for everything below.
@@ -420,37 +513,6 @@ and, from D1, 10% late additions before a recluster.
 
 - More fringe routes: queries in neighbouring fields' vocabulary (physics, cognitive science, formal methods); snippet
   search for unfollowed "future work" statements in anchors; workshop papers and OpenReview.
-
-## Next steps, in order
-
-1. The user reviews the spec in detail. An audit of the spec, agent files and tools (2026-10-05) is in
-   `.audits/2026-10-05-docs-and-tools.md`: issues with remediations, six decisions for the user, and a phased action
-   plan. Phases 0–4 are done (2026-10-08 and 2026-10-09), including the dry read, and so is the follow-up: the gates
-   (`docs/gates.md`, `tools/gates.py`), adopted 2026-10-09.
-2. Decide before the fresh run (raised 2026-10-09), in a fresh session: the pool-recall proposal above (new routes, a
-   recall estimate, cheaper screening), and two smaller points:
-   - `How a previous survey's papers enter the pool` — `CLAUDE.md` says a survey listed as `Context` is a source whose
-     papers enter the new pool, but no procedure says how: added by script as in scope, or screened against the new
-     input like any candidate (recommended, since the new input may scope the topic differently).
-   - `Reused verified rows and the evidence gate` — `CLAUDE.md` lets a verified row be reused without re-verification,
-     but `g4.evidence` requires an evidence file, and `reasoning`'s rows have none. Options: re-verify reused rows
-     (about 10k tokens each); accept an evidence file that records the reuse (the survey and date it was verified in,
-     evidence not kept), listed in a note and sampled first by the G4 audit (recommended); or waive per row.
-3. The fresh coreset run:
-   - Rename the old topic everywhere to `reasoning-exhaustive`: `inputs/`, `surveys/`, `outputs/`, `bib/` and
-     `graphs/reasoning/` (its pool, clustering, fringe sheet and full texts). Left in place, `graphs/reasoning/` would
-     feed the old fringe judgements and clustering into the new pass.
-   - Write a new `inputs/reasoning.md` that lists `surveys/reasoning-exhaustive.md` as `Context`, with
-     `review: before coreset` in its `Clustering` section, since this is the first real run.
-   - Run steps 0–3 down the checklist, passing gates `G0` to `G2`, to the `H13` review in the viewer, with token
-     accounting (`Tokens`) from the first dispatch.
-   - Pilot the judgement audit that falls inside this stretch, `G1`'s screening sample; the `G3`–`G5` audits wait for
-     the coreset stage.
-4. On that real pool, revisit the first-guess thresholds and the findings above.
-
-Separately, at any point: a dedicated session on recursive clustering with a shakedown (see "Ideas raised" and the
-Findings entry). Decide the open points, build the nameability test, and rerun `tools/recursive.py` on the fresh pool,
-the real test, before anything moves into the spec.
 
 ## Claims recalled but not verified
 
