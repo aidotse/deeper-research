@@ -18,7 +18,8 @@ A third route, `followers` (low-cited citers of each cluster's most-cited paper)
 
 It fetches their metadata, references and embeddings into graphs/<topic>/fringe.json, and writes a blind screening
 sheet, graphs/<topic>/fringe-screen.md: titles and abstracts in shuffled order, without the route, for an agent to
-mark in or out of scope.
+mark in or out of scope. Each candidate records its arXiv ID or, failing that, its CorpusId; tools/assign.py
+add-fringe then adds the in-scope ones to the pool.
 
 `analyse` adds the in-scope candidates to the pool and reclusters with the chosen measure. Per route, it reports how
 consistently papers keep their cluster-mates across reruns, how close they sit to their nearest neighbours, and whether
@@ -30,14 +31,13 @@ import random
 import re
 import sys
 import time
-import urllib.error
-import urllib.request
 from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 from graph import parse, topic_dir  # noqa: E402
+from net import get_json  # noqa: E402
 
 API = "https://api.semanticscholar.org"
 FIELDS = ("title,abstract,externalIds,publicationDate,year,citationCount,referenceCount,references.paperId,"
@@ -45,16 +45,8 @@ FIELDS = ("title,abstract,externalIds,publicationDate,year,citationCount,referen
 
 
 def call(url, body=None):
-    req = urllib.request.Request(url, data=json.dumps(body).encode() if body else None,
-                                 headers={"Content-Type": "application/json"})
-    for attempt in range(8):
-        try:
-            with urllib.request.urlopen(req, timeout=120) as r:
-                return json.load(r)
-        except urllib.error.HTTPError as e:
-            if e.code != 429 or attempt == 7:
-                raise
-            time.sleep(5 * (attempt + 1))
+    # The unauthenticated endpoint shares one rate limit across all users and answers 429 freely; net retries.
+    return get_json(url, body)
 
 
 def fetch_s2(ids):
@@ -67,6 +59,7 @@ def fetch_s2(ids):
             out[rec["paperId"]] = {
                 "s2": rec["paperId"], "title": rec.get("title") or "", "abstract": rec.get("abstract") or "",
                 "arxiv": (rec.get("externalIds") or {}).get("ArXiv"), "date": rec.get("publicationDate"),
+                "corpus": f"CorpusId:{rec['externalIds']['CorpusId']}" if (rec.get("externalIds") or {}).get("CorpusId") else None,
                 "year": rec.get("year"), "citations": rec.get("citationCount") or 0,
                 "refs": sorted({x["paperId"] for x in rec.get("references") or [] if x.get("paperId")}),
                 "embedding": [round(v, 5) for v in rec["embedding"]["vector"]],

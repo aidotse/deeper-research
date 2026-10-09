@@ -1,12 +1,16 @@
 {
-  "allow": ["mcp__asta__*"],
+  "permissions": {
+    "allow": [
+      "mcp__asta__*"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "[ -n \"$ASTA_API_KEY\" ] || echo 'WARNING: ASTA_API_KEY not set — anonymous rate limits apply'"
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/tools/asta_config.py\" --quiet || true"
           }
         ]
       }

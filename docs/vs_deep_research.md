@@ -22,8 +22,8 @@ documented, and they change often. Read the comparison as typical behaviour, not
   not surface them. See `docs/coresets.md`.
 - `What counts as verified` — Deep Research cites sources, but a citation shows where a claim came from, not that the
   source supports it. Here every coreset row is checked against the paper's body text. Each claim records whether it
-  came from the abstract, a snippet or the full text, and anything unchecked is marked provisional in the output. See
-  `docs/verification.md`.
+  came from the abstract, a snippet or the full text, and anything unchecked is marked `[abstract-only]` in the output.
+  See `docs/verification.md`.
 - `When it stops` — Deep Research stops on a time or search budget. This harness stops on a measured test: when sampled
   papers left out of the coreset no longer change the output. See `docs/process.md`, step 7.
 - `Where it searches` — Deep Research searches the web. This harness combines web search with a scholarly index,

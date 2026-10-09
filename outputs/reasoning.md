@@ -304,11 +304,12 @@ before it. That is a small sample and not a measured rate. Still, the direction 
 when discovery switches from keyword search to citation traversal, the elicited share falls.
 
 The second is that a tally is a claim about *every* row it counts, so it inherits the uncertainty of the unverified
-ones. Seven of the 63 applicable rows are still `abstract`-sourced — 2608.29464, 2512.18311, 2603.30036, 2608.00583,
-2601.23086, 2609.15989, 2410.21514 — and all seven are tagged `elicited`. The exposure is therefore asymmetric, and it
-runs against this gap's own argument: a misclassification among them can only move rows off the elicited side. In the
-worst case the ratio is 48 to 15 rather than 55 to 8. Still lopsided, but a much weaker claim than the headline number
-suggests.
+ones. Seven of the 63 applicable rows are still `abstract`-sourced — 2608.29464 **[abstract-only]**, 2512.18311
+**[abstract-only]**, 2603.30036 **[abstract-only]**, 2608.00583 **[abstract-only]**, 2601.23086 **[abstract-only]**,
+2609.15989 **[abstract-only]**, 2410.21514 **[abstract-only]** — and all seven are tagged `elicited`. The exposure is
+therefore asymmetric, and it runs against this gap's own argument: a misclassification among them can only move rows off
+the elicited side. In the worst case the ratio is 48 to 15 rather than 55 to 8. Still lopsided, but a much weaker claim
+than the headline number suggests.
 
 A dedicated adversarial search over "in the wild", "deployed", "observational", "audit" and "incident" framings is
 queued in the Frontier, and those seven rows should be verified alongside it. **Do not put this in a proposal until both
@@ -454,8 +455,9 @@ it is adjacent and already in your group's orbit: class variance determines lear
 modulates and can reverse that order, forcing minority classes into delayed speciation times (2605.06367)
 **[abstract-only]**. Difficulty classes in RLVR are structurally the same object.
 
-**Closest prior art.** 2504.03380, 2605.28388, 2605.06367, and the observed effect of curriculum sampling on the fitted
-scaling exponent — γ falls from 2.36 for hardest-only to 1.33 for curriculum sampling (2605.06638).
+**Closest prior art.** 2504.03380, 2605.28388, 2605.06367 **[abstract-only]**, and the observed effect of curriculum
+sampling on the fitted scaling exponent — γ falls from 2.36 for hardest-only to 1.33 for curriculum sampling
+(2605.06638).
 
 **Defence framing.** Weakest of the six on its own. Pair it with Q2 — together they are "how to train reasoning systems
 whose failure modes are predictable," which is a coherent pitch.
@@ -558,9 +560,9 @@ closer prior art than it had. G5's tally moved from 48:4 to 55:8, in the directi
 
 **Roughly one row in seven is abstract-sourced**, and claims resting on those are marked **[abstract-only]** throughout.
 Most are 2026 preprints that Asta has not indexed for full text — a limitation of the index, not an outstanding task.
-The exception worth flagging again: **2512.18311**, which carries the claim that monitorability does *not* degrade under
-RL at frontier scale, is abstract-only and is the single most load-bearing unverified row in the survey. If one thing
-gets verified by hand, make it that.
+The exception worth flagging again: **2512.18311** **[abstract-only]**, which carries the claim that monitorability does
+*not* degrade under RL at frontier scale, is abstract-only and is the single most load-bearing unverified row in the
+survey. If one thing gets verified by hand, make it that.
 
 **Two gaps are not yet admissible as absence claims** (G1 provisionally, G5 firmly) and are marked as such. The
 adversarial searches they need are specified in the Frontier. This repo's rule is that a gap must survive a search

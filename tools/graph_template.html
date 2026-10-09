@@ -1196,7 +1196,7 @@ function renderPanel() {
     if (n.community) chips.push("community: " + commName.get(n.community));
     fill(
       kicker("Paper · " + n.id, () => select(null)),
-      el("h2", {}, el("a", { href: `https://arxiv.org/abs/${n.id}`, target: "_blank", rel: "noopener", text: n.title })),
+      el("h2", {}, el("a", { href: n.url || `https://arxiv.org/abs/${n.id}`, target: "_blank", rel: "noopener", text: n.title })),
       el("div", { class: "chips" }, ...chips.map(c => el("span", { class: "chip", text: c }))),
       el("div", { class: "meta", text: `cited by ${n.indeg} in this set` + (n.citations != null ? ` · ${n.citations.toLocaleString()} overall` : "") }),
       el("dl", {},

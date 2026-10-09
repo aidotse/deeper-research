@@ -41,7 +41,9 @@ how many of its papers the snapshot already had: fewer than 10 is a lack of data
 its papers were grouped differently. Snapshots are cumulative and drawn from today's pool, whose old papers are the ones
 still relevant today, so the history is optimistic: a real earlier pass would have looked messier.
 
-Writes graphs/<topic>/match-simulation.json (simulate) or graphs/<topic>/history.json (history). Not part of a pass.
+Writes graphs/<topic>/match-simulation.json (simulate) or graphs/<topic>/history.json (history). These two commands are
+not part of a pass, but `match` and `cluster_history` are: tools/cluster.py calls them after every clustering, to match
+the new clustering to the previous one (for tools/assign.py remap) and to report since when each cluster exists.
 Deterministic: every random choice is seeded.
 """
 

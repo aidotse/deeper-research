@@ -2,12 +2,12 @@
 
 Every paper this repo knows about comes from one of four outside services. This file says which service is used for
 what, by whom, how to call it, and how to check before a pass that each one works. It does not repeat the retrieval
-strategy, which is in `docs/process.md` ("Sources by job", and each step); it says how to carry that strategy out.
+strategy, which is in `docs/process.md` ("Overview", and each step); it says how to carry that strategy out.
 
 The reason this matters: when a service is missing or failing, the work does not stop by itself. An agent without
 specialized MCPs still has WebSearch, and it will quietly produce a pool top-heavy with preprints. An agent without
 snippet search still has abstracts, and it will produce rows that look verified. The preflight check at the end of this
-file exists to turn those silent failures into a stop.
+file, and the rule that a persistent error halts the pass, exist to turn those silent failures into a halt.
 
 ## The services
 
@@ -37,9 +37,13 @@ Asta until it is added:
 claude mcp add --transport http asta https://asta-tools.allen.ai/mcp/v1 --header "x-api-key: $ASTA_API_KEY"
 ```
 
-`.claude/settings.json` pre-approves `mcp__asta__*` and warns at session start when `ASTA_API_KEY` is unset. The warning
-says that without a key Asta answers at lower anonymous rate limits; this has not been tested. Both subagents have Asta
-in their tool lists.
+The shell expands `$ASTA_API_KEY` when the server is added, so the key is stored in that config, not read from the
+environment in later sessions. To change the key, remove the server (`claude mcp remove asta`) and add it again.
+
+`python3 tools/asta_config.py` reports whether the Asta server is configured with a key, without printing the key.
+`.claude/settings.json` runs it at session start, and warns if there is no server or no key; the warning says that
+without a key Asta answers at lower anonymous rate limits, which has not been tested. A pass does not run without a key
+(see "Preflight"). `.claude/settings.json` also pre-approves `mcp__asta__*`. `survey-pass` has Asta in its tool list.
 
 ### Tools, and when to use each
 
@@ -55,11 +59,13 @@ in their tool lists.
 
 Rules for calling them:
 
-- `IDs` — pass arXiv papers as `ARXIV:<id>`, for example `ARXIV:2106.15928`. Semantic Scholar IDs, DOIs and `CorpusId:`
-  also work.
-- `Fields` — every tool returns only `title` unless `fields` asks for more. Ask for what the decision needs and no more.
-  `abstract` is what screening reads; `references` and `citations` return whole lists and are long; `tldr` is a cheap
-  one-line summary. Every returned field enters the agent's context, so this is the main lever on screening cost.
+- `IDs` — pass arXiv papers as `ARXIV:<id>`, for example `ARXIV:2106.15928`, and other papers by their corpus ID,
+  `CorpusId:<n>`, as it is. Semantic Scholar IDs and DOIs also work. A paper's canonical ID is defined in
+  `docs/formats.md` ("Paper IDs").
+- `Fields` — every paper tool returns only `title` unless `fields` asks for more. `snippet_search` has no `fields`
+  parameter: it returns passages. Ask for what the decision needs and no more. `abstract` is what screening reads;
+  `references` and `citations` return whole lists and are long; `tldr` is a cheap one-line summary. Every returned field
+  enters the agent's context, so this is the main lever on screening cost.
 - `Dates` — `publication_date_range` restricts by publication date, for example `2025-06:` for June 2025 onward. Use it
   to keep recent work represented. `snippet_search` has no publication filter. Its `inserted_before` restricts by the
   date a paper entered the index, which is not the same thing.
@@ -74,8 +80,12 @@ Rules for calling them:
 Asta allows 10 requests per second per endpoint and returns 429 when that is exceeded. In practice this is far from
 binding. When a call returns 429 or any other error:
 
-- Wait 2 seconds and retry, up to 3 attempts, doubling the wait each time.
-- If it still fails, record the query under `Errored queries` in the retrieval log, never under `Queries run`.
+- Wait 2 seconds and retry, up to 3 retries, doubling the wait each time.
+- If it still fails, record the query under `Errored queries` in the retrieval log, never among the queries in the
+  `Orientation` or `Expansion` lines.
+- At the end of the step, retry every errored query once more. If one still fails, halt the pass (`H2` in
+  `docs/process.md`, "When a pass ends"). A step that silently lost a query cannot be told apart from one that searched
+  and found nothing.
 
 An errored query is not a query that returned no results, and neither is evidence of absence. An empty result is
 evidence about the index, not about the field: indexing lags publication, and not every paper has body text indexed.
@@ -90,6 +100,8 @@ otherwise: what it returns in bulk would flood a model's context, and the script
 
 - `tools/pool.py` and `tools/graph.py` use the batch endpoint, `/paper/batch`, for metadata, reference lists and
   SPECTER2 embeddings.
+- `tools/assign.py` (`add`, `add-fringe`, and `late` through `tools/pool.py`), `tools/bib.py` and `tools/fulltext.py`
+  use it for papers without an arXiv ID, and `tools/preflight.py` for its check.
 - `tools/fringe.py` uses the batch endpoint and the recommendations endpoint. Recommendations return only papers from
   about the last two months; see `docs/process.md` ("Fringe routes").
 
@@ -99,16 +111,18 @@ which finds better papers. It is about what each route needs:
 - `An endpoint Asta lacks` — the `new` route uses Semantic Scholar's recommendations, which Asta does not expose.
 - `Volume` — the `hidden` route ranks every paper the pool cites by how little it is cited for its age. On `reasoning`,
   195 pool papers cite 3,772 distinct papers, 7,760 references in all. Through Asta, every one of those records would
-  pass through an agent's context, to be thrown away by a rule a script applies exactly. Only the shortlist, about 60
-  papers, is worth a model's attention, and that is what the blind screening reads.
+  pass through an agent's context, to be thrown away by a rule a script applies exactly. Only the shortlist, up to 60
+  per route (116 on `reasoning`), papers, is worth a model's attention, and that is what the blind screening reads.
 - `Data Asta does not return` — the fringe score is computed from SPECTER2 embeddings, and also from full reference
   lists when the chosen measure uses references. Asta's paper fields include no embeddings. Reference lists it can
   return, but fetching them for every pool paper would put them all through an agent's context.
 - `Reproducibility` — a script applies the same rule on every run; an agent paging through results does not.
 
 Calls are unauthenticated. The unauthenticated endpoint shares one rate limit across all its users, so it answers 429
-often, even to a single request. The scripts retry with a growing wait, up to eight attempts, so a 429 means busy, not
-down. A run that fails after all its retries should be rerun later; the scripts cache what they have already fetched.
+often, even to a single request. The scripts retry a 429, a 500, 502, 503 or 504, a dropped connection or a timeout with
+a growing wait, up to eight attempts, so a 429 means busy, not down. A script that fails after all its retries halts the
+pass (`H3`). `tools/pool.py` and `tools/graph.py` save after every batch, so a rerun fetches only what is still missing.
+`tools/fringe.py collect` keeps no cache: a failed run is rerun whole, which takes a few minutes.
 
 ## arXiv
 
@@ -121,7 +135,8 @@ papers' body text. Two scripts go to arXiv directly, for what Asta lacks:
   to the PDF. It is for verification, when snippet search has no body text for a paper or a claim rests on a table or
   caption. See `docs/verification.md`.
 
-Both space their requests three seconds apart, following arXiv's etiquette, and retry transient 429 and 503 responses.
+Both space their requests three seconds apart, following arXiv's etiquette, and retry transient failures: a 429, a 500,
+502, 503 or 504, a dropped connection or a timeout (and for the API, a 406).
 
 Do not use WebFetch to read a paper for verification. WebFetch does not return a page verbatim: it passes the page
 through a model with a prompt and returns that model's answer. A paraphrase cannot support a claim that has to be
@@ -136,8 +151,9 @@ only WebSearch can find it.
 Built into Claude Code, and available to `survey-pass`. Use them for what the scholarly index does not have: the current
 frontier, the field's vocabulary, OpenReview, lab blogs, system cards, release notes, and work that never reached arXiv.
 
-- Resolve every paper found on the web to an arXiv ID, with `search_paper_by_title` if the page does not give one. The
-  tools key on arXiv IDs.
+- Resolve every paper found on the web to its canonical ID (`docs/formats.md`, "Paper IDs"): its arXiv ID, or failing
+  that its `CorpusId`, with `search_paper_by_title` if the page gives neither. Ask for `externalIds`: the arXiv ID is
+  there when Semantic Scholar knows it. A paper Semantic Scholar does not know cannot enter the pool yet.
 - WebSearch may corroborate a claim about a paper, but it is never the only source for one. Characterisation and
   verification come from Asta.
 - Record every orientation query in the retrieval log, verbatim.
@@ -157,29 +173,26 @@ The preflight check runs at the start of every pass, before step 1. It is done b
 step 1, and its outcome is the first line of the pass's retrieval log. It costs a few calls and a few thousand tokens.
 What it buys is that no pass runs on a missing service without the user knowing.
 
-The checks, each with the action on failure:
+Every check below must pass. If any fails, the pass halts (`H1` in `docs/process.md`, "When a pass ends"): the agent
+returns a `STOP:` report, and the main session tells the user. The one exception is a Graph API 429, which counts as
+reachable.
 
-| check | how | if it fails |
-| -- | -- | -- |
-| `snippet_search` answers | one call scoped to a known paper, with `paper_ids` and `limit` 1 | stop, and tell the user |
-| `search_papers_by_relevance` answers | one query with `limit` 1 | stop, and tell the user |
-| `get_paper` answers | one known `ARXIV:` ID | stop, and tell the user |
-| `get_citations` answers | the same ID, with `limit` 1 | stop, and tell the user |
-| WebSearch answers | one query | stop, and tell the user |
-| Graph API reachable | the command below; 200 or 429 both pass | proceed with steps 1 and 2; stop before the first fetch |
-| arXiv API reachable | the command below | proceed; needed only at step 5 |
-| `uv` installed | `uv --version` | proceed; needed before the first `tools/cluster.py` or `tools/fulltext.py` run |
-| `ASTA_API_KEY` set | the session-start warning | proceed at anonymous limits; note it in the log |
+| check | how |
+| -- | -- |
+| `snippet_search` answers | one call scoped to a known paper, with `paper_ids` and `limit` 1 |
+| `search_papers_by_relevance` answers | one query with `limit` 1 |
+| `get_paper` answers | one known `ARXIV:` ID |
+| `get_citations` answers | the same ID, with `limit` 1 |
+| WebSearch answers | one query |
+| Graph API reachable | `python3 tools/preflight.py`; 200 or 429 both pass |
+| arXiv reachable | `python3 tools/preflight.py`: the API and the HTML pages |
+| `uv` installed | `python3 tools/preflight.py`; needed from step 2: by `tools/cluster.py` and `tools/fringe.py`, then `tools/fulltext.py` and `tools/assign.py late` |
+| Asta key set | `python3 tools/preflight.py`, which runs `tools/asta_config.py` |
 
-The Graph API and arXiv checks, from the repo root:
+The main session runs `tools/preflight.py` before dispatching the agent for step 1, and passes its printout on: it is
+the second half of the log's `Preflight` line. The agent makes the five tool calls.
 
-```bash
-curl -s -o /dev/null -w "%{http_code}\n" -X POST "https://api.semanticscholar.org/graph/v1/paper/batch?fields=title" \
-  -H "Content-Type: application/json" -d '{"ids":["ARXIV:2106.15928"]}'
-curl -s -o /dev/null -w "%{http_code}\n" "https://export.arxiv.org/api/query?id_list=2106.15928"
-```
-
-Why the stops are where they are:
+Why every failure halts:
 
 - `Snippet search` — without it no row can be verified to this repo's standard. Do not proceed and silently fall back to
   abstracts. A survey that looks finished but rests on abstracts is worse than none, because nothing downstream reveals
@@ -187,13 +200,16 @@ Why the stops are where they are:
 - `Asta search and traversal` — without them expansion falls back to WebSearch alone. That produces a pool top-heavy
   with preprints and missing the methods they all cite, and it has happened in this repo.
 - `WebSearch` — without it orientation cannot see the current frontier.
+- `The rest` — the Graph API, arXiv and `uv` are needed later in the pass, and a missing key changes Asta's limits. No
+  failure may lead to a silent fallback that compromises the quality or repeatability of a pass, and halting here is
+  cheaper than discovering the failure at step 5.
 
-In every stop case the user decides whether to proceed. If they do, the log says what was missing, and the output marks
-the affected claims as provisional.
+The user decides whether to proceed. If they do, the log's `Halts` line records it, and the output's legend says what
+was missing.
 
 Record the outcome in the log's `Preflight` line, in the form given in `docs/formats.md`, for example:
 
 ```text
 - **Preflight:** snippet_search ok | search_papers_by_relevance ok | get_paper ok | get_citations ok | WebSearch ok |
-  Graph API ok (429, retried) | arXiv ok | uv ok | ASTA_API_KEY set
+  Graph API ok (429, busy) | arXiv ok | uv ok | Asta key set
 ```

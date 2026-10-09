@@ -21,7 +21,8 @@ recently, but please correct me if you would argue otherwise.
 Extract these for every paper, in addition to the standard columns. Use `n/a` where a dimension genuinely does not
 apply, rather than leaving it blank or guessing.
 
-- **`evidence`** — what kind of claim the paper's central result is. One of:
+- **`evidence`** — values: `proven`, `derived`, `empirical`, `fitted`, `position`. What kind of claim the paper's
+  central result is:
 
   - `proven` — a theorem with stated assumptions.
   - `derived` — an approximation or limit argument (mean-field, asymptotic) that is not a proof of the general case.
@@ -32,24 +33,27 @@ apply, rather than leaving it blank or guessing.
   This exists because theory-sounding language is routinely applied to fitted regularities, and a theory group needs to
   know which is which before building on anything.
 
-- **`measures`** — what property the paper's headline evaluation actually measures. For safety work the important
-  distinction is `faithfulness` (does the stated reasoning reflect the computation that drove the answer, usually tested
-  by injecting a cue) versus `monitorability` (can a monitor reading the trace detect a target behaviour). These are
-  constantly conflated, including in paper titles. Use `capability` for ordinary performance work, `control-protocol`
-  for protocol-level safety evaluations, `n/a` for position papers.
+- **`measures`** — values: `capability`, `faithfulness`, `monitorability`, `control-protocol`, `n/a`. What property the
+  paper's headline evaluation actually measures. For safety work the important distinction is `faithfulness` (does the
+  stated reasoning reflect the computation that drove the answer, usually tested by injecting a cue) versus
+  `monitorability` (can a monitor reading the trace detect a target behaviour). These are constantly conflated,
+  including in paper titles. Use `capability` for ordinary performance work, `control-protocol` for protocol-level
+  safety evaluations, `n/a` for position papers.
 
-- **`elicitation`** — whether the behaviour studied was `elicited` (the authors deliberately trained, fine-tuned or
-  prompted it in), `observational` (found in an existing system the authors did not construct, but with autonomy
-  unverified), or `spontaneous` (arose from ordinary training or deployment, with the paper's design able to distinguish
-  that from elicitation). `n/a` where no behaviour is being elicited at all.
+- **`elicitation`** — values: `elicited`, `observational`, `spontaneous`, `n/a`. Whether the behaviour studied was
+  `elicited` (the authors deliberately trained, fine-tuned or prompted it in), `observational` (found in an existing
+  system the authors did not construct, but with autonomy unverified), or `spontaneous` (arose from ordinary training or
+  deployment, with the paper's design able to distinguish that from elicitation). `n/a` where no behaviour is being
+  elicited at all.
 
   This matters for the funding framing above. A capability that has to be trained in is a different risk object from one
   that emerges by itself, and defence questions are almost always about the second.
 
-- **`pressure`** — for any claim that a monitor, detector or metric holds up, what kind of pressure it was tested
-  against: `monitor-in-reward` (the monitor was folded into the training objective), `training-incidental` (training
-  pressure not aimed at the monitor, e.g. a length penalty), `prompt-level` (in-context attack, no training anywhere),
-  or `none` (observational, no pressure applied). `n/a` where nothing is being stress-tested.
+- **`pressure`** — values: `monitor-in-reward`, `training-incidental`, `prompt-level`, `none`, `n/a`. For any claim that
+  a monitor, detector or metric holds up, what kind of pressure it was tested against: `monitor-in-reward` (the monitor
+  was folded into the training objective), `training-incidental` (training pressure not aimed at the monitor, e.g. a
+  length penalty), `prompt-level` (in-context attack, no training anywhere), or `none` (observational, no pressure
+  applied). `n/a` where nothing is being stress-tested.
 
   Results are routinely quoted across these categories as if comparable. They are not: the most dramatic published
   numbers come from prompt-level attacks, which is the weakest of the three threat models.

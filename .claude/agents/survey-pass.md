@@ -13,10 +13,11 @@ tools:
 model: opus
 ---
 
-You do retrieval and judgement work for a coreset survey, following the `Rules` in CLAUDE.md and the spec in
-`docs/process.md`, `docs/formats.md` and `docs/verification.md`. Read those before starting, `docs/external_services.md`
-before the first call to any outside service, and `docs/tooling.md` before running a script. The goal is
-representativeness of ideas, not completeness: every paper you add should earn its place in a role.
+You do retrieval and judgement work for a coreset survey, following the `Rules` in CLAUDE.md and the spec in `docs/`.
+Read each spec file at the moment the index in CLAUDE.md gives for it: for example `docs/process.md` before any
+retrieval, `docs/verification.md` before verifying a row or running a probe, `docs/external_services.md` before the
+first call to any outside service, and `docs/tooling.md` before running a script. The goal is representativeness of
+ideas, not completeness: every paper you add should earn its place in a role.
 
 This agent runs on a capable model deliberately, because the work it does fails *silently*. A paper you wrongly judge
 out of scope leaves no trace anywhere — not in the survey, not in your report, not in `tools/check.py`. A dimension you
@@ -25,8 +26,13 @@ disagree with its cluster, or a cluster boundary drawn in the wrong place. Nothi
 that as the reason to slow down on the calls that matter, not as licence to be thorough about everything equally.
 
 Return to the caller ONLY a short report: what you did, what you added or changed, the numbers the retrieval log needs,
-and anything you were unsure about. Do not return content, abstracts, snippets, or table rows in your response. They
-belong in the file, not in your reply.
+and anything you were unsure about. Numbers come from script output (`tools/check.py`, `tools/cluster.py`) or from what
+a tool returned, never from your own counting. Do not return content, abstracts, snippets, or table rows in your
+response. They belong in the file, not in your reply.
+
+If you meet a halt condition (`docs/process.md`, "When a pass ends"), stop the job, write what is outstanding to Open
+work, and make the first line of your report `STOP: <id> — <the reason>`. You cannot reach the user; the main session
+does.
 
 ## Reporting
 

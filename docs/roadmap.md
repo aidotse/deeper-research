@@ -15,8 +15,11 @@ the spec; do not follow it in a pass until it is moved into the relevant `docs/`
   hand-drawn blocks A–Q. It is the test corpus for everything below.
 - `Tools` — all built and tested on `reasoning`: `tools/check.py`, `tools/bib.py`, `tools/pool.py`, `tools/cluster.py`,
   `tools/fringe.py`, `tools/fulltext.py`, `tools/graph.py` (viewer), plus the experiments `tools/recursive.py` and
-  `tools/match.py`. See `docs/tooling.md`. Python tools that need numpy and Leiden run with `uv run`; the rest are
-  standard library.
+  `tools/match.py`. Added on 2026-10-08 (audit Phases 2–3): `tools/assign.py` (the Pool table writer, late papers,
+  remap), `tools/inputs.py`, `tools/sheets.py`, `tools/preflight.py`, `tools/asta_config.py` and `tools/net.py`. The
+  coreset-layout paths were tested on a temporary topic built from `reasoning`'s data, since no real coreset survey
+  exists yet. See `docs/tooling.md`. Python tools that need numpy and Leiden run with `uv run`; the rest are standard
+  library.
 - `Data` — everything derived from a survey lives in `graphs/<topic>/`. For `reasoning`: `graph.html` (viewer),
   `pool.json` (embeddings, reference lists), `clusters.json` (clustering report), `references.json` (legacy reference
   cache), the fringe experiment's `fringe.json`, `fringe-screen.md` and `fringe-analysis.json`, the recursive clustering
@@ -33,44 +36,54 @@ All adopted into the spec on 2026-09-29 unless marked otherwise.
   The data for both measures is always fetched, and the comparison reruns for every topic, so the choice adapts to each
   literature. The agent names clusters; membership is never changed by hand, and only the user overrides, with the
   override logged. Spec: `docs/process.md`, "Clustering method".
+
 - **The level is the finest with stability at least `τ` = 0.75**, reported with the levels `τ ± 0.05` would pick. A
   "largest drop" rule was tried and rejected: stability is highest at the coarsest level, so the first drop is always
   the largest. A threshold-free rule (largest excess over a structure-free null model) was also tried. It confirms the
   structure is real, but its null curve is flat, so it reduces to "most stable"; it is reported, not used. How much
   detail to keep is a trade-off between detail and stability, and the user judges it during cluster review with the
   viewer's level slider on the similarity map.
+
 - **When stability fails, the action is defined.** Whole clustering: `no structure`, `no stable level`, `broad scope`
   (reclassified 2026-10-02 as a reported finding, not a failure: the pass continues, and the coverage test judges
   whether broad clusters suffice). Single clusters: `thin cluster` (expand the region), `clusters trade papers` (keep
   both, require a bridge), `unstable cluster` (flag). Instability is information, not a defect: the user reads the two
   trading safety clusters as an open boundary in the field. Spec: `docs/process.md`, "When stability fails".
+
 - **Citation communities are only a diagnostic.** Louvain communities came from the viewer, not the method. They remain
   one colour mode and feed the cohesion figures, with no names of their own.
+
 - **A `fringe` role**, five to ten per topic, for overlooked papers carrying an idea no other coreset row has. Two
   expansion routes feed it at the end of step 2, `hidden` and `new`; a third, `followers`, was tested and dropped.
   Fringe candidates enter the pool before clustering, and `fringe` rows are chosen last in step 4, by an age-corrected
   distance to nearest neighbours plus a one-sentence idea test. Spec: `docs/process.md` (step 4 and "Fringe routes").
+
 - **Order of operations.** `docs/process.md` opens with a table of every operation in a pass: pool or coreset stage,
   script or model judgement, what the model reads and decides, and tokens. The pool is broad and cheap (steps 1–3); the
   coreset is small and expensive (steps 4–5). The stability test (step 3, script) checks the clusters; the coverage test
   (last, judgement) checks the coreset.
+
 - **External services have their own doc** (2026-09-30), `docs/external_services.md`: which service is used by whom, how
   to call each Asta tool, rate limits, credentials, and an extended preflight check that runs as step 0 of every pass.
   Measured while writing it: the unauthenticated Graph API answered 429 to a single request, so 429 counts as reachable;
   and one `snippet_search` call took over two minutes, so a call silent for five minutes counts as errored.
+
 - **The coreset's targets** (2026-09-30): the coreset is stable against the output's `Landscape`, `Assumptions` and
   `Gaps` by default, plus anything the input's `Coreset Spec` declares. `Questions` and `Reading` are derived, so they
   are not targets. In the spec: `docs/formats.md` (the user's `Coreset Spec` section), the coverage test's question in
   `docs/process.md`, and `docs/coresets.md`.
+
 - **Coresets have their own doc** (2026-09-30), `docs/coresets.md`: the definition and its two tests, the origin in
   Sener and Savarese's k-center coreset, covering versus weighted coresets, pool versus coreset, how roles achieve
   coverage, and why a coreset gives neither absence claims nor field statistics. Other docs keep a short, local version
   and point to it.
+
 - **Full text from arXiv for verification** (2026-10-01), `tools/fulltext.py`: a paper's arXiv HTML, flattened to
   verbatim text, with a PDF fallback. Used when snippet search has no body text or a claim rests on a table or caption;
   `source` is then `full-text`, which previously had no defined route. WebFetch is ruled out for verification because it
   returns a model's paraphrase. It closes body-text lag only, not discovery lag. Spec: `docs/verification.md`,
   `docs/external_services.md` ("arXiv"), `docs/tooling.md`.
+
 - **No blocking cluster checkpoint by default** (2026-10-01). A pass runs straight through, and the user reviews the
   clusters with the output. It stops before the coreset only when the input asks (`review: before coreset`), a
   whole-clustering diagnostic fires, a cluster cannot be rated for alignment, or an expected cluster is missing. The
@@ -78,10 +91,12 @@ All adopted into the spec on 2026-09-29 unless marked otherwise.
   levers (level, alignment, names, scope, more data) can be given in advance in the input's new `Clustering` section, or
   requested afterwards as an incremental pass. Spec: `docs/process.md` (step 3, "Changing the clusters after a pass"),
   `docs/formats.md`.
+
 - **A clustering rationale per pass** (2026-10-02): at step 3 the naming agent writes a `Clustering rationale` paragraph
   into the pass's log entry, interpreting the figures (level margin, weak clusters, how decisive the measure was, what
   input steering changed). The viewer shows the latest pass's rationale. Spec: `docs/process.md` ("Recording it"),
   `docs/formats.md`.
+
 - **Cluster history** (2026-10-05, proposed by the user): after choosing the level, `tools/cluster.py` reports since
   when each cluster exists, as post-processing that never changes the clusters. Four date segments of equal paper count
   (narrower in a publication burst); each cumulative snapshot clustered with today's measure and cluster count at five
@@ -93,15 +108,41 @@ All adopted into the spec on 2026-09-29 unless marked otherwise.
   a stacked column per snapshot (segments per today's cluster, solid if found, faint if not) and a "Since when" line per
   cluster. Considered and not built: a full flow (Sankey) chart between the snapshots' own clusters, busier and, on
   `reasoning`, showing nothing more. Spec: `docs/process.md` ("Since when each cluster exists"), `docs/formats.md`.
+
 - **Pool metadata is filled by script**, `tools/pool.py`, never through a model's context.
+
 - **Docs structure.** `CLAUDE.md` holds what every session needs, plus a table of who reads which `docs/` file and when.
   `docs/responses.md` (formatting and voice) is imported into it. Terminal replies use top-level `#` headers and
   `inline code` for accents, because only those render visibly.
+
 - **`docs/surveys.md` dissolved** (2026-10-05, the user's request). About four-fifths of it repeated `docs/coresets.md`,
   `docs/process.md` and `docs/formats.md`. Its unique content moved to where it is applied. `Sizing` and the role
   definitions went to `docs/process.md` step 4, merged with how each role is found, so roles are defined once. The
   cluster definition and examples went to step 3, and the hint that fringe rows feed `Questions` to `docs/formats.md`.
   `docs/coresets.md` remains the one place for why the roles and sizing are as they are.
+
+- **Audit decisions D1–D6** (2026-10-05, with the user). Full wording, and where each one goes, in
+  `.audits/2026-10-05-docs-and-tools.md` ("Decisions"). D3, D5 and D6 were written into the spec on 2026-10-08 (audit
+  Phase 1), apart from their code changes: the end conditions are in `docs/process.md`, "When a pass ends"; the
+  `[abstract-only]` marker in `docs/formats.md` and `docs/verification.md`; the targets in `docs/formats.md`
+  (`Coreset Spec`). D1, D2 and D4 followed on 2026-10-08 with their tools (audit Phase 3): late papers in
+  `docs/process.md` ("Late papers") and `tools/assign.py`; paper IDs in `docs/formats.md` ("Paper IDs") and every tool;
+  parseable dimensions in `docs/formats.md` and `tools/inputs.py`. One implementation choice under D1: the queue is the
+  Pool rows with an empty `cluster` cell, which `tools/check.py` lists, rather than a separate Open work field, so that
+  it has one source.
+
+  - `D1` — papers that reach the pool after step 3 are queued. Each coverage-test round, and each re-run of step 4,
+    processes the queue as one batch: nearest-cluster assignment by script, or a recluster when the coverage test judges
+    a new cluster (after a targeted expansion) or when late additions exceed 10% of the pool.
+  - `D2` — every paper can enter the pool and the coreset. Pre-2015 arXiv IDs are supported. Without an arXiv ID, the
+    canonical ID is `CorpusId:<n>`. Of duplicate records, the arXiv one is kept.
+  - `D3` — every error halts the pass, including all preflight failures, except a Graph API 429. Errored queries and
+    failed scripts halt it too. All finish and halt conditions go into one list with IDs (audit issue S11).
+  - `D4` — the input declares dimensions with their allowed values in a parseable form, and the tools read it.
+  - `D5` — `UNVERIFIED` in replies, reports and docs; `source` per row; `[abstract-only]` in outputs, replacing
+    "provisional", with a legend in every output.
+  - `D6` — "targets" names the parts of an output the coreset must stay stable against, and is defined in the
+    `Coreset Spec` entry of `docs/formats.md`.
 
 ## Findings on the `reasoning` corpus
 
@@ -126,6 +167,14 @@ Caveat for all of these: one corpus, and a curated survey rather than a real poo
   0.70), which is why fringe routes run before clustering. Highest fringe scores on the base set: theory of learning
   dynamics and model collapse, and safety evaluations (sabotage, evaluation awareness). The user judged them acceptable
   matches.
+- `Fringe score and missing references` (2026-10-08, audit M1) — 16 pool papers have fewer than 10 resolved references,
+  13 of them none, though all have abstracts. By references alone such a paper looks far from everything, so the score
+  now weights references per paper by `w = n / (n + c)`, as `combined` does (`docs/process.md`). Effect on `reasoning`:
+  the top 8 is the same set (top 20: 18 kept; rank correlation 0.93), and 5 of the 8 still have no resolved references,
+  because those papers are far by text too. What moved were textually ordinary papers without references, from about
+  rank 70–90 to the bottom half. Median score, fewer than 10 references against the rest: 0.75 against 0.45 before, 0.67
+  against 0.47 after. The remaining gap may be real: papers whose references Semantic Scholar does not parse include lab
+  reports (sabotage evaluations, in-context scheming), which also read differently.
 - `Recursive clustering` (2026-10-02/03, `tools/recursive.py`) — the global level-6 clustering is round 1; each of its
   clusters is then reclustered on its own (own similarity scale, resolution and stability tests) and split into 2–6
   parts if a rule accepts it, and so on. Clusters under 20 papers are not split. Rules: `tau` (the split's local
@@ -179,10 +228,11 @@ Caveat for all of these: one corpus, and a curated survey rather than a real poo
   segments of equal paper count (cutoffs 2025-03-24, 2025-10-09, 2026-05-25: segments of about four years, six, seven
   and four months); each cumulative snapshot clustered with today's measure and cluster count at 5 seeds, and matched to
   today. Snapshots: 48 papers (only 4 clusters reachable, stability 0.40), 97 (0.72), 146 (0.84). Per cluster: theory of
-  chain-of-thought, test-time compute and attack surface are already there in the earliest snapshot; RL first appears in
-  the pool of 2025-10-09 (5 papers before that); monitorability in the pool of 2026-05-25 (9 papers before); agent
-  harnesses only today. Every unmatched case was "too few papers yet", never "grouped differently", so on this pool the
-  history is one of emergence, not restructuring. Caveat: a match in an unstable snapshot (0.40) is weak evidence.
+  chain-of-thought, test-time compute and attack surface are already there in the earliest snapshot; RL probably first
+  appears in the pool of 2025-10-09 (hedged because that snapshot's stability, 0.72, is below `τ`; 5 papers before
+  that); monitorability in the pool of 2026-05-25 (9 papers before); agent harnesses only today. Every unmatched case
+  was "too few papers yet", never "grouped differently", so on this pool the history is one of emergence, not
+  restructuring. Caveat: a match in an unstable snapshot (0.40) is weak evidence.
 - `Semantic Scholar recommendations` — accept negative examples, but they change little (16 of 20 results the same), and
   the endpoint returns only the last two months of papers.
 - `Costs` — measured: screening about 0.85k tokens per candidate (123k for 146); `tools/cluster.py` about two minutes
@@ -197,17 +247,8 @@ Caveat for all of these: one corpus, and a curated survey rather than a real poo
 
 **Tool gaps, to close before a real pass:**
 
-- No script runs the non-agent preflight checks; they are commands in `docs/external_services.md`.
-
-- Screened fringe candidates have to be added to the Pool table by the screening agent; no tool does it.
-
-- Pool rows have no cluster id between step 2 and step 3, and `tools/check.py` rejects an unknown pool `cluster`.
-
-- The computed assignment (`c1`, `c2`, …) is not written into the Pool table's `cluster` column, nor mapped to the
-  agent's named cluster ids.
-
-- `tools/check.py` does not check the `Clustering`, `Temporal stability` or `Coverage test` log lines, or that pool
-  `cluster` values match the computed assignment.
+- `tools/check.py` does not check the retrieval log's lines (`Clustering`, `Temporal stability`, `Coverage test`), nor
+  flag a line still holding a `<...>` placeholder from a script's printout.
 
 - The viewer's dark-mode palette fails the `dataviz` validator's lightness band (5 of the first 6 hues too light on the
   dark surface; found 2026-10-05). Its 18-hue palette predates the reference palette's dark steps; re-step it and rerun
@@ -216,18 +257,15 @@ Caveat for all of these: one corpus, and a curated survey rather than a real poo
 
 **Not yet built:**
 
-- The input's `Clustering` steering has no tool support yet. `tools/cluster.py` chooses the level by rule, and a
-  `granularity` preference can only be approximated with `--tau`; it needs a `--level` option. `tools/check.py` reads no
-  input file at all, so a typo such as `review: before-coreset` would silently skip the stop it asks for. It needs an
-  input check: known section names, known `Clustering` fields, and allowed values.
-
 - Discovery lag: a paper on arXiv but not yet in Semantic Scholar is invisible to Asta, and `tools/pool.py` cannot fetch
   its embedding or references. A search of arXiv's own listings during orientation would find it; clustering would still
   need a fallback.
 
 - Matching clusters across passes, so that ids and names persist and splits, merges and vanished clusters are logged.
-  Needed before a topic's second pass. The matching rule is drafted in `tools/match.py` (`match()`), and simulated on
-  `reasoning` (see Findings); what remains is the pass-to-pass tool and the spec. The design so far (2026-10-05):
+  Partly built (2026-10-08): `tools/cluster.py` matches every new clustering to the previous one with `match()`, and
+  `tools/assign.py remap` carries names over to matched clusters; tested on a swapped-id fixture. What remains: the
+  diagnosis for when most clusters fail to match (below), a log format for the remap result beyond the `Late papers`
+  line, and the seeded-clustering option. The design so far (2026-10-05):
 
   - `No guarantee` — a later pass can produce a different clustering: the level can change, new papers change the
     similarity scale, the graph and the resolution, and the field can genuinely restructure. Matching is possible
@@ -253,11 +291,14 @@ Caveat for all of these: one corpus, and a curated survey rather than a real poo
   operations.
 
 **Ready to run:** the full text of all 27 `abstract`-sourced rows in `surveys/reasoning.md` is cached in
-`graphs/reasoning/fulltext/`. Twelve of them are cited by the output, which marks them provisional; verifying those
-would let the markers go. Optional, since `reasoning` is to be renamed `reasoning-exhaustive`.
+`graphs/reasoning/fulltext/`. Twelve of them are cited by the output, which marks them `[abstract-only]`; verifying
+those would let the markers go. Optional, since `reasoning` is to be renamed `reasoning-exhaustive`.
 
 **First guesses to revisit on a real pool:** `τ` = 0.75; `k` = 10; `c` = 10; the diagnostic thresholds (0.15 excess over
-random, 0.9 for "broad", 0.6 for "unstable", 10 papers for "thin", 20% for "trading"); the fringe quota.
+random, 0.9 for "broad", 0.6 for "unstable", 10 papers for "thin", 20% for "trading"); the fringe quota; in
+`tools/cluster.py`, 0.6 for a stable sub-cluster (`SUBCLUSTER_SCORE`), 10 references for the thin-reference share
+(`THIN_REFS`) and 30% for the smallest time holdout (`MIN_HOLDOUT_SHARE`); 20% `abstract`-sourced rows for halt `H10`;
+and, from D1, 10% late additions before a recluster.
 
 **Ideas raised, not adopted or tested:**
 
@@ -325,7 +366,9 @@ random, 0.9 for "broad", 0.6 for "unstable", 10 papers for "thin", 20% for "trad
 
 ## Next steps, in order
 
-1. The user reviews the spec in detail.
+1. The user reviews the spec in detail. An audit of the spec, agent files and tools (2026-10-05) is in
+   `.audits/2026-10-05-docs-and-tools.md`: issues with remediations, six decisions for the user, and a phased action
+   plan. Phases 0–3 are done (2026-10-08); continue with Phase 4, the agent-facing layer and a dry read.
 2. Close the tool gaps above.
 3. The fresh coreset run: rename the old input, survey and output to `reasoning-exhaustive`; create a new
    `inputs/reasoning.md` that lists the old survey as Context; set `review: before coreset` in its `Clustering` section,

@@ -36,17 +36,15 @@ import json
 import re
 import sys
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from check import ARXIV, BARE_ARXIV, ROOT, cells_of, sections, table_rows  # noqa: E402
+from check import ARXIV_ONLY, BARE_ID, LINK, ROOT, cells_of, link, s2_ref, sections, table_rows  # noqa: E402
+from net import get_json  # noqa: E402
 
 TOOLS = Path(__file__).resolve().parent
 S2_BATCH = "https://api.semanticscholar.org/graph/v1/paper/batch?fields=title,year,citationCount,references.externalIds"
 VENDOR = ["cytoscape.min.js", "layout-base.js", "cose-base.js", "cytoscape-fcose.js"]
-DIMENSIONS = ["evidence", "measures", "elicitation", "pressure"]
 
 
 def topic_dir(topic):
@@ -64,12 +62,28 @@ def plain(text):
     return text.replace("\0", "|").strip()
 
 
+def submitted(aid, record, year):
+    """When a paper appeared, as a fractional year: from its arXiv ID where it has one, which encodes the submission
+    month; otherwise from Semantic Scholar's publication date, or the middle of its year."""
+    if ARXIV_ONLY.match(aid):
+        return arxiv_month(aid)
+    date = (record or {}).get("date")
+    if date:
+        return int(date[:4]) + (int(date[5:7]) - 1) / 12
+    year = (record or {}).get("year") or year
+    return year + 0.5 if year else None
+
+
 def arxiv_month(aid):
-    """An arXiv ID encodes its submission month: 2504.13837 is April 2025."""
-    return 2000 + int(aid[:2]) + (int(aid[2:4]) - 1) / 12
+    """An arXiv ID encodes its submission month: 2504.13837 is April 2025, hep-th/9901001 January 1999."""
+    yymm = aid.rpartition("/")[2][:4]
+    yy = int(yymm[:2])
+    return (1900 if "/" in aid and yy >= 91 else 2000) + yy + (int(yymm[2:]) - 1) / 12
 
 
 def parse(topic):
+    from inputs import read_input
+    dimensions = list(read_input(topic)[0] or {})  # declared in the input; see docs/formats.md
     text = (ROOT / "surveys" / f"{topic}.md").read_text()
     secs = sections(text)
     title = next((l[2:].strip() for l in text.splitlines() if l.startswith("# ")), topic)
@@ -93,7 +107,7 @@ def parse(topic):
     for h, c, block, line in table_rows(secs["Coreset"]):
         if not h or h[0] != "paper":
             continue
-        m = ARXIV.search(line)
+        m = LINK.search(line)
         if not m:
             continue
         aid = m.group(1)
@@ -115,7 +129,7 @@ def parse(topic):
             "role": row.get("role", "").split(":")[0] or None,
             "bridge": row.get("role", "").partition(":")[2] or None,
             "fields": [[k, plain(v)] for k, v in row.items() if k != "paper"],
-            "dims": {d: row[d] for d in DIMENSIONS if d in row},
+            "dims": {d: row[d] for d in dimensions if d in row},
             "source": c[-1],
         }
 
@@ -124,7 +138,7 @@ def parse(topic):
         for h, c, _, line in table_rows(secs["Pool"]):
             if not h or h[0] != "paper":
                 continue
-            m = ARXIV.search(line)
+            m = LINK.search(line)
             if not m:
                 continue
             aid, row = m.group(1), dict(zip(h, c))
@@ -136,31 +150,20 @@ def parse(topic):
             p["cluster"] = row.get("cluster", p.get("cluster"))
             p["citations"] = int(row["citations"]) if row.get("citations", "").isdigit() else None
             p["year"] = int(row["year"]) if row.get("year", "").isdigit() else None
-            cites[aid] = set(BARE_ARXIV.findall(row.get("cites", "")))
+            cites[aid] = set(BARE_ID.findall(row.get("cites", "")))
     return title, coreset_layout, clusters, order, papers, cites
 
 
 # --- citation data for legacy surveys -------------------------------------------------------------
 
 
-def fetch_s2(ids):
-    """Fetch title, year, citation count and references for arXiv IDs, in batches of 500."""
-    out = {}
+def fetch_s2(ids, save):
+    """Fetch title, year, citation count and references for arXiv IDs, in batches of 500, saving after each."""
     for i in range(0, len(ids), 500):
         batch = ids[i : i + 500]
-        body = json.dumps({"ids": [f"ARXIV:{a}" for a in batch]}).encode()
-        req = urllib.request.Request(S2_BATCH, data=body, headers={"Content-Type": "application/json"})
-        # The unauthenticated endpoint shares one rate limit across all users
-        # and answers 429 freely; back off and retry rather than failing.
-        for attempt in range(8):
-            try:
-                with urllib.request.urlopen(req, timeout=120) as r:
-                    data = json.load(r)
-                break
-            except urllib.error.HTTPError as e:
-                if e.code != 429 or attempt == 7:
-                    raise
-                time.sleep(5 * (attempt + 1))
+        # The unauthenticated endpoint shares one rate limit across all users and answers 429 freely; net retries.
+        data = get_json(S2_BATCH, {"ids": [s2_ref(a) for a in batch]})
+        out = {}
         for aid, rec in zip(batch, data):
             if rec is None:
                 continue
@@ -173,7 +176,7 @@ def fetch_s2(ids):
                 "citations": rec.get("citationCount"),
                 "refs": sorted({r for r in refs if r}),
             }
-    return out
+        save(out)
 
 
 def legacy_cites(topic, papers, refresh):
@@ -183,10 +186,15 @@ def legacy_cites(topic, papers, refresh):
     missing = [a for a in papers if a not in records]
     if missing:
         print(f"fetching {len(missing)} paper(s) from Semantic Scholar...")
-        records.update(fetch_s2(missing))
-        cache = {"fetched": time.strftime("%Y-%m-%d"), "papers": records}
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        cache_path.write_text(json.dumps(cache, indent=1, sort_keys=True))
+
+        def save(batch):
+            nonlocal cache
+            records.update(batch)
+            cache = {"fetched": time.strftime("%Y-%m-%d"), "papers": records}
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text(json.dumps(cache, indent=1, sort_keys=True))
+
+        fetch_s2(missing, save)
     for aid, p in papers.items():
         rec = records.get(aid, {})
         p["citations"] = rec.get("citations")
@@ -369,6 +377,8 @@ def build(topic, refresh=False):
         comm_list.append({"id": f"c{i + 1}", "size": len(members),
                           "mix": sorted(mix.items(), key=lambda t: -t[1])})
 
+    sidecar = topic_dir(topic) / "pool.json"
+    records = json.loads(sidecar.read_text())["papers"] if sidecar.exists() else {}
     nodes = []
     for aid in sorted(ids):
         p = papers[aid]
@@ -381,7 +391,8 @@ def build(topic, refresh=False):
             "role": p["role"],
             "bridge": p["bridge"],
             "year": p.get("year"),
-            "month": round(arxiv_month(aid), 3),
+            "month": round(submitted(aid, records.get(aid), p.get("year")) or 0, 3),
+            "url": link(aid),
             "citations": p.get("citations"),
             "indeg": indeg[aid],
             "source": p["source"],

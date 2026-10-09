@@ -15,6 +15,11 @@ graphs/*/fulltext/
 # and is large; rebuild it rather than track it.
 graphs/*/graph.html
 
+# Compact sheets for the naming and fringe agents, written by tools/sheets.py from
+# clusters.json; regenerable.
+graphs/*/naming-sheet.md
+graphs/*/fringe-sheet.md
+
 # Editors and OS
 .DS_Store
 *.swp

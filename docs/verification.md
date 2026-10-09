@@ -11,8 +11,9 @@ sentence.
 
 ### What "verify" means
 
-Call `mcp__asta__snippet_search` with `paper_ids=ARXIV:<id>`, typically twice: once for the method and once for the
-headline result. Add further queries wherever a claim in the row is still unsupported.
+Call `mcp__asta__snippet_search` with `paper_ids=ARXIV:<id>`, or `paper_ids=CorpusId:<n>` for a paper without an arXiv
+ID, typically twice: once for the method and once for the headline result. Add further queries wherever a claim in the
+row is still unsupported.
 
 Fall back to the paper's full text in two cases: when snippet search returns no body text for the paper, and when a
 claim rests on a table or a figure caption, which snippets exclude. Fetch it with
@@ -36,8 +37,8 @@ Four rules decide the edge cases:
 - **A cell may be less informative, but never unsupported.** If the paper's numbers appear only inside figure images,
   which no text source contains, the cell says so and reports only what the text supports, such as the direction of an
   effect. That row is verified. A cell asserting a number nobody retrieved is not.
-- **The abstract is the paper's own text.** A number the authors state only in the abstract may be reported, marked as
-  coming from the abstract. The abstract alone is never enough for the method, the setup, or the conditions of the
+- **The abstract is the paper's own text.** A number the authors state only in the abstract may be reported, marked
+  `[abstract-only]` in its cell. The abstract alone is never enough for the method, the setup, or the conditions of the
   result.
 - **Author-stated limitations travel with the claim.** If the authors restrict their result to one model family, one
   domain or a synthetic setting, the row says so.
@@ -48,14 +49,20 @@ Four rules decide the edge cases:
 - **Confirmed** — set `source` to `snippet` or `full-text`.
 - **Corrected** — fix the cell in place, set `source`, and log the old and new text in the current pass's entry.
   Corrections are never silent.
-- **Uncheckable** — no body text is available: snippet search returns none, and arXiv has neither HTML nor PDF. Leave
-  `source` as `abstract` and say so in the row. Such a row may stay in the coreset only if no verifiable paper can fill
-  its role, and it is listed under "Rows needing verification" in Open work. Indexing lags publication, so re-check on a
-  later pass. Since `tools/fulltext.py` exists, this should be rare for arXiv papers.
+- **Uncheckable** — no body text is available: snippet search returns none, and there is no full text: for an arXiv
+  paper, neither HTML nor PDF; for any other, no open-access PDF that `tools/fulltext.py` can fetch. Leave `source` as
+  `abstract` and say so in the row. Such a row may stay in the coreset only if no verifiable paper can fill its role,
+  and it is listed under "Rows needing verification" in Open work. The output marks every claim resting on it
+  `[abstract-only]` (`docs/formats.md`). Indexing lags publication, so re-check on a later pass. Since
+  `tools/fulltext.py` exists, this should be rare for arXiv papers. It is common for papers without one; a `fringe` row
+  of that kind will usually stay, because by definition no other paper carries its idea. If more than 20% of rows end
+  here, the pass halts (`H10` in `docs/process.md`, "When a pass ends").
 
 `source` ratchets upward. It is never lowered to express doubt; doubt belongs in the row's text and in the log.
 
-**Verifying the whole coreset** is this operation applied to every row of the coreset. It is safe to run at any time: verified rows are cheap to re-check and cannot be made worse, and the operation is resumable. Dispatch it in disjoint cluster blocks. Expect roughly 10k tokens per row.
+**Verifying the whole coreset** is this operation applied to every row of the coreset. It is safe to run at any time:
+verified rows are cheap to re-check and cannot be made worse, and the operation is resumable. Dispatch it in disjoint
+cluster blocks. Expect roughly 10k tokens per row.
 
 ## Probes
 

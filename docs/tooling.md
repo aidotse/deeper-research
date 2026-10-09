@@ -1,36 +1,149 @@
 # Tooling
 
 The scripts in `tools/`. The outside services some of them call, and the rules for calling them, are in
-`docs/external_services.md`.
+`docs/external_services.md`. They are listed in the order a pass uses them, after two that apply throughout: the paper
+IDs every tool keys on, and the consistency check.
+
+## Paper IDs
+
+Every tool keys on the canonical paper ID of `docs/formats.md` ("Paper IDs"): the arXiv ID, or `CorpusId:<n>` for a
+paper without one. The patterns are defined once, in `tools/check.py` (`ARXIV_ID`, `PAPER_ID`, `LINK`), and imported
+everywhere.
 
 ## Consistency check
 
-`python3 tools/check.py <topic>` verifies that a topic's artifacts agree. Run it after every subagent returns, after
-regenerating a bib, and before treating an output as finished. It exits 1 on failure, so it can gate a pass.
+`python3 tools/check.py <topic> [--stage pool|coreset|output]` verifies that a topic's artifacts agree. Run it after
+every subagent returns, after every script that writes to the survey, and before treating an output as finished. It
+exits 1 on failure, so it can gate a pass, and 2 on a usage error; a failure the responsible agent cannot fix halts the
+pass (`H9` in `docs/process.md`, "When a pass ends").
 
-Hard checks, any of which fail the run:
+The stage says how far the pass has got, and so what must already hold. Without `--stage` it is inferred: `output` if
+the output exists, else `coreset` if the Coreset section has rows, else `pool`. Each stage adds to the one before.
 
-- Coreset row count equals its count of unique arXiv IDs. A mismatch means a duplicated row or a malformed link.
-- Every row has a parsable `source` cell, and it is the last column. Every block has the same column count.
-- Declared dimension values are within their allowed sets.
-- Cluster ids are unique and alignments valid. Every coreset block is headed by a known cluster id, every `role` is
-  valid, and every `bridge:` target is a known cluster.
-- Pool IDs are unique, every pool `cluster` is known, and every coreset paper is in the pool.
-- Coreset and bib contain the same IDs, checked in both directions.
-- Every arXiv ID cited in the output is in the coreset.
+- `pool` (steps 1–3):
+  - the input's format, as `tools/inputs.py` reads it;
+  - the survey's five sections, in order; - Clusters: ids unique and kebab-case, alignments valid, and every row with a
+    `computed` id; and, if it has rows, a `graphs/<topic>/clusters.json` to name;
+  - Pool: the required columns, a paper link per row, unique IDs, and only known clusters; no paper listed twice, under
+    two IDs or as two records with the same title; and no `CorpusId` row for a paper that has an arXiv ID;
+  - once `clusters.json` and the Clusters table exist: every computed cluster named exactly once, and every pool paper's
+    `cluster` equal to its computed cluster. An empty cell never fails: it is a late paper awaiting assignment, or, if
+    `clusters.json` already assigns the paper, a note to run `tools/assign.py clusters`. A new clustering not yet
+    remapped fails until `tools/assign.py remap` runs.
+- `coreset` (steps 4–5):
+  - one row per unique paper ID, the required columns, `source` last and parsable, and one column count throughout;
+  - dimension values within the sets the input declares;
+  - blocks headed by known cluster ids, in the Clusters table's order;
+  - valid roles, and every `bridge:` target a known cluster other than the row's own;
+  - every coreset paper in the pool, and in the block of the cluster it was computed into;
+  - coreset and bib holding the same IDs.
+- `output` (steps 6–7):
+  - every paper ID cited in the output in the coreset;
+  - every citation of an `abstract`-sourced paper followed directly by `[abstract-only]`. Only whitespace, bold markers
+    and punctuation may sit between them, and no other ID. If the output cites any such paper, it explains the marker
+    before its first `##` section;
+  - the sections `Landscape`, `Assumptions`, `Gaps`, `Questions` and `Reading` (`docs/formats.md`).
 
-It also prints notes, which are not failures:
+It also prints, without failing:
 
-- per-cluster counts of coreset rows by role, and pool size;
-- high-alignment clusters missing an anchor, frontier or dissent. An empty dissent slot is legitimate if Open work
-  records what was searched;
+- per cluster: pool size, coreset rows by role, and in-degree leaders within the pool;
+- clusters missing a role their alignment requires: anchor, frontier and dissent for `high`; anchor and frontier for
+  `medium`; anchor for `low`. An empty dissent slot is legitimate if Open work records what was searched;
 - where a cluster's anchor is not its in-degree leader within the pool. That can be deliberate, but it should be;
 - the number of `fringe` rows, when it is outside the quota of five to ten per topic;
-- the `source` tally, and any `abstract`-sourced papers the output cites, each of which needs a provisional marker.
+- two clusters that trade papers with no bridge row between them;
+- coreset columns that are not declared dimensions;
+- the `source` tally, the share of `abstract`-sourced rows against `H10`'s 20%, and which `abstract`-sourced papers the
+  output cites;
+- pool papers not yet fetched, and late papers awaiting assignment.
 
 Surveys written before the coreset structure (no Clusters section) get only the checks that apply to them.
 
-The tools key on arXiv IDs. A paper without one cannot yet enter the coreset; record it in Open work.
+## Preflight
+
+`python3 tools/preflight.py` runs the preflight checks that need no agent: the Graph API, the arXiv API and HTML, `uv`,
+and the Asta key. It prints their part of the log's `Preflight` line, and exits 1 on any failure, which halts the pass
+(`H1`). The Asta tools and WebSearch are checked by the agent (`docs/external_services.md`, "Preflight").
+
+## Input
+
+`python3 tools/inputs.py <topic>` prints what the tools read from `inputs/<topic>.md`: the declared dimensions with
+their allowed values, and the `Clustering` steering. It fails on an unknown section, a missing `Topic`, a dimension
+without values, or an unknown `Clustering` field or value, so a typo cannot silently drop a request. `tools/check.py`,
+`tools/graph.py` and `tools/cluster.py` read the input through it. The format is in `docs/formats.md`.
+
+## Pool table
+
+`tools/assign.py` writes papers and their clusters into the Pool table, so that nothing in it is written by hand:
+
+- `python3 tools/assign.py add <topic> <paper-id> ...` adds papers by arXiv ID or `CorpusId`, each a title linked by its
+  ID, with the other cells empty. It refuses a `CorpusId` whose paper has an arXiv ID, and lists for Open work a paper
+  Semantic Scholar does not know or that has no SPECTER2 embedding, which clustering needs. Run `tools/pool.py`
+  afterwards.
+- `python3 tools/assign.py add-fringe <topic>` adds the candidates marked `yes` on the fringe screening sheet, and
+  prints the log's `Fringe` line. It refuses while any candidate is still unjudged.
+- `python3 tools/assign.py clusters <topic>` writes each pool paper's computed cluster into the `cluster` column, under
+  the name the Clusters table's `computed` column gives it.
+- `uv run tools/assign.py late <topic>` processes the late papers as one batch: it runs `tools/pool.py` in full, which
+  fetches their data and prints its own `Pool` line, assigns each to the cluster its `k` nearest clustered papers
+  favour, each voting with its similarity, records the assignment in `clusters.json` (`late`), writes the column, and
+  prints the log's `Late papers` line. If late papers would exceed 10% of the pool, it assigns nothing, prints
+  `RECLUSTER:` and exits 3: recluster instead.
+- `python3 tools/assign.py remap <topic>` runs after a recluster. It moves each name to the new cluster it matched,
+  clears the ones that did not match, and lists the new clusters to name. Until it has run, `clusters` refuses, so old
+  names cannot land on new clusters.
+
+See `docs/process.md`, step 3 and "Late papers". On a test topic built from `reasoning`, the nearest-cluster rule put
+all 15 held-out papers in the cluster the full clustering had chosen. That is an optimistic test, since those papers had
+taken part in that clustering.
+
+## Pool metadata
+
+`python3 tools/pool.py <topic>` fetches publication dates, citation counts, full reference lists and SPECTER2 embeddings
+for every paper in a survey from the Semantic Scholar API, unauthenticated, into the pool sidecar
+`graphs/<topic>/pool.json`, and fills the pool's `year`, `citations` and `cites` columns. It fetches by arXiv ID or
+`CorpusId`, and records each paper's arXiv ID where Semantic Scholar knows it, from `externalIds` or an open-access PDF
+on arXiv; `tools/check.py` uses that to catch a `CorpusId` row for a paper that has an arXiv ID. It runs outside any
+model's context, so it costs no tokens. It saves after every batch of 100 papers, and each record carries the date it
+was fetched. Later runs fetch only new papers; `--refresh` refetches all. It ends by printing the log's `Pool` line,
+with the range of fetch dates.
+
+## Fringe candidates
+
+`uv run tools/fringe.py collect <topic>` runs the two fringe routes of `docs/process.md`, `hidden` and `new`, at the end
+of step 2. It needs a clustering to seed the `new` route, so run `tools/cluster.py` provisionally first. It fetches the
+candidates' data into `graphs/<topic>/fringe.json`, and writes a blind screening sheet, `fringe-screen.md`, for a
+`survey-pass` agent: shuffled, with the route hidden. The agent marks each `yes` or `no`, and
+`tools/assign.py add-fringe` adds the in-scope ones to the pool. `fringe.json` records each candidate's arXiv ID or,
+failing that, its `CorpusId`. A candidate without a SPECTER2 embedding is dropped before the sheet, since no clustering
+could place it.
+
+`tools/cluster.py` writes each pool paper's fringe score to its report, and prints the highest. Step 4 chooses `fringe`
+rows from the fringe sheet (see "Sheets").
+
+## Clustering
+
+`uv run tools/cluster.py <topic>` runs the clustering method of `docs/process.md`: all three measures, the grid of
+levels, the stability tests, and the choice of measure and level. Options: `--rule` (`tau` or `null`), `--tau`, `--k`,
+`--c`, `--reps`, `--nulls` and `--levels`; the defaults are the spec's. It applies the input's `granularity` steering;
+`--level coarser|finer|N` does the same as a user override, and takes precedence; `N` may be a level's target or the
+number of clusters it reached, as the viewer's slider shows it. After a rerun, carry the names over with
+`tools/assign.py remap`. A pool with fewer than 12 embedded papers stops with `STOP: H8`. When a previous
+`clusters.json` exists, it matches the new clustering to it by shared papers and prints the result, for
+`tools/assign.py remap`. It takes about two minutes for 200 papers, most of it the null model. It writes the report to
+`graphs/<topic>/clusters.json`. It prints each cluster's size, stability and sub-clusters, the stability diagnostics of
+`docs/process.md` ("When stability fails") with their actions, the highest fringe scores with each paper's number of
+resolved references, and the retrieval log's `Clustering` and `Temporal stability` lines, in the form `docs/formats.md`
+gives, ready to paste once the ids and actions are filled in. It needs `uv`, which installs its Python dependencies on
+first use.
+
+## Sheets
+
+`python3 tools/sheets.py <topic>` writes two compact sheets next to `clusters.json`, for the agents that would otherwise
+need the large JSON files. `naming-sheet.md` (step 3) gives, per computed cluster: its size and stability, since when it
+exists, its diagnostics, its most-cited and most recent papers, and its sub-clusters. `fringe-sheet.md` (step 4) lists
+the highest fringe scores, with year, cluster, reference count and whether the paper is already a coreset row. On
+`reasoning` they come to about 2.8k and 0.8k tokens. Rerun it after naming, so that the sheets show the names.
 
 ## Graph viewer
 
@@ -57,38 +170,30 @@ map's layout is seeded, so it is the same on every load.
 
 A coreset survey carries its own graph in the pool's `cites` column, so nothing is fetched. A survey without a pool has
 its references fetched from the Semantic Scholar API and cached in `graphs/<topic>/references.json`; pass `--refresh` to
-refetch. The viewer's code is `tools/graph_template.html`, and its libraries are vendored in `tools/vendor/`.
+refetch. A paper is placed on the timeline by the month its arXiv ID encodes, or, without an arXiv ID, by its
+publication date from the pool sidecar; its title links to its arXiv page or Semantic Scholar page. The viewer's code is
+`tools/graph_template.html`, and its libraries are vendored in `tools/vendor/`.
 
-## Pool metadata
+## Full text
 
-`python3 tools/pool.py <topic>` fetches publication dates, citation counts, full reference lists and SPECTER2 embeddings
-for every paper in a survey from the Semantic Scholar API, unauthenticated, into the pool sidecar
-`graphs/<topic>/pool.json`, and fills the pool's `year`, `citations` and `cites` columns. It runs outside any model's
-context, so it costs no tokens. Later runs fetch only new papers; `--refresh` refetches all.
+`uv run tools/fulltext.py <topic> <id> [<id> ...]` fetches papers' full text from arXiv into
+`graphs/<topic>/fulltext/<id>.txt` (a slash or colon in the ID becomes `_`), for verification; `--abstract` fetches
+every coreset row still `abstract`-sourced. The text is arXiv's HTML rendering flattened to plain text: markdown
+headings per section, `[caption]` lines for figure and table captions, tables one row per line with cells separated by
+`|`, and equations as their LaTeX source. The bibliography is dropped. Where arXiv has no HTML, it falls back to the
+PDF's text, marked `(pdf)` in the file's header, with `[page N]` markers; words there are often hyphenated across line
+breaks, so search for word stems. A paper without an arXiv ID is fetched from the open-access PDF Semantic Scholar lists
+for it, if that link serves a PDF; publishers' links often serve a web page, or refuse. A paper with no fetchable full
+text is listed in a note and the exit status stays 0: it is the uncheckable outcome of `docs/verification.md`, not a
+failure. No model is involved, so the text is verbatim. Existing files are kept; `--refresh` refetches. On `reasoning`,
+all 27 abstract-sourced rows came from HTML, at 9–68k tokens per paper, in 90 seconds.
 
-## Clustering
+## Bibliography
 
-`uv run tools/cluster.py <topic>` runs the clustering method of `docs/process.md`: all three measures, the grid of
-levels, the stability tests, and the choice of measure and level. Options: `--rule` (`tau` or `null`), `--tau`, `--k`,
-`--c`, `--reps`, `--nulls` and `--levels`; the defaults are the spec's. It takes about two minutes for 200 papers, most
-of it the null model. It writes the report to `graphs/<topic>/clusters.json` and prints the figures the retrieval log's
-`Clustering` and `Temporal stability` lines need, the stability diagnostics of `docs/process.md` ("When stability
-fails") with their actions, and the highest fringe scores. It needs `uv`, which installs its Python dependencies on
-first use.
+`python3 tools/bib.py <topic>` regenerates `bib/<topic>.bib` from the coreset: from the arXiv API, or from Semantic
+Scholar for a paper without an arXiv ID. See `docs/formats.md`.
 
-## Fringe candidates
-
-`uv run tools/fringe.py collect <topic>` runs the two fringe routes of `docs/process.md`, `hidden` and `new`, at the end
-of step 2. It needs a clustering to seed the `new` route, so run `tools/cluster.py` provisionally first. It fetches the
-candidates' data into `graphs/<topic>/fringe.json`, and writes a blind screening sheet, `fringe-screen.md`, for a
-`survey-pass` agent: shuffled, with the route hidden. The in-scope candidates are then added to the pool.
-
-`uv run tools/fringe.py analyse <topic>` is the experiment behind the fringe routes: it reclusters with the screened
-candidates added, and reports per route how they behave. It is not part of a pass. Its report is
-`graphs/<topic>/fringe-analysis.json`.
-
-`tools/cluster.py` writes each pool paper's fringe score to its report, and prints the highest; step 4 chooses `fringe`
-rows from them.
+## Experiments, not part of a pass
 
 `uv run tools/recursive.py <topic>` is an experiment, not part of a pass. It clusters recursively instead of at one
 global level: each cluster of the global clustering is split on its own until no split passes, under several stopping
@@ -96,29 +201,25 @@ rules (`--rules`, see its docstring), including a shakedown that redoes each spl
 compares each result with the global method by rerunning both from scratch on time holdouts and resamples. It reads
 `clusters.json` and writes `graphs/<topic>/recursive.json`; it takes about five minutes on 200 papers.
 
-`uv run tools/match.py simulate <topic>` is an experiment, not part of a pass. Its `match()` function is the draft rule
-for matching clusters across passes, by shared members. `simulate` treats the pool as it stood 3, 6 and 9 months ago as
-earlier passes, reruns the full clustering method on each, and matches it to today's clustering. It writes
-`graphs/<topic>/match-simulation.json`.
+`uv run tools/match.py simulate <topic>` is an experiment, not part of a pass. The module's `match()` function, which
+matches two clusterings by shared members, is also what `tools/cluster.py` uses to match a new clustering to the
+previous one. `simulate` treats the pool as it stood 3, 6 and 9 months ago as earlier passes, reruns the full clustering
+method on each, and matches it to today's clustering. It writes `graphs/<topic>/match-simulation.json`.
 
 `uv run tools/match.py history <topic>` runs, on its own, the cluster history that `tools/cluster.py` already runs after
 every clustering: four date segments of equal paper count, each cumulative snapshot clustered with today's settings, and
 per cluster since when it exists, or why it is not yet found. It writes `graphs/<topic>/history.json`.
 
-## Full text
+`uv run tools/fringe.py analyse <topic>` is the experiment behind the fringe routes: it reclusters with the screened
+candidates added, and reports per route how they behave. It is not part of a pass. Its report is
+`graphs/<topic>/fringe-analysis.json`.
 
-`uv run tools/fulltext.py <topic> <id> [<id> ...]` fetches papers' full text from arXiv into
-`graphs/<topic>/fulltext/<id>.txt`, for verification; `--abstract` fetches every coreset row still `abstract`-sourced.
-The text is arXiv's HTML rendering flattened to plain text: markdown headings per section, `[caption]` lines for figure
-and table captions, tables one row per line with cells separated by `|`, and equations as their LaTeX source. The
-bibliography is dropped. Where arXiv has no HTML, it falls back to the PDF's text, marked `(pdf)` in the file's header,
-with `[page N]` markers; words there are often hyphenated across line breaks, so search for word stems. No model is
-involved, so the text is verbatim. Existing files are kept; `--refresh` refetches. On `reasoning`, all 27
-abstract-sourced rows came from HTML, at 9–68k tokens per paper, in 90 seconds.
+## Small helpers
 
-## Bibliography
-
-`python3 tools/bib.py <topic>` regenerates `bib/<topic>.bib` from the coreset. See `docs/formats.md`.
+`python3 tools/asta_config.py` reports whether the Asta MCP server is configured with an API key, without printing the
+key; the session-start hook and the preflight check run it (`docs/external_services.md`). `tools/net.py` is the HTTP
+retry that every fetching script shares: it retries a 429, a 500, 502, 503 or 504, a dropped connection or a timeout,
+and raises anything else.
 
 ## Formatting
 

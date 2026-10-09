@@ -2,7 +2,8 @@
 
 ## Execution model
 
-The two pipeline stages run in different contexts.
+The two halves of the pipeline run in different contexts. (The three stages of a pass — pool, coreset, output — are
+defined in `docs/process.md`.)
 
 **`inputs/` → `surveys/` runs in subagents.** The main session reads the input, plans, and dispatches. Retrieval results
 stay in the subagents' contexts and never enter the main session.
@@ -11,10 +12,11 @@ stay in the subagents' contexts and never enter the main session.
   screening, naming the computed clusters, selecting roles, dissent searches, verification, the coverage-test
   judgements, and probes.
 - `survey-edit` runs on a cheaper model and does mechanical work that `tools/check.py` can catch: restructuring tables,
-  moving rows between blocks, regenerating the bib. Pool metadata is filled by `tools/pool.py`, not by an agent.
+  moving rows between blocks to match the computed cluster assignment, regenerating the bib. Pool metadata is filled by
+  `tools/pool.py`, not by an agent.
 
 **`surveys/` → `outputs/` runs in the main session.** Reading a finished survey and writing the analysis is not
-delegated. The main session also owns cluster review. When step 3 stops for review, or when the output is presented, it
+delegated. The main session also owns cluster review. When step 3 halts for review, or when the output is presented, it
 shows the user the `Clusters` table and the viewer, and records their review in the log. A change the user asks for is
 dispatched as an incremental pass (`docs/process.md`, "Changing the clusters after a pass").
 
@@ -23,11 +25,20 @@ dispatched as an incremental pass (`docs/process.md`, "Changing the clusters aft
 - Do not call outside services for a pass, but rather dispatch a subagent. A single call to check connectivity, or to
   verify one row as a subagent's report makes you doubt, is fine. Scripts in tools/ are exempt: their results go to
   files, not into your context.
+- Run the scripts of the order of operations (`docs/process.md`) yourself, between dispatches, and hand the next
+  subagent the printout it needs. A subagent runs only the scripts its own job needs, such as `tools/fulltext.py` during
+  verification. A script that fails after its own retries halts the pass (`H3`).
 - Subagents may run in parallel **only on disjoint sections of the survey**. Cluster blocks partition the Coreset table
   naturally, so parallel verification or selection work splits by cluster. The pool is a single table, so only one agent
   writes to it at a time.
+- Some work spans clusters and cannot be split: fringe selection, which is judged against the whole coreset; bridges,
+  which join two clusters; and the coverage test, which reads the whole output. Run each once, by one agent, after the
+  per-cluster work is done.
 - Instruct subagents to write each row as they finish it, not to batch all writes to the end. Subagents die — on spend
   limits, on timeouts — and partial work on disk beats complete work lost.
 - Run `python3 tools/check.py <topic>` after each subagent returns, while you still know which agent caused any damage.
+  A failure the agent cannot fix halts the pass (`H9`).
+- A subagent's report that starts with `STOP:` is a halt (`docs/process.md`, "When a pass ends"). Tell the user what
+  halted and why, wait for their decision, and record it in the log's `Halts` line.
 - Do not take a subagent's report at face value where it matters. Reports have overstated what a paper showed. Check the
   row against the report, and verify the claims an output will rest on.

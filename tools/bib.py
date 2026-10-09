@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate bib/<topic>.bib from the arXiv IDs in surveys/<topic>.md.
+"""Regenerate bib/<topic>.bib from the paper IDs in surveys/<topic>.md.
 
 Usage: python3 tools/bib.py <topic>
 
@@ -7,19 +7,22 @@ The survey's Coreset section is the source of truth; the pool
 has no bib entries. Every coreset ID gets an entry, and entries for IDs no longer
 in it are dropped, so survey and bib
 cannot drift apart. Existing entries are kept verbatim, which keeps citation
-keys stable across regenerations; only missing IDs are fetched from the arXiv
-API. Run tools/check.py afterwards.
+keys stable across regenerations; only missing IDs are fetched: from the arXiv
+API, or for a paper without an arXiv ID (CorpusId:<n>) from the Semantic Scholar Graph API. An
+entry carries `eprint` for an arXiv paper and `corpusid` for any other, which is how tools/check.py matches it.
+Run tools/check.py afterwards.
 """
 
 import re
 import sys
 import time
-import urllib.request
+import urllib.parse
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from check import ARXIV, EPRINT, ROOT, sections  # noqa: E402
+from check import ARXIV_ID, LINK, ROOT, bib_ids, link, sections  # noqa: E402
+from net import TRANSIENT, get_json, request  # noqa: E402
 
 API = "https://export.arxiv.org/api/query?max_results=100&id_list="
 NS = {"a": "http://www.w3.org/2005/Atom", "x": "http://arxiv.org/schemas/atom"}
@@ -31,7 +34,7 @@ def survey_ids(topic):
     # the pool below it. Preserve table order, so the bib reads in the
     # same order as the survey.
     table = sections((ROOT / "surveys" / f"{topic}.md").read_text())["Coreset"]
-    return list(dict.fromkeys(ARXIV.findall(table)))
+    return list(dict.fromkeys(LINK.findall(table)))
 
 
 def existing_entries(path):
@@ -39,28 +42,22 @@ def existing_entries(path):
         return {}
     entries = {}
     for chunk in re.split(r"\n(?=@)", path.read_text()):
-        m = EPRINT.search(chunk)
-        if chunk.startswith("@") and m:
-            entries[m.group(1)] = chunk.strip()
+        found = bib_ids(chunk)
+        if chunk.startswith("@") and found:
+            entries[found[0]] = chunk.strip()
     return entries
 
 
 def fetch(ids):
-    req = urllib.request.Request(API + ",".join(ids), headers={"User-Agent": "phd-reasoning bib tool"})
     # arXiv throttles bursts with transient 406/429/503 responses, so retry
     # with backoff before treating a batch as failed.
-    for attempt in range(4):
-        try:
-            with urllib.request.urlopen(req, timeout=60) as r:
-                root = ET.fromstring(r.read())
-            break
-        except urllib.error.HTTPError as e:
-            if attempt == 3 or e.code not in (406, 429, 503):
-                raise
-            time.sleep(5 * 2**attempt)
+    _, _, body = request(API + urllib.parse.quote(",".join(ids), safe=",/."),
+                         headers={"User-Agent": "deeper-research bib tool"}, attempts=4,
+                         wait=lambda a: 5 * 2**a, transient=TRANSIENT | {406}, timeout=60)
+    root = ET.fromstring(body)
     out = {}
     for e in root.findall("a:entry", NS):
-        aid = re.search(r"(\d{4}\.\d{5})", e.find("a:id", NS).text).group(1)
+        aid = re.search(rf"abs/({ARXIV_ID})", e.find("a:id", NS).text).group(1)
         out[aid] = {
             "title": " ".join(e.find("a:title", NS).text.split()),
             "authors": [a.find("a:name", NS).text for a in e.findall("a:author", NS)],
@@ -68,6 +65,27 @@ def fetch(ids):
             "category": e.find("x:primary_category", NS).attrib["term"],
             "journal_ref": (e.find("x:journal_ref", NS).text if e.find("x:journal_ref", NS) is not None else None),
         }
+    return out
+
+
+S2_META = "https://api.semanticscholar.org/graph/v1/paper/batch?fields=title,authors,year,venue,publicationDate,externalIds"
+
+
+def fetch_s2(ids):
+    """Metadata for papers without an arXiv ID (CorpusId:<n>), from the Semantic Scholar Graph API."""
+    out = {}
+    for i in range(0, len(ids), 100):
+        batch = ids[i:i + 100]
+        for pid, rec in zip(batch, get_json(S2_META, {"ids": batch})):
+            if not rec or not rec.get("title") or not rec.get("authors"):
+                continue
+            out[pid] = {
+                "title": " ".join(rec["title"].split()),
+                "authors": [a["name"] for a in rec["authors"]],
+                "published": rec.get("publicationDate") or f"{rec.get('year') or '0000'}-00-00",
+                "venue": rec.get("venue") or "",
+                "doi": (rec.get("externalIds") or {}).get("DOI"),
+            }
     return out
 
 
@@ -84,6 +102,17 @@ def make_key(meta, taken):
 
 
 def entry(aid, meta, key):
+    if aid.startswith("CorpusId:"):
+        fields = [("title", meta["title"]), ("author", " and ".join(meta["authors"])), ("year", meta["published"][:4])]
+        if meta["published"][5:7] not in ("", "00"):
+            fields.append(("month", meta["published"][5:7]))
+        if meta["venue"]:
+            fields.append(("note", meta["venue"]))
+        if meta["doi"]:
+            fields.append(("doi", meta["doi"]))
+        fields += [("url", link(aid)), ("corpusid", aid.split(":")[1])]
+        body = ",\n".join(f"  {k:<13} = {{{v}}}" for k, v in fields)
+        return f"@misc{{{key},\n{body}\n}}"
     fields = [
         ("title", meta["title"]),
         ("author", " and ".join(meta["authors"])),
@@ -108,9 +137,11 @@ def main(topic):
     taken = {m.group(1) for c in have.values() for m in [re.match(r"@\w+\{([^,]+),", c)] if m}
 
     fetched = {}
-    for i in range(0, len(missing), 50):
-        fetched.update(fetch(missing[i : i + 50]))
+    on_arxiv = [i for i in missing if not i.startswith("CorpusId:")]
+    for i in range(0, len(on_arxiv), 50):
+        fetched.update(fetch(on_arxiv[i : i + 50]))
         time.sleep(3)  # arXiv API etiquette: one request every 3 seconds
+    fetched.update(fetch_s2([i for i in missing if i.startswith("CorpusId:")]))
     unresolved = [i for i in missing if i not in fetched]
     for i in missing:
         if i in fetched:
@@ -119,14 +150,15 @@ def main(topic):
     dropped = sorted(set(have) - set(ids))
     header = (
         f"% BibTeX for surveys/{topic}.md\n"
-        f"% Generated by tools/bib.py from the arXiv API; regenerated {time.strftime('%Y-%m-%d')}.\n"
+        f"% Generated by tools/bib.py from the arXiv API, and from Semantic Scholar for papers\n"
+        f"% without an arXiv ID; regenerated {time.strftime('%Y-%m-%d')}.\n"
         "% `note` carries the arXiv journal-ref where the authors supplied one; the survey\n"
         "% table records peer-reviewed venues as reported by Semantic Scholar.\n"
     )
     path.write_text(header + "\n" + "\n\n".join(have[i] for i in ids if i in have) + "\n")
     print(f"bib: {len(ids) - len(unresolved)} entries ({len(missing) - len(unresolved)} fetched, {len(dropped)} dropped)")
     if unresolved:
-        print(f"FAIL  arXiv API returned nothing for: {unresolved}")
+        print(f"FAIL  no metadata returned for: {unresolved}")
         return 1
     return 0
 

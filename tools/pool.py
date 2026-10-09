@@ -3,14 +3,19 @@
 
 Usage: python3 tools/pool.py <topic> [--refresh]
 
-For every paper in surveys/<topic>.md (coreset and pool), fetches its publication date, citation count, full
+For every paper in surveys/<topic>.md (coreset and pool), by arXiv ID or CorpusId, fetches its publication date, citation count, full
 reference list (as Semantic Scholar paper IDs, not only arXiv IDs within the set) and its SPECTER2 embedding. Writes
-them to the pool sidecar graphs/<topic>/pool.json. Later runs fetch only papers missing from the file; --refresh
+them to the pool sidecar graphs/<topic>/pool.json, saving after every batch of 100, so a failed run keeps what it
+fetched. Each record carries the date it was fetched. Later runs fetch only papers missing from the file; --refresh
 refetches all.
 
 For a coreset survey, it then fills the Pool table's `year`, `citations` and `cites` columns from that data, so they
 are never filled by hand. `cites` lists the other pool papers each paper cites. A legacy survey has no Pool table and
 is left untouched.
+
+Each record also keeps the paper's arXiv ID where Semantic Scholar knows it, from `externalIds` or an open-access PDF
+on arXiv, which tools/check.py uses to catch a CorpusId row for a paper that has an arXiv ID. It ends by printing the
+retrieval log's `Pool` line.
 
 This runs outside any model's context, so it costs no tokens.
 
@@ -20,38 +25,31 @@ Calls are unauthenticated. No API key or user identifier is sent.
 import json
 import sys
 import time
-import urllib.error
-import urllib.request
 
-from check import ARXIV, ROOT, cells_of
+from check import LINK, ROOT, arxiv_of, cells_of, s2_ref
 from graph import parse, topic_dir
+from net import get_json
 
-FIELDS = "externalIds,publicationDate,year,citationCount,referenceCount,references.paperId,embedding.specter_v2"
+FIELDS = "externalIds,openAccessPdf,publicationDate,year,citationCount,referenceCount,references.paperId,embedding.specter_v2"
 S2_BATCH = f"https://api.semanticscholar.org/graph/v1/paper/batch?fields={FIELDS}"
 
 
-def fetch(ids):
-    out = {}
+def fetch(ids, save):
+    """Fetch in batches of 100, passing each batch's records to `save` as soon as it arrives."""
     for i in range(0, len(ids), 100):
         batch = ids[i : i + 100]
-        body = json.dumps({"ids": [f"ARXIV:{a}" for a in batch]}).encode()
-        req = urllib.request.Request(S2_BATCH, data=body, headers={"Content-Type": "application/json"})
-        # The unauthenticated endpoint shares one rate limit across all users and answers 429 freely.
-        for attempt in range(8):
-            try:
-                with urllib.request.urlopen(req, timeout=120) as r:
-                    data = json.load(r)
-                break
-            except urllib.error.HTTPError as e:
-                if e.code != 429 or attempt == 7:
-                    raise
-                time.sleep(5 * (attempt + 1))
+        # The unauthenticated endpoint shares one rate limit across all users and answers 429 freely; net retries.
+        data = get_json(S2_BATCH, {"ids": [s2_ref(a) for a in batch]})
+        today, out = time.strftime("%Y-%m-%d"), {}
         for aid, rec in zip(batch, data):
             if rec is None:
                 continue
             emb = rec.get("embedding") or {}
+            ext = rec.get("externalIds") or {}
             out[aid] = {
                 "s2": rec.get("paperId"),
+                "arxiv": arxiv_of(rec),
+                "corpus": f"CorpusId:{ext['CorpusId']}" if ext.get("CorpusId") else None,
                 "date": rec.get("publicationDate"),
                 "year": rec.get("year"),
                 "citations": rec.get("citationCount"),
@@ -59,16 +57,22 @@ def fetch(ids):
                 "refs": sorted({x["paperId"] for x in rec.get("references") or [] if x.get("paperId")}),
                 "embedding_model": emb.get("model"),
                 "embedding": [round(v, 5) for v in emb.get("vector") or []],
+                "fetched": today,
             }
+        save(out)
         print(f"  {min(i + 100, len(ids))}/{len(ids)}")
-    return out
+
+
+def fetched_range(records, ids):
+    dates = sorted({records[a].get("fetched") for a in ids if a in records} - {None})
+    return "unknown" if not dates else dates[0] if len(dates) == 1 else f"{dates[0]} to {dates[-1]}"
 
 
 def fill_pool(topic, records):
     """Rewrite the Pool table's year, citations and cites cells in place. Returns the number of rows changed."""
     path = ROOT / "surveys" / f"{topic}.md"
     lines = path.read_text().splitlines(keepends=True)
-    s2_to_arxiv = {r["s2"]: a for a, r in records.items() if r.get("s2")}
+    s2_to_id = {r["s2"]: a for a, r in records.items() if r.get("s2")}
     in_pool, header, changed, rows = False, None, 0, []
     for i, line in enumerate(lines):
         if line.startswith("## "):
@@ -82,7 +86,7 @@ def fill_pool(topic, records):
             continue
         if line.startswith("| --") or line.startswith("|--"):
             continue
-        m = ARXIV.search(line)
+        m = LINK.search(line)
         if m:
             rows.append((i, m.group(1), header))
     pool_ids = {aid for _, aid, _ in rows}
@@ -96,7 +100,7 @@ def fill_pool(topic, records):
             new["year"] = str(rec["year"])
         if rec.get("citations") is not None:
             new["citations"] = str(rec["citations"])
-        new["cites"] = " ".join(sorted({s2_to_arxiv[x] for x in rec["refs"] if s2_to_arxiv.get(x) in pool_ids} - {aid}))
+        new["cites"] = " ".join(sorted({s2_to_id[x] for x in rec["refs"] if s2_to_id.get(x) in pool_ids} - {aid}))
         out = [new.get(h, c) for h, c in zip(header, cells)]
         if out != cells:
             lines[i] = "| " + " | ".join(c.replace("\0", "\\|") for c in out) + " |\n"
@@ -114,23 +118,35 @@ def main(argv):
     path = topic_dir(topic) / "pool.json"
     cache = {} if refresh or not path.exists() else json.loads(path.read_text())
     records = cache.get("papers", {})
+    # Files written before records carried their own date had one date for the whole file.
+    old = cache.pop("fetched", None)
+    for r in records.values():
+        r.setdefault("fetched", old)
+
+    def save(batch):
+        records.update(batch)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"papers": records}, separators=(",", ":"), sort_keys=True))
+
     missing = sorted(a for a in papers if a not in records)
     if missing:
         print(f"fetching {len(missing)} paper(s) from Semantic Scholar...")
-        records.update(fetch(missing))
-        cache = {"fetched": time.strftime("%Y-%m-%d"), "papers": records}
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(cache, separators=(",", ":"), sort_keys=True))
+        fetch(missing, save)
+    elif old:
+        save({})
     unresolved = sorted(a for a in papers if a not in records)
     no_emb = sorted(a for a in papers if a in records and not records[a]["embedding"])
     short = sum(1 for a in papers if a in records and len(records[a]["refs"]) < 10)
-    print(f"{path.relative_to(ROOT)}: {len(records)} papers, fetched {cache.get('fetched')}")
+    when = fetched_range(records, papers)
+    print(f"{path.relative_to(ROOT)}: {len(records)} papers, fetched {when}")
     print(f"unresolved: {len(unresolved)} {unresolved}")
     print(f"no embedding: {len(no_emb)} {no_emb}")
     print(f"fewer than 10 resolved references: {short}")
     filled = fill_pool(topic, records)
     print("no Pool table (legacy survey); survey left untouched" if filled is None
-          else f"Pool table: {filled} row(s) updated (citations as of {cache.get('fetched')})")
+          else f"Pool table: {filled} row(s) updated (citations as of {when})")
+    print("\nlog line:")
+    print(f"- **Pool:** {len(papers)} papers in scope; metadata fetched {when}")
 
 
 if __name__ == "__main__":

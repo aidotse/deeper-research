@@ -2,10 +2,10 @@
 # requires-python = ">=3.10"
 # dependencies = ["pypdf"]
 # ///
-"""Fetch the full text of arXiv papers into a topic's cache, for verification.
+"""Fetch the full text of papers into a topic's cache, for verification.
 
 Usage:
-  uv run tools/fulltext.py <topic> <arxiv-id> [<arxiv-id> ...] [--refresh]
+  uv run tools/fulltext.py <topic> <paper-id> [<paper-id> ...] [--refresh]
   uv run tools/fulltext.py <topic> --abstract [--refresh]
 
 Writes graphs/<topic>/fulltext/<id>.txt: the paper's text, verbatim, with a
@@ -17,12 +17,16 @@ The text comes from arXiv's HTML rendering, which keeps section headings,
 figure and table captions, and equations (as their LaTeX source). Papers whose
 LaTeX did not convert to HTML fall back to the PDF's extracted text, with page
 markers; that text is noisier, and equations in it are unreliable. The
-bibliography is dropped.
+bibliography is dropped. A paper without an arXiv ID (CorpusId:<n>) is fetched
+from the open-access PDF that Semantic Scholar lists for it, if there is one;
+otherwise it cannot be fetched, and its row stays uncheckable.
 
 No model is involved, so nothing is paraphrased: an agent searches the file
 with Grep, reads the matching sections, and quotes them. Requests are spaced
 three seconds apart, following arXiv's etiquette, and carry no key or user
-identifier. Existing files are kept unless --refresh is passed.
+identifier. Existing files are kept unless --refresh is passed. A paper with no fetchable
+full text is listed in a note, and the exit status stays 0; a failure of arXiv itself, after
+retries, exits non-zero.
 """
 
 import datetime
@@ -31,15 +35,14 @@ import re
 import sys
 import time
 import urllib.error
-import urllib.request
 from html.parser import HTMLParser
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from check import ROOT, row_id, sections, table_rows  # noqa: E402
+from check import ARXIV_ONLY, ID, ROOT, row_id, sections, table_rows  # noqa: E402
+from net import get_json, request  # noqa: E402
 
-HEADERS = {"User-Agent": "phd-reasoning fulltext tool"}
-ID = re.compile(r"^\d{4}\.\d{4,5}$")
+HEADERS = {"User-Agent": "deeper-research fulltext tool"}
 PAUSE = 3
 
 # Elements whose content is navigation, styling or bibliography, not the paper.
@@ -144,17 +147,12 @@ class Text(HTMLParser):
 
 
 def get(url):
-    req = urllib.request.Request(url, headers=HEADERS)
-    for attempt in range(4):
-        try:
-            with urllib.request.urlopen(req, timeout=120) as r:
-                return r.status, r.geturl(), r.read()
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                return 404, url, b""
-            if attempt == 3 or e.code not in (429, 503):
-                raise
-            time.sleep(5 * 2**attempt)
+    try:
+        return request(url, headers=HEADERS, attempts=4, wait=lambda a: 5 * 2**a)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return 404, url, b""
+        raise
 
 
 def from_html(aid):
@@ -179,6 +177,26 @@ def from_pdf(aid):
     return url, "pdf", text.strip() + "\n"
 
 
+def from_open_access(pid):
+    """A paper without an arXiv ID: the open-access PDF Semantic Scholar lists for it, if any."""
+    from pypdf import PdfReader
+
+    rec = get_json("https://api.semanticscholar.org/graph/v1/paper/batch?fields=openAccessPdf", {"ids": [pid]})[0]
+    url = ((rec or {}).get("openAccessPdf") or {}).get("url") or ""
+    if not url.startswith(("https://", "http://")):
+        return None
+    try:
+        status, final, body = get(url)
+    except (urllib.error.URLError, TimeoutError, ConnectionError):
+        # A publisher's server refusing or failing is a fact about this paper, not a failure of the run.
+        return None
+    if status != 200 or not body.startswith(b"%PDF"):
+        return None
+    pages = PdfReader(io.BytesIO(body)).pages
+    text = "\n\n".join(f"[page {i}]\n{p.extract_text() or ''}" for i, p in enumerate(pages, 1))
+    return final, "pdf, open access", text.strip() + "\n"
+
+
 def abstract_rows(topic):
     secs = sections((ROOT / "surveys" / f"{topic}.md").read_text())
     ids = []
@@ -198,7 +216,7 @@ def main(argv):
         ids += abstract_rows(topic)
     bad = [i for i in ids if not ID.match(i)]
     if bad or not ids:
-        print(f"error: expected bare arXiv IDs such as 2408.03314; got {bad or 'none'}")
+        print(f"error: expected paper IDs such as 2408.03314, hep-th/9901001 or CorpusId:6628106; got {bad or 'none'}")
         return 2
 
     out = ROOT / "graphs" / topic / "fulltext"
@@ -206,28 +224,34 @@ def main(argv):
     today = datetime.date.today().isoformat()
     failed, first = [], True
     for aid in dict.fromkeys(ids):
-        path = out / f"{aid}.txt"
+        # Pre-2007 IDs contain a slash (hep-th/9901001), corpus IDs a colon; keep the file name plain.
+        path = out / f"{aid.replace('/', '_').replace(':', '_')}.txt"
         if path.exists() and "--refresh" not in argv:
             print(f"cached   {aid}")
             continue
         if not first:
             time.sleep(PAUSE)
         first = False
-        got = from_html(aid)
-        if got is None:
-            time.sleep(PAUSE)
-            got = from_pdf(aid)
+        if ARXIV_ONLY.match(aid):
+            got = from_html(aid)
+            if got is None:
+                time.sleep(PAUSE)
+                got = from_pdf(aid)
+        else:
+            got = from_open_access(aid)
         if got is None:
             failed.append(aid)
-            print(f"missing  {aid}: no HTML or PDF on arXiv")
+            print(f"missing  {aid}: " + ("no HTML or PDF on arXiv" if ARXIV_ONLY.match(aid) else "no open-access PDF"))
             continue
         url, kind, text = got
         path.write_text(f"source: {url} ({kind})\nfetched: {today}\n\n{text}")
         heads = sum(1 for ln in text.splitlines() if ln.startswith("## "))
         print(f"{kind:<8} {aid}: {len(text):,} chars (about {len(text) // 4:,} tokens), {heads} sections")
     if failed:
-        print(f"note:    {len(failed)} paper(s) not fetched: {failed}")
-    return 1 if failed else 0
+        # Not an error: these rows stay uncheckable (docs/verification.md, "Outcomes"). The exit status is 0, so that
+        # only a real failure, such as arXiv itself not answering, halts the pass (H3).
+        print(f"note:    {len(failed)} paper(s) have no fetchable full text: {failed}")
+    return 0
 
 
 if __name__ == "__main__":

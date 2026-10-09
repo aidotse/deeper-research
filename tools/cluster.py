@@ -5,7 +5,7 @@
 """Cluster a topic's pool by the method in docs/process.md, "Clustering method".
 
 Usage: uv run tools/cluster.py <topic> [--rule tau|null] [--k 10] [--c 10] [--tau 0.75] [--reps 20] [--nulls 2]
-                                        [--levels 3,4,5,6,8,10,12,15,18,22]
+                                        [--levels 3,4,5,6,8,10,12,15,18,22] [--level coarser|finer|N]
 
 Reads the pool sidecar graphs/<topic>/pool.json (from tools/pool.py). For each of three similarity measures
 (text, refs, combined) and each level of a grid of cluster counts, it clusters the pool with Leiden and measures
@@ -16,12 +16,22 @@ the last level before the curve falls off into instability).
 It also runs the same pipeline on structure-free null data of the same size and shape, and reports a threshold-free
 alternative: the level where real stability most exceeds null stability. --rule picks which of the two decides.
 
+It also scores every paper for how poorly the rest of the pool covers it, the fringe score: its distance to its k
+nearest neighbours, ranked within its age cohort. Under refs or combined, the reference rank is weighted per paper by
+w = n / (n + c), n being its resolved references, so that a paper without reference data is scored by its text.
+
 Afterwards, as post-processing that changes nothing above, it reports since when each cluster exists: the pool is
 divided by date into four segments of equal paper count, each snapshot is clustered with the chosen measure and level,
 and matched to the result (tools/match.py, `cluster_history`).
 
-Writes graphs/<topic>/clusters.json and prints the retrieval log's `Clustering` and `Temporal stability` lines. Deterministic: every
-random choice is seeded.
+The input's `granularity` steering (docs/formats.md) moves the chosen level one step coarser or finer, or to the
+level of N clusters; --level does the same as a user override and takes precedence. A level below tau is flagged.
+
+If a previous clusters.json exists, the new clustering is matched to it by shared papers (tools/match.py, `match`), so
+that `tools/assign.py remap` can carry cluster names over.
+
+Writes graphs/<topic>/clusters.json and prints the retrieval log's `Clustering` and `Temporal stability` lines.
+Deterministic: every random choice is seeded.
 """
 
 import json
@@ -276,19 +286,21 @@ def choose_level(levels, tau):
     return j, f"finest level with stability >= {tau}: {levels[j]['stability']:.2f}{after}"
 
 
-def fringe_scores(T, C, recs, measure, k):
+def fringe_scores(T, C, recs, measure, k, c):
     """Per paper: distance to its k nearest neighbours, ranked among papers of similar age (year ± 1), 0 to 1.
 
     Older papers sit further from current work simply because the field moved on, so the raw distance is ranked within
-    an age cohort. With the combined measure, the text and reference ranks are averaged.
+    an age cohort. With the `refs` or `combined` measure, the reference rank is mixed with the text rank per paper, with
+    weight w = n / (n + c) on references, n being the paper's own number of resolved references. A paper with no
+    resolved references is equally far from everything by references alone, which would put it at the top of its
+    cohort for lack of data, not for being overlooked; the weight makes such a paper lean on text, as `combined` does.
     """
     n = len(recs)
     off = ~np.eye(n, dtype=bool)
     near = {name: np.array([np.sort(S[i][off[i]])[-k:].mean() for i in range(n)]) for name, S in (("text", T), ("refs", C))}
     years = np.array([r.get("year") or 0 for r in recs])
-    use = ["text", "refs"] if measure == "combined" else [measure]
-    ranks = []
-    for name in use:
+    ranks = {}
+    for name in ("text", "refs"):
         dist = 1 - near[name]
         rk = np.zeros(n)
         for i in range(n):
@@ -296,8 +308,12 @@ def fringe_scores(T, C, recs, measure, k):
             if len(cohort) < 10:
                 cohort = np.arange(n)
             rk[i] = (dist[cohort] < dist[i]).mean()
-        ranks.append(rk)
-    return np.mean(ranks, axis=0), near
+        ranks[name] = rk
+    if measure == "text":
+        return ranks["text"], near
+    n_refs = np.array([len(r["refs"]) for r in recs], dtype=float)
+    w = n_refs / (n_refs + c)
+    return w * ranks["refs"] + (1 - w) * ranks["text"], near
 
 
 def exchange_rates(S, full, k, gamma, reps, rng):
@@ -321,11 +337,11 @@ def diagnose(curves_m, nulls_m, chosen, clusters, exchange, tau, recs, rename):
     thin_share = float(np.mean([len(r["refs"]) < THIN_REFS for r in recs]))
     if max(excess) < NO_STRUCTURE:
         out.append({"case": "no structure", "detail": f"real stability exceeds random by at most {max(excess):.2f}",
-                    "action": "use very few clusters, possibly one, and stop for review"})
+                    "action": "use very few clusters, possibly one, and halt for review (H4)"})
     passing = [l for l in curves_m if l["stability"] >= tau]
     if not passing:
         out.append({"case": "no stable level", "detail": f"no level reaches {tau}; {thin_share:.0%} of papers have fewer than {THIN_REFS} references",
-                    "action": "expand the thinnest regions (step 2) and rerun; if still unstable, take the coarsest level and stop for review, so that the user chooses with the slider"})
+                    "action": "expand the thinnest regions (step 2) and rerun; if still unstable, take the coarsest level and halt for review (H5), so that the user chooses with the slider"})
     elif passing == [curves_m[0]] and curves_m[0]["stability"] >= BROAD:
         # Not a failure: the pool divides into a few clearly separate areas. Reported, and the pass continues.
         out.append({"case": "broad scope", "detail": f"only the coarsest level ({curves_m[0]['clusters']} clusters, {curves_m[0]['stability']:.2f}) reaches {tau}",
@@ -353,9 +369,61 @@ def diagnose(curves_m, nulls_m, chosen, clusters, exchange, tau, recs, rename):
     for cid in sorted(unstable - thin - trading):
         c = by_id[cid]
         out.append({"case": "unstable cluster", "clusters": [cid], "detail": f"{cid}: {c['size']} papers, stability {c['stability']:.2f}",
-                    "action": "flag it in the report and the viewer; it does not stop the pass"})
+                    "action": "flag it in the report and the viewer; it does not halt the pass"})
     return out, {"max_null_excess": float(max(excess)), "chosen_null_excess": float(excess[curves_m.index(chosen)]),
                  "thin_reference_share": thin_share}
+
+
+def named_computed(topic):
+    """The computed ids the survey's Clusters table names (its `computed` column)."""
+    from check import sections, table_rows
+    secs = sections((ROOT / "surveys" / f"{topic}.md").read_text())
+    return {c[h.index("computed")] for h, c, _, _ in table_rows(secs.get("Clusters", ""))
+            if h and h[0] == "id" and "computed" in h and c[h.index("computed")]}
+
+
+def steer(argv, topic, levels, li, rule, reason, curve, tau):
+    """Apply --level, or else the input's granularity steering, to the level the rule chose."""
+    from inputs import read_input
+    how = opt(argv, "--level", None, str)
+    source = "user override" if how else "granularity steering"
+    if how is None:
+        how = ((read_input(topic)[1] or {}).get("granularity") or "").replace("`", "").strip() or None
+    if how is None:
+        return li, rule, reason
+    if how == "coarser":
+        new = max(li - 1, 0)
+    elif how == "finer":
+        new = min(li + 1, len(levels) - 1)
+    elif how.isdigit() and int(how) in levels:
+        new = levels.index(int(how))
+    elif how.isdigit() and int(how) in [l["clusters"] for l in curve]:
+        # The viewer's slider shows the number of clusters each level reached, which can differ from its target.
+        new = [l["clusters"] for l in curve].index(int(how))
+    else:
+        sys.exit(f"--level or granularity must be coarser, finer, or one of this pool's levels: targets {levels}, "
+                 f"reached {[l['clusters'] for l in curve]}; not {how!r}")
+    st = curve[new]["stability"]
+    flag = f"; below tau ({st:.2f})" if st < tau else ""
+    if flag:
+        print(f"WARNING: the steered level, {curve[new]['clusters']} clusters, has stability {st:.2f}, below tau")
+    return new, f"{rule}, moved by {source} ({how})", (f"{reason}; moved by {source} ({how}) to "
+                                                        f"{curve[new]['clusters']} clusters{flag}")
+
+
+def clustering_line(measure, g, chosen, rule, curve, li, sensitivity, null_level, tau, k, c, cutoffs, diagnostics,
+                    override="none"):
+    """The retrieval log's Clustering line, in the form docs/formats.md gives."""
+    nxt = (f"; next finer level {curve[li + 1]['clusters']} clusters at {curve[li + 1]['stability']:.2f}"
+           if li + 1 < len(curve) else "; no finer level")
+    lo, hi = sensitivity[f"{tau - 0.05:.2f}"], sensitivity[f"{tau + 0.05:.2f}"]
+    diag = "; ".join(f"{d['case']}: {d['detail']} -> <action taken>" for d in diagnostics) or "none"
+    return (f"- **Clustering:** measure {measure} (grid mean stability: "
+            + ", ".join(f"{m} {g[m]['mean']:.3f} ± {g[m]['se']:.3f}" for m in MEASURES)
+            + f"); level {chosen['clusters']} clusters by rule {rule}, stability {chosen['stability']:.2f}{nxt}; "
+            f"τ ± 0.05 would give {lo} | {hi} clusters; null-model rule: {null_level['clusters']} clusters; "
+            f"grid {[l['clusters'] for l in curve]}; τ={tau}, k={k}, c={c:g}; holdout cutoffs {', '.join(cutoffs)}; "
+            f"diagnostics: {diag}; manual overrides: {override}")
 
 
 def month_back(d, months):
@@ -385,6 +453,10 @@ def main(argv):
     recs = [cache[a] for a in ids]
     n = len(ids)
     levels = [L for L in opt(argv, "--levels", LEVELS, lambda s: [int(x) for x in s.split(",")]) if L <= n // 4]
+    if not levels:
+        print(f"STOP: H8 — {n} papers with an embedding ({len(skipped)} without); no level of the grid fits a pool this "
+              "small, since levels above a quarter of the pool are dropped (docs/process.md, \"When a pass ends\")")
+        sys.exit(1)
 
     by_s2 = {r["s2"]: i for i, r in enumerate(recs)}
     edges = sorted({tuple(sorted((i, by_s2[x]))) for i, r in enumerate(recs)
@@ -424,6 +496,7 @@ def main(argv):
     li_tau, tau_reason = choose_level(curves[measure], tau)
     li_null, null_reason = choose_level_null(curves[measure], null_curves[measure])
     li, level_reason = (li_tau, tau_reason) if rule == "tau" else (li_null, null_reason)
+    li, rule, level_reason = steer(argv, topic, levels, li, rule, level_reason, curves[measure], tau)
     sensitivity = {f"{x:.2f}": curves[measure][choose_level(curves[measure], x)[0]]["clusters"]
                    for x in (tau - 0.05, tau, tau + 0.05)}
     chosen = curves[measure][li]
@@ -432,7 +505,9 @@ def main(argv):
     # Renumber clusters by size, largest first, as c1, c2, ...
     order = [int(x) for x in np.argsort(-np.bincount(labels), kind="stable")]
     rename = {old: f"c{i + 1}" for i, old in enumerate(order)}
-    indeg = np.bincount([b for a, b in edges] + [a for a, b in edges], minlength=n)
+    # In-degree within the pool: how many pool papers cite each paper. `edges` above is undirected, for cohesion.
+    indeg = np.bincount([by_s2[x] for i, r in enumerate(recs) for x in set(r["refs"]) if x in by_s2 and by_s2[x] != i],
+                        minlength=n)
     finer = curves[measure][li + 1] if li + 1 < len(levels) else None
     clusters = []
     for old in order:
@@ -467,9 +542,9 @@ def main(argv):
     g_knn = knn_graph(sims[measure], k)
     knn = [[ids[e.source], ids[e.target], round(w, 3)] for e, w in zip(g_knn.es, g_knn.es["weight"])]
 
-    score, near = fringe_scores(T, C, recs, measure, k)
+    score, near = fringe_scores(T, C, recs, measure, k, c)
     fringe = sorted(({"id": ids[i], "score": round(float(score[i]), 3), "nn_text": round(float(near["text"][i]), 3),
-                      "nn_refs": round(float(near["refs"][i]), 3), "year": recs[i].get("year"),
+                      "nn_refs": round(float(near["refs"][i]), 3), "refs": len(recs[i]["refs"]), "year": recs[i].get("year"),
                       "cluster": rename[int(labels[i])]} for i in range(n)), key=lambda x: -x["score"])
 
     # Post-processing: since when each cluster exists. Nothing above depends on it.
@@ -482,7 +557,7 @@ def main(argv):
     diagnostics, health = diagnose(curves[measure], null_curves[measure], chosen, clusters, exchange, tau, recs, rename)
 
     report = {
-        "generated": time.strftime("%Y-%m-%d"), "pool_fetched": sidecar.get("fetched"),
+        "generated": time.strftime("%Y-%m-%d"), "pool_fetched": sorted({r.get("fetched") or sidecar.get("fetched") for r in recs} - {None}),
         "params": {"k": k, "c": c, "reps": reps, "nulls": n_nulls, "levels": levels, "cutoffs": cutoffs,
                    "tau": tau, "subcluster_score": SUBCLUSTER_SCORE},
         "measure": measure, "measure_reason": measure_reason, "grid_mean": avg,
@@ -498,6 +573,20 @@ def main(argv):
         "clusters": clusters, "skipped": skipped,
     }
     out = topic_dir(topic) / "clusters.json"
+    if out.exists() and named_computed(topic):
+        # The Clusters table names the clustering its `computed` ids refer to. Match the new clustering to that one, so
+        # that tools/assign.py remap can carry the names over. If the clustering has been rerun since without a remap
+        # (a provisional run at step 2, a --level rerun), the named one is the baseline stored by that run. With no
+        # names yet, as on a first pass, there is nothing to carry, and no matching is recorded.
+        from match import match
+        prev = json.loads(out.read_text())
+        if prev.get("previous") and not prev["previous"].get("remapped"):
+            base, when = prev["previous"]["assignment"], prev["previous"]["generated"]
+        else:
+            base, when = dict(prev.get("assignment", {})), prev.get("generated")
+            base.update({p: x["cluster"] for p, x in prev.get("late", {}).items()})
+        m_old, m_new, frags = match(base, assignment)
+        report["previous"] = {"generated": when, "assignment": base, "old": m_old, "new": m_new, "fragments": frags}
     out.write_text(json.dumps(report, indent=1))
 
     g = avg
@@ -518,13 +607,21 @@ def main(argv):
         print(f"  {d['case']}: {d['detail']}\n      -> {d['action']}")
     print("\nhighest fringe scores (distance to nearest neighbours, ranked within age cohort):")
     for f in fringe[:8]:
-        print(f"  {f['score']:.2f}  {f['year']}  {f['cluster']:>4}  {papers[f['id']]['title'][:80]}")
-    print("\nlog line:")
-    print(f"- **Clustering:** measure {measure} (grid mean stability: "
-          + ", ".join(f"{m} {g[m]['mean']:.3f} ± {g[m]['se']:.3f}" for m in MEASURES)
-          + f"); level {chosen['clusters']} clusters (grid {[l['clusters'] for l in curves[measure]]}; {level_reason}); "
-          f"k={k}, c={c}; holdout cutoffs {', '.join(cutoffs)}; manual overrides: none")
+        print(f"  {f['score']:.2f}  {f['year']}  {f['cluster']:>4}  {f['refs']:>3} refs  {papers[f['id']]['title'][:72]}")
+    print("\nlog lines (replace the computed ids c1, c2, ... with the Clusters table's ids, and each <action taken>):")
+    override = f"level {opt(argv, '--level', None, str)} (--level)" if "--level" in argv else "none"
+    print(clustering_line(measure, g, chosen, rule, curves[measure], li, sensitivity, curves[measure][li_null], tau, k,
+                          c, cutoffs, diagnostics, override))
     print(log_line(history))
+    if "previous" in report:
+        print(f"\nmatched to the previous clustering ({report['previous']['generated']}; tools/match.py):")
+        for b, x in sorted(report["previous"]["new"].items(), key=lambda kv: int(kv[0][1:])):
+            print(f"  {b}: {x['case']}" + (f" from {', '.join(x['from'])}" if x.get("from") else "")
+                  + f" ({x['share']:.0%})")
+        gone = [f"{a} {x['case']}" for a, x in report["previous"]["old"].items() if x["case"] in ("vanished",)]
+        if gone:
+            print("  " + "; ".join(gone))
+        print(f"  carry the names over with `python3 tools/assign.py remap {topic}`")
     print(f"\nwrote {out.relative_to(ROOT)}")
 
 

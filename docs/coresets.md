@@ -13,7 +13,9 @@ answers are stable. Two tests define it:
 - `Minimality` — taking a paper away from the coreset should change it.
 
 "The output's answers" means the coreset's targets. By default these are the output's `Landscape`, `Assumptions` and
-`Gaps`. An input may declare others in its `Coreset Spec` (see `docs/formats.md`), such as specific research questions.
+`Gaps`. An input may declare others in its `Coreset Spec`, such as specific research questions. The working definition
+is in `docs/formats.md` (`Coreset Spec`). The targets need a fixed list because the coverage test counts only changes to
+them: counting a change to the reading list, for example, could keep the test from ever converging.
 
 ## Where the idea comes from
 
@@ -68,10 +70,10 @@ The coreset is selected from a larger set, the pool, and the two are built in se
   clusters, to supply the citation structure anchors are chosen from, to test the coreset's coverage, and to draw from
   when a role needs a paper. No output cites a pool paper.
 - `Coreset` — a few papers per cluster, selected in roles and verified against body text. It is small and expensive. It
-  is the only thing an output (i.e. `outputs/<topic.md>`) may cite.
+  is the only thing an output (i.e. `outputs/<topic>.md`) may cite.
 
 The pool is not the field. It is what our retrieval reached. Everything the coreset approximates, it approximates
-relative to the pool. This is why retrieval deliberately mixes tools and routes (`docs/process.md`, "Sources by job" and
+relative to the pool. This is why retrieval deliberately mixes tools and routes (`docs/process.md`, "Overview" and
 "Fringe routes"): a coreset cannot cover an idea the pool never saw.
 
 ## How coverage is achieved
