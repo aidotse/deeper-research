@@ -93,6 +93,42 @@ Issues this phase resolves or makes moot:
 Done when: the test suites pass; `check.py reasoning` still exits 0 on the legacy survey; and a clustering run on a
 scratch copy of `reasoning` still chooses about 6 clusters.
 
+Status, 2026-10-09: done.
+
+- `Z2`:
+  - `check.py` accepts `source` `full-text` or `abstract` in the coreset layout, and `snippet` only in a legacy survey.
+  - `G4` fails evidence quoted from a snippet.
+  - The fixture's verified rows quote their own synthetic full texts.
+  - The docs changed: `docs/verification.md` was rewritten (full text is the source, a snippet is a pointer, and
+    snippets alone do not verify a row), plus `formats.md`, `gates.md`, `process.md` and `external_services.md` (the
+    preflight rationale now names arXiv as the verification dependency), and `tooling.md`.
+- `Z3`, `Z4`, `Z5`, `Z7`, `Z9`, done by a background agent:
+  - The measure is fixed to `combined`. There is one null draw, used only for the `no structure` guard. `--rule` and
+    `--nulls 0` are usage errors.
+  - The history is gone from the pass path; `match.py history` remains as an experiment.
+  - `fringe.py collect` needs no clustering. It seeds the `new` route from the `Orientation` frontier candidates plus up
+    to 10 pool papers most cited within the pool.
+  - `unstable cluster` and `broad scope` are printed notes, no longer diagnostics. `clusters.json` gains `notes` and
+    `stability_from`.
+  - `M13` is fixed along the way: when every cutoff is skipped, stability comes from resampling only, with a printed
+    note.
+  - Runtime on `reasoning-legacy` fell from 154.5 s to about 31 s, with identical assignments, clusterwise scores and
+    fringe ranking. `graphs/reasoning-legacy/clusters.json` was regenerated in the new format.
+  - The viewer's in-browser rendering is `UNVERIFIED`: headless Chromium could not start, so the page's script was
+    checked with node only.
+- `Z8`: the experiments moved to `docs/experiments.md`, indexed in `CLAUDE.md` as for human reviewers only. The history
+  method is described there.
+- Doc edits forced by the above, in `process.md`, `formats.md`, `tooling.md`, `dispatch.md`, `gates.md` and
+  `coresets.md`:
+  - the provisional-clustering row is removed;
+  - `H8` now comes at step 3;
+  - the `Temporal stability` line is removed, and the `G2` requirement for it goes with it;
+  - the `Clustering` line format is new;
+  - the `new` route's seeds are described.
+- Checks: 49 of 49 faults (one new, for snippet evidence), 21 of 21 behaviours (one new, for a `snippet` source in the
+  coreset layout). `check.py reasoning-legacy`, `sheets.py` and `graph.py` all pass.
+- Not re-run live: the requirement that the most-cited seeds have at least one in-pool citation. It was checked offline.
+
 ## Phase 2: correctness, by file group
 
 `2a` is the largest group and runs on its own. `2b` to `2e` touch disjoint files, so they can run in parallel, for

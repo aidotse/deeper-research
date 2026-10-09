@@ -53,7 +53,7 @@ def build():
     members = {c: sorted(p for p, x in a.items() if x == c) for c in names}
     used, rows = set(), {c: [] for c in names}
 
-    def take(c, role, why="highest in-degree in the cluster", src_="snippet"):
+    def take(c, role, why="highest in-degree in the cluster", src_="full-text"):
         p = next(p for p in members[c] if p not in used); used.add(p); rows[c].append((p, role, why, src_))
         return p
 
@@ -63,7 +63,7 @@ def build():
             break
         if f["id"] in a:
             used.add(f["id"]); fringe_ids.append(f["id"])
-            rows[a[f["id"]]].append((f["id"], "fringe", "carries an idea no other row has", "snippet"))
+            rows[a[f["id"]]].append((f["id"], "fringe", "carries an idea no other row has", "full-text"))
     take("c1", "anchor"); take("c1", "frontier", src_="abstract"); take("c1", "frontier")
     take("c1", "dissent", 'reports "accuracy falls when the chain is truncated early" against the cluster')
     take("c2", "anchor"); take("c2", "frontier", src_="abstract")
@@ -111,9 +111,8 @@ def build():
 - **Fringe:** collected {DATE}: hidden 60, new 60 candidates ({unique} unique); in scope 3; added to the pool 3, of
   which 0 without an arXiv ID; left out 0
 - **Pool:** {len(a)} papers in scope; metadata fetched {when}
-- **Clustering:** measure {rep['measure']} (grid mean stability: x); level {len(rep['clusters'])} clusters by rule tau,
-  stability 0.80; diagnostics: thin cluster: six -> expanded; manual overrides: none
-- **Temporal stability:** 4 equal-count segments; one since 2025-01
+- **Clustering:** measure {rep['measure']}; level {len(rep['clusters'])} clusters by rule tau, stability 0.79; next finer
+  level 8 clusters at 0.67; diagnostics: thin cluster: six -> expanded; manual overrides: none
 - **Clustering rationale:** The level is stable and the two high clusters are long-standing.
 - **Clusters:** 6 (2 high, 2 medium, 2 low); halted for review: no; not yet reviewed
 - **Dimensions:** declared in the input
@@ -156,15 +155,16 @@ def build():
     verified = [p for p in all_rows if p not in abstract]
     for i, p in enumerate(verified):
         name = p.replace("/", "_").replace(":", "_")
-        if i == 0:   # one row verified against full text: hyphenation and wrapping differ from the quote
-            (ft / f"{name}.txt").write_text("# 4 Results\n\nOn GSM8K the method im-\nproves accuracy by two points over the baseline "
-                                             "at equal compute, and the gain holds across all model sizes we tested.\n")
-            body = ('- `method summary`, `evidence`, `measures`, `elicitation`, `pressure` — snippet — "we propose a method"\n'
-                    '- `result` — full-text, 4 Results — "the method improves accuracy by two points ... the gain holds '
-                    'across all model sizes"\n')
-        else:
-            body = ('- `method summary`, `result`, `evidence`, `measures`, `elicitation`, `pressure` — snippet — '
-                    '"we report accuracy gains"\n')
+        # Every verified row quotes its fetched full text. In the first, hyphenation and wrapping differ from the quote.
+        hyphen = i == 0
+        (ft / f"{name}.txt").write_text(
+            "# 3 Method\n\nWe propose a method that does a thing, and we assume a fixed compute budget.\n\n"
+            "# 4 Results\n\nOn GSM8K the method " + ("im-\nproves" if hyphen else "improves") + " accuracy by two points "
+            "over the baseline at equal compute, and the gain holds across all model sizes we tested.\n")
+        body = ('- `method summary`, `evidence`, `measures`, `elicitation`, `pressure` — full-text, 3 Method — "We propose '
+                'a method that does a thing, and we assume a fixed compute budget"\n'
+                '- `result` — full-text, 4 Results — "the method improves accuracy by two points ... the gain holds '
+                'across all model sizes"\n')
         (ev / f"{name}.md").write_text(f"# Evidence: {p}\n\n" + body)
     shutil.copy(ROOT / f"inputs/{SOURCE}.md", ROOT / f"inputs/{T}.md")
     bib = "".join(f"@misc{{k{i},\n  " + (f"corpusid = {{{p.split(':')[1]}}}" if p.startswith("CorpusId") else f"eprint = {{{p}}}")

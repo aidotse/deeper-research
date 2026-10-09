@@ -123,17 +123,14 @@ One entry per pass, in date order:
 - **Fringe:** collected YYYY-MM-DD: hidden H, new W candidates (U unique); in scope S; added to the pool A, of which
   C without an arXiv ID; left out X
 - **Pool:** N papers in scope; metadata fetched <date> | <first date> to <last date>
-- **Clustering:** measure <text | refs | combined> (grid mean stability: text X ± se, refs Y ± se, combined Z ± se);
-  level N clusters by rule <tau | null>[, moved by <granularity steering | user override> (<value>)], stability S; next finer level M clusters at S' | no finer level; τ ± 0.05
-  would give A | B clusters; null-model rule: L clusters; grid <counts>; τ=<τ>, k=<k>, c=<c>; holdout cutoffs
-  <dates>; diagnostics: none | <case>: <detail> -> <action taken>; ...; manual overrides: none | level <value> (--level) | <what else the user changed>
-- **Temporal stability:** 4 equal-count segments; snapshots <date> (N papers, stability S), ...; <per cluster, separated
-  by " | ": its id from the Clusters table and since when it exists, e.g. "since 2025-10-09; before that, too few papers
-  (5)", "probably since 2025-03-24 or earlier (that snapshot's stability 0.40)", "new since 2026-05-25; before that,
-  its papers were grouped differently (merged)">
+- **Clustering:** measure combined; level N clusters by rule tau[, moved by <granularity steering | user override>
+  (<value>)], stability S; next finer level M clusters at S' | no finer level; τ ± 0.05 would give A | B clusters; grid
+  <counts>; τ=<τ>, k=<k>, c=<c>; holdout cutoffs <dates> | none (all skipped; stability from resampling only);
+  diagnostics: none | <case>: <detail> -> <action taken>; ...; manual overrides: none | level <value> (--level) | <what
+  else the user changed>
 - **Clustering rationale:** <a short paragraph: why the clusters look as they do — the level and its margin above τ;
-  the spread of cluster scores, with weak clusters named and diagnosed; how decisive the measure choice was; what any
-  steering in the input's `Clustering` section changed; and which clusters are long-standing and which recent>
+  the spread of cluster scores, with weak clusters named and diagnosed; the notes the printout lists; and what any
+  steering in the input's `Clustering` section changed>
 - **Clusters:** N (H high, M medium, L low); halted for review: no | <id>; reviewed by user YYYY-MM-DD | not yet
   reviewed
 - **Dimensions:** declared in the input | proposed and adopted provisionally: <name>, ...
@@ -155,11 +152,11 @@ One entry per pass, in date order:
 ```
 
 The `F1` and `H` IDs are defined in `docs/process.md`, "When a pass ends". Who writes each line is in its order of
-operations, column `writes`. Six lines, or parts of them, are printed by scripts, ready to paste: the script half of
+operations, column `writes`. Five lines, or parts of them, are printed by scripts, ready to paste: the script half of
 `Preflight` by `tools/preflight.py`; `Pool` by `tools/pool.py`, which `tools/assign.py late` also runs; `Fringe` and
-`Late papers` by `tools/assign.py`; and `Clustering` and `Temporal stability` by `tools/cluster.py`. Replace the
-computed cluster ids (`c1`, `c2`, …) with the Clusters table's ids, and each `<action taken>` with what was done. Every
-other number in the log comes from a script's printout or a tool's result, never from counting by hand.
+`Late papers` by `tools/assign.py`; and `Clustering` by `tools/cluster.py`. Replace the computed cluster ids (`c1`,
+`c2`, …) with the Clusters table's ids, and each `<action taken>` with what was done. Every other number in the log
+comes from a script's printout or a tool's result, never from counting by hand.
 
 ### 2. Clusters
 
@@ -198,7 +195,7 @@ uses the same columns:
 | `metric` | the metric of the headline evaluation |
 | `result` | the headline number, with its baseline and comparison condition, e.g. "+2.3 top-1 over X at equal FLOPs"; `n/a` if the paper reports no quantitative result |
 | *(declared dimensions)* | one column per dimension declared in the input, or generated and accepted as suggestion. |
-| `source` | `abstract`, `snippet` or `full-text`: what the row was verified against. Always the last column. |
+| `source` | `full-text` or `abstract`: what the row was verified against (`docs/verification.md`). Always the last column. Legacy surveys may also carry `snippet`, from before verification quoted the full text. |
 
 ### 4. Pool
 
@@ -306,17 +303,17 @@ verifying agents write `evidence/` (`docs/verification.md`, "Recording the evide
 | file | what it holds | written by | read by | in git |
 | -- | -- | -- | -- | -- |
 | `pool.json` (1.6 MB) | per pool paper: date, citation count, full reference list, SPECTER2 embedding, fetch date | `tools/pool.py` (step 2, and inside `tools/assign.py late`) | every script that clusters, scores or draws the pool | yes |
-| `clusters.json` (150 KB) | the clustering report: measures, levels, stability, assignment, sub-clusters, fringe scores, diagnostics, cluster history, the match to the previous clustering, and late assignments | `tools/cluster.py` (steps 2 and 3, and any recluster); `tools/assign.py late` and `remap` add to it | `tools/sheets.py`, `assign.py`, `check.py`, `graph.py`, `fringe.py` | yes |
-| `fringe.json` (1.3 MB) | the fringe candidates: route, metadata, references, embedding | `tools/fringe.py collect` (step 2) | `tools/assign.py add-fringe` | yes |
+| `clusters.json` (140 KB) | the clustering report: levels, stability, the null curve, assignment, sub-clusters, fringe scores, diagnostics and notes, the match to the previous clustering, and late assignments | `tools/cluster.py` (step 3, and any recluster); `tools/assign.py late` and `remap` add to it | `tools/sheets.py`, `assign.py`, `check.py`, `graph.py` | yes |
+| `fringe.json` (1.3 MB) | the fringe candidates: route, metadata, references, embedding; the seeds of the `new` route | `tools/fringe.py collect` (step 2) | `tools/assign.py add-fringe` | yes |
 | `rejected.md` | the candidates judged out of scope in orientation and expansion: paper, date, reason | `tools/assign.py reject` (steps 1 and 2, targeted expansions) | reviewers; `tools/check.py` (`G1`) | yes: the judgements are part of the pass's record |
 | `fringe-screen.md` (120 KB, about 30k tokens) | the blind screening sheet: one row per candidate, shuffled, without its route, with the agent's `in scope` (`yes` or `no`) and `reason` | `tools/fringe.py collect` writes the rows, keeping earlier judgements on a rerun; the screening agent fills `in scope` and `reason` (step 2) | `tools/assign.py add-fringe` | yes: the judgements are part of the pass's record |
-| `naming-sheet.md` (about 3k tokens) | per computed cluster: size, stability, since when it exists, diagnostics, most-cited and most recent papers, sub-clusters | `tools/sheets.py` (step 3) | the naming agent (step 3) and the selection agents (step 4) | no: regenerable |
+| `naming-sheet.md` (about 3k tokens) | per computed cluster: size, stability, diagnostics and notes, most-cited and most recent papers, sub-clusters | `tools/sheets.py` (step 3) | the naming agent (step 3) and the selection agents (step 4) | no: regenerable |
 | `fringe-sheet.md` (about 1k tokens) | the highest fringe scores, with year, cluster, reference count, and whether the paper is a coreset row | `tools/sheets.py` (step 3) | the fringe-selection agent (step 4) and the coverage-test agent (step 7) | no: regenerable |
 | `graph.html` (1.3 MB) | the viewer | `tools/graph.py` (step 3) | the user, in a browser | no: regenerable |
 | `evidence/<id>.md` | per verified coreset row: the verbatim quotes each claim rests on, and where they are in the paper | the verifying agent (step 5), one file per row, so parallel agents never share one | reviewers, auditors; `tools/check.py` (`G4`), which finds every full-text quote in the full text | yes: it is the record behind `source` |
 | `fulltext/<id>.txt` (10–70k tokens each) | a paper's full text, flattened | `tools/fulltext.py` (step 5) | the verifying agent, by Grep and section | no: third-party text, regenerable |
 | `references.json` | reference lists for a survey without a pool | `tools/graph.py` | `tools/graph.py` | yes |
-| `history.json`, `match-simulation.json`, `recursive.json`, `fringe-analysis.json` | reports of the experiments in `docs/tooling.md` | `tools/match.py`, `tools/recursive.py`, `tools/fringe.py analyse` | people; `recursive.json` and `match-simulation.json` are the evidence for two proposals in `docs/roadmap.md` | yes |
+| `history.json`, `match-simulation.json`, `recursive.json`, `fringe-analysis.json` | reports of experiments that are not part of a pass (`docs/experiments.md`) | the experiment scripts | people | yes |
 
 `pool.json` and `clusters.json` are what make the clustering reproducible offline, `fringe.json` with `fringe-screen.md`
 is the record of what the fringe routes found and how it was screened, and `rejected.md` the record of what expansion

@@ -9,10 +9,22 @@ Usage:
   uv run tools/fringe.py analyse <topic> [--level 6]
 
 `collect` gathers candidates outside the pool by the two routes of docs/process.md, "Fringe routes", by script and at
-no model cost. It needs a clustering to seed the `new` route; before step 3, run tools/cluster.py provisionally.
+no model cost. It needs the pool sidecar (tools/pool.py) and the survey's retrieval log, not a clustering.
 
   hidden     cited by at least two pool papers, at least a year old, and the least cited overall for its age
-  new        Semantic Scholar recommendations from a cluster's papers; the endpoint returns only the last ~2 months
+  new        Semantic Scholar recommendations (POST /recommendations/v1/papers, positivePaperIds) from one seed set;
+             the endpoint returns only the last ~2 months
+
+The `new` route's seeds are chosen deterministically, from the pool as it stands:
+
+  1. the frontier candidates named in the latest pass's `Orientation` line ("frontier candidates: <id>, ..."), in the
+     order the line gives them, those with a record in pool.json; one without is reported and skipped;
+  2. then the CITED_SEEDS (10) pool papers most cited within the pool (in-degree over pool.json's references, at
+     least 1), not already seeds, ties broken by paper ID.
+
+If the log names no frontier candidates, the route is seeded from the most-cited papers alone, with a warning. The
+seeds are recorded in fringe.json. The seeding is deterministic; the endpoint's answer is not, since new papers appear.
+The route keeps the first --per-route recommendations not already in the pool.
 
 A third route, `followers` (low-cited citers of each cluster's most-cited paper), was tested and dropped.
 
@@ -36,12 +48,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
+from check import BARE_ID, sections  # noqa: E402
 from graph import parse, topic_dir  # noqa: E402
 from net import get_json  # noqa: E402
 
 API = "https://api.semanticscholar.org"
 FIELDS = ("title,abstract,externalIds,publicationDate,year,citationCount,referenceCount,references.paperId,"
           "embedding.specter_v2")
+CITED_SEEDS = 10  # the most-cited pool papers added to the frontier candidates as seeds for the `new` route
 
 
 def call(url, body=None):
@@ -78,13 +92,36 @@ def rate(rec, today):
     return rec["citations"] / max(a, 0.25) if a is not None else None
 
 
+def frontier_candidates(topic):
+    """The frontier candidates named in the latest pass's `Orientation` line, in order, without repeats."""
+    from gates import log_entries
+    log = sections((ROOT / "surveys" / f"{topic}.md").read_text()).get("Retrieval log", "")
+    entries = log_entries(log)
+    line = " ".join(entries[-1]["lines"].get("Orientation", [])) if entries else ""
+    m = re.search(r"frontier candidates:\s*(.*)$", line)
+    return list(dict.fromkeys(BARE_ID.findall(m.group(1)))) if m else []
+
+
+def new_route_seeds(topic, pool):
+    """The `new` route's seeds, as pool paper IDs: the frontier candidates, then the most-cited pool papers."""
+    named = frontier_candidates(topic)
+    frontier = [a for a in named if a in pool]
+    missing = [a for a in named if a not in pool]
+    by_s2 = {r["s2"]: a for a, r in pool.items()}
+    indeg = {a: 0 for a in pool}
+    for a, r in pool.items():
+        for x in set(r["refs"]):
+            if x in by_s2 and by_s2[x] != a:
+                indeg[by_s2[x]] += 1
+    cited = [a for a in sorted(pool, key=lambda a: (-indeg[a], a)) if a not in frontier and indeg[a] > 0][:CITED_SEEDS]
+    return frontier, cited, missing, indeg
+
+
 def collect(topic, per_route):
     d = topic_dir(topic)
     pool = json.loads((d / "pool.json").read_text())["papers"]
-    clusters = json.loads((d / "clusters.json").read_text())["clusters"]
     in_pool = {r["s2"] for r in pool.values()}
     latest = max(date.fromisoformat(r["date"]) for r in pool.values() if r.get("date"))
-    by_s2 = {r["s2"]: a for a, r in pool.items()}
     routes = {}
 
     # hidden: references the pool cites repeatedly, but the wider literature does not.
@@ -100,16 +137,23 @@ def collect(topic, per_route):
     old.sort(key=lambda m: (rate(m, latest), -counts[m["s2"]]))
     routes["hidden"] = [m["s2"] for m in old[:per_route]]
 
-    per = max(1, per_route // len(clusters))
-
-    # new: recommendations from each cluster's papers (the endpoint returns only very recent work).
-    new = []
-    for c in clusters:
-        pos = [pool[a]["s2"] for a in c["members"]]
-        recs = call(f"{API}/recommendations/v1/papers?fields=paperId&limit=100", {"positivePaperIds": pos})
-        new += [p["paperId"] for p in recs["recommendedPapers"] if p["paperId"] not in in_pool][:per]
-        time.sleep(1)
-    routes["new"] = list(dict.fromkeys(new))
+    # new: recommendations from one seed set, the frontier candidates and the most-cited pool papers (the endpoint
+    # returns only very recent work).
+    frontier, cited, missing, indeg = new_route_seeds(topic, pool)
+    if missing:
+        print(f"WARNING: frontier candidates without a record in pool.json, not used as seeds: {', '.join(missing)}; "
+              f"run `python3 tools/pool.py {topic}` first")
+    if not frontier:
+        print("WARNING: the latest pass's `Orientation` line names no frontier candidate in the pool; the `new` route is "
+              "seeded from the most-cited pool papers alone")
+    print(f"new: seeded from {len(frontier)} frontier candidate(s) ({', '.join(frontier) or 'none'}) and the "
+          f"{len(cited)} most-cited pool papers ({', '.join(f'{a} ({indeg[a]})' for a in cited)})")
+    pos = [pool[a]["s2"] for a in frontier + cited]
+    recs = call(f"{API}/recommendations/v1/papers?fields=paperId&limit={min(500, 2 * per_route)}",
+                {"positivePaperIds": pos})
+    new = [p["paperId"] for p in recs["recommendedPapers"] if p["paperId"] not in in_pool]
+    routes["new"] = list(dict.fromkeys(new))[:per_route]
+    seeds = {"frontier": frontier, "cited": cited, "frontier_missing": missing}
 
     wanted = sorted({x for ids in routes.values() for x in ids} - set(meta))
     meta.update(fetch_s2(wanted))
@@ -122,7 +166,7 @@ def collect(topic, per_route):
                 if route == "hidden":
                     m["pool_citers"] = counts.get(x, 0)
     (d / "fringe.json").write_text(json.dumps({"collected": time.strftime("%Y-%m-%d"), "routes": routes,
-                                                "candidates": cands}, separators=(",", ":")))
+                                                "new_seeds": seeds, "candidates": cands}, separators=(",", ":")))
 
     # Blind screening sheet: shuffled, no route, no citation counts. Judgements already on the sheet, from an earlier
     # collect, are carried over, so a rerun never erases screening work.

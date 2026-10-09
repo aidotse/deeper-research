@@ -70,7 +70,9 @@ ROLES = {"anchor", "frontier", "dissent", "fringe"}
 NEEDED = {"high": ("anchor", "frontier", "dissent"), "medium": ("anchor", "frontier"), "low": ("anchor",)}
 FRINGE_QUOTA = (5, 10)  # per topic, not per cluster
 ABSTRACT_SHARE = 0.2  # above this share of abstract-sourced rows after step 5, the pass halts (H10)
-SOURCES = {"abstract", "snippet", "full-text"}
+SOURCES = {"abstract", "full-text"}
+# Legacy surveys were verified against snippets, before quotes had to come from the fetched full text.
+LEGACY_SOURCES = SOURCES | {"snippet"}
 # Phrases that claim absence, which only a probe may support (docs/verification.md, "Probes").
 ABSENCE = re.compile(r"\b(?:has not been (?:studied|explored|addressed)|no (?:prior )?work (?:on|has)|nobody has|"
                      r"no one has|has never been)\b", re.I)
@@ -180,10 +182,15 @@ def check_coreset(table, dims, layout, failures, notes):
         failures.append(f"blocks disagree on column count: {sorted(widths)}")
 
     sources = [c[-1] for _, c, _, _ in rows]
-    bad = [row_id(l) for (_, c, _, l) in rows if c[-1] not in SOURCES]
+    allowed = SOURCES if layout == "coreset" else LEGACY_SOURCES
+    bad = [row_id(l) for (_, c, _, l) in rows if c[-1] not in allowed]
     if bad or (rows and rows[0][0][-1] != "source"):
         failures.append(f"rows without a parsable `source` last column: {bad}")
-    tally = {k: sources.count(k) for k in sorted(set(sources) & SOURCES)}
+    snip = [row_id(l) for (_, c, _, l) in rows if c[-1] == "snippet" and layout == "coreset"]
+    if snip:
+        failures.append(f"rows with `source` `snippet`, which is not a source: verify against the fetched full text, "
+                        f"or leave the row `abstract` (docs/verification.md): {snip[:8]}")
+    tally = {k: sources.count(k) for k in sorted(set(sources) & allowed)}
     print(f"source:  {tally}")
 
     if layout == "coreset" and rows:

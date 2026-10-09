@@ -10,8 +10,8 @@ Usage:
 
 Writes graphs/<topic>/fulltext/<id>.txt: the paper's text, verbatim, with a
 two-line provenance header. `--abstract` fetches every coreset row whose
-`source` is still `abstract`, which is what verification needs when snippet
-search has no body text for a paper (see docs/verification.md).
+`source` is still `abstract`: the rows verification has yet to do. Every
+verified row quotes this text (see docs/verification.md).
 
 The text comes from arXiv's HTML rendering, which keeps section headings,
 figure and table captions, and equations (as their LaTeX source). Papers whose

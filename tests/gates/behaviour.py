@@ -40,7 +40,7 @@ check("pending halt: --gate fails with the halt named", code == 1 and "cannot pa
 # 3 inference mid-pass: strip everything after step 2 (no clusters rows, no coreset, no output, no later lines)
 f = build()
 t = S.read_text()
-for lab in ["Clustering", "Temporal stability", "Clustering rationale", "Clusters", "Dissent searches", "Coreset",
+for lab in ["Clustering", "Clustering rationale", "Clusters", "Dissent searches", "Coreset",
             "Demotions", "Late papers", "Coverage test", "Probes", "Corrections to existing rows", "Tokens", "Halts", "Ended"]:
     t = re.sub(rf"^- \*\*{re.escape(lab)}:\*\*.*\n(?:  .*\n)*", "", t, flags=re.M)
 t = re.sub(r"(## Clusters\n\n)(?:\|.*\n)+", r"\1", t); t = re.sub(r"(## Coreset\n\n)(?:.*\n)*?(?=## Pool)", r"\1", t)
@@ -78,7 +78,7 @@ def fake(path):
 gates.committed = fake
 now = old.replace("- **Pool:** 10 papers in scope", "- **Pool:** 11 papers in scope")
 now = now.replace(first_row("anchor") + "\n", "", 1)
-now = re.sub(r"\| snippet \|$", "| abstract |", now, count=1, flags=re.M)
+now = re.sub(r"\| full-text \|$", "| abstract |", now, count=1, flags=re.M)
 S.write_text(now)
 secs = chk.sections(now)
 from inputs import read_input, read_targets
@@ -100,7 +100,7 @@ def history_of(text):
     return gates.history(gates.Ctx(T, secs, st, rows, ids, ab, O.read_text(), dims, steer, read_targets(T)[0]))[0]
 f = build()
 committed_text = S.read_text()
-vrow = next(l for l in committed_text.splitlines() if l.startswith("| [") and l.endswith("| snippet |"))
+vrow = next(l for l in committed_text.splitlines() if l.startswith("| [") and l.endswith("| full-text |"))
 arow = next(l for l in committed_text.splitlines() if l.startswith("| [") and l.endswith("| abstract |"))
 vid = chk.row_id(vrow)
 edited = committed_text.replace(vrow, vrow.replace("| does a thing |", "| does another thing |"), 1)
@@ -116,6 +116,11 @@ check("history: an abstract-sourced row may be rewritten", not any("verified row
 f = build(); import shutil; shutil.rmtree(G / "fulltext")
 code, out = run("--gate", "G5")
 check("evidence: missing full text is a note, not a failure", code == 0 and "not checked verbatim" in out, out)
+
+# 6c a `snippet` source is not allowed in the coreset layout (it remains valid in legacy surveys, case 8)
+f = build(); S.write_text(re.sub(r"\| full-text \|$", "| snippet |", S.read_text(), count=1, flags=re.M))
+code, out = run()
+check("a `snippet` source fails in the coreset layout", code == 1 and "which is not a source" in out, out)
 
 # 7 assign.py reject
 f = build()

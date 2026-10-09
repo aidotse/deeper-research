@@ -35,10 +35,9 @@ dispatched as an incremental pass (`docs/process.md`, "Changing the clusters aft
   that fails after its own retries halts the pass (`H3`).
 - Write the log lines that scripts print, and those about your own decisions: `Dimensions`, `Pool`, `Fringe`, `Coreset`,
   `Late papers`, `Gates`, `Waivers`, `Tokens`, `Halts` and `Ended`; and Open work's
-  `Clusters not yet reviewed by the user`. Agents write the lines about their own work. `Clustering` and
-  `Temporal stability` are printed by `tools/cluster.py` but written by the naming agent, which replaces the computed
-  cluster ids with names. A pass's log entry is written as the pass goes; a line may be updated until the pass ends,
-  never after.
+  `Clusters not yet reviewed by the user`. Agents write the lines about their own work. `Clustering` is printed by
+  `tools/cluster.py` but written by the naming agent, which replaces the computed cluster ids with names. A pass's log
+  entry is written as the pass goes; a line may be updated until the pass ends, never after.
 - Subagents may run in parallel **only on disjoint sections of the survey**. Cluster blocks partition the Coreset table
   naturally, so parallel verification or selection work splits by cluster. The pool is a single table, so only one agent
   writes to it at a time. Group the clusters into a few blocks per agent, spreading the `high` ones, which cost the
@@ -90,11 +89,11 @@ Every report follows `.claude/agents/survey-pass.md`: what was done, what was ad
 - **Fringe screening** (step 2). Hand over: the path `graphs/<topic>/fringe-screen.md`. The agent judges each row in or
   out of scope from its title and abstract, as in expansion, without looking up its route or citations, which would
   unblind it. Writes: the `in scope` and `reason` cells, row by row. Returns: the rows it was unsure about.
-- **Naming** (step 3). Hand over: the printout of `tools/cluster.py`, which has the diagnostics and the `Clustering` and
-  `Temporal stability` lines; on a later pass, the printout of `tools/assign.py remap`. The agent reads
-  `naming-sheet.md` and the input, and names, defines and rates every computed cluster that has no name. Writes:
-  Clusters rows, with `computed` ids; `Clustering` and `Temporal stability`, with the Clusters table's ids;
-  `Clustering rationale`; `Clusters`. Returns: the ratings it was unsure about. Halts: `H6`, `H7`.
+- **Naming** (step 3). Hand over: the printout of `tools/cluster.py`, which has the diagnostics, the notes and the
+  `Clustering` line; on a later pass, the printout of `tools/assign.py remap`. The agent reads `naming-sheet.md` and the
+  input, and names, defines and rates every computed cluster that has no name. Writes: Clusters rows, with `computed`
+  ids; `Clustering`, with the Clusters table's ids; `Clustering rationale`; `Clusters`. Returns: the ratings it was
+  unsure about. Halts: `H6`, `H7`.
 - **Selection** (step 4), one agent per block of clusters, in parallel. Hand over: the block's cluster ids and their
   alignment, and the lines of the `tools/check.py` printout for those clusters (pool size, roles filled, in-degree
   leaders). The agent fills anchor, frontier and dissent per "Sizing" (`docs/process.md`, step 4), and the extra

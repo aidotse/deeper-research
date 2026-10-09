@@ -5,9 +5,9 @@ Usage: python3 tools/sheets.py <topic>
 
 Reads graphs/<topic>/clusters.json and pool.json and the survey, and writes two files alongside them:
 
-  naming-sheet.md  per computed cluster: size, stability, since when it exists, its diagnostics, its most-cited papers
-                   within the pool (in-degree), its most recent papers, and its sub-clusters with their most-cited
-                   papers. For step 3, naming. Each cluster shows its name once the Clusters table has one.
+  naming-sheet.md  per computed cluster: size, stability, its diagnostics and notes, its most-cited papers within the
+                   pool (in-degree), its most recent papers, and its sub-clusters with their most-cited papers. For
+                   step 3, naming. Each cluster shows its name once the Clusters table has one.
   fringe-sheet.md  the highest fringe scores, with year, cluster, number of resolved references, and whether the paper
                    is already a coreset row. For step 4, fringe selection; read the abstracts through Asta.
 
@@ -60,11 +60,22 @@ def main(argv):
     def label(c):
         return f"{c} ({names[c]})" if c in names else c
 
+    # `unstable cluster` and `broad scope` are notes, not diagnostics; a clusters.json written before that change still
+    # lists them as diagnostics, so they are moved to the notes here.
+    noted = ("unstable cluster", "broad scope")
+    diagnostics = [x for x in report.get("diagnostics", []) if x.get("case") not in noted]
+    notes = report.get("notes", []) + [{"clusters": x.get("clusters", []), "text": f"{x['case']}: {x['detail']}"}
+                                       for x in report.get("diagnostics", []) if x.get("case") in noted]
     diag = {}
-    for x in report.get("diagnostics", []):
+    for x in diagnostics:
         for c in x.get("clusters", []):
             diag.setdefault(c, []).append(f"{x['case']}: {x['detail']}")
-    whole = [f"{x['case']}: {x['detail']}" for x in report.get("diagnostics", []) if not x.get("clusters")]
+    whole = [f"{x['case']}: {x['detail']}" for x in diagnostics if not x.get("clusters")]
+    note = {}
+    for x in notes:
+        for c in x.get("clusters", []):
+            note.setdefault(c, []).append(x["text"])
+    whole_notes = [x["text"] for x in notes if not x.get("clusters")]
 
     out = [f"# Naming sheet: {topic}", "",
            f"Clustering of {report['generated']}: measure `{report['measure']}`, {report['level']} clusters "
@@ -72,16 +83,17 @@ def main(argv):
            "and never move papers between clusters (docs/process.md, step 3).", ""]
     if whole:
         out += ["Whole-clustering diagnostics: " + "; ".join(whole), ""]
-    history = report.get("history", {}).get("clusters", {})
+    if whole_notes:
+        out += ["Notes: " + " ".join(whole_notes), ""]
     for cl in report["clusters"]:
         c = cl["id"]
         members = [a for a, x in assigned.items() if x == c]
         st = f"{cl['stability']:.2f}" if cl["stability"] is not None else "none (fewer than 3 papers)"
         out += [f"## {label(c)} — {len(members)} papers, stability {st}", ""]
-        if c in history:
-            out.append(f"- Since: {history[c]['statement']}")
         for line in diag.get(c, []):
             out.append(f"- Diagnostic: {line}")
+        for line in note.get(c, []):
+            out.append(f"- Note: {line}")
         out.append(f"- Sub-clusters at the next finer level: {len(cl['subclusters'])}"
                    + (" (internally divided)" if cl["divided"] else ""))
         out += ["", "Most cited within the pool:", ""]

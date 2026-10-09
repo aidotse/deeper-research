@@ -56,6 +56,7 @@ below, at the moment given below, and skip the rest.
 | `docs/tooling.md` | all | before running anything in `tools/` |
 | `docs/external_services.md` | all | before the first call to Asta, WebSearch or any outside service, and at the preflight check |
 | `docs/responses.md` | all | never separately: it is imported below |
+| `docs/experiments.md` | human reviewers only | not instructions; skip it |
 | `docs/vs_deep_research.md` | human reviewers only | not instructions; skip it |
 
 In particular, `docs/roadmap.md` is the list of open items: decisions still to take, fixes, known gaps, proposals and

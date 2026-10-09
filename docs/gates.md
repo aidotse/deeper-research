@@ -45,9 +45,9 @@ every earlier gate's.
 | -- | -- | -- | -- |
 | `G0` ready | 0 | any retrieval | the pass's log entry exists with its `Dimensions` line; the preflight passed (`H1` otherwise); no template placeholder left in the entry or in Open work; no log line written twice |
 | `G1` pool complete | 2 | clustering | the frontier candidates are listed in `Orientation` and are in the pool, and `Expansion` names each as traversed; `Recency window`; every errored query was retried, and `H2` is recorded if one still failed; rejections were recorded this pass; every pool paper is fetched; the fringe routes were collected this pass, every candidate was judged with a reason, every `yes` is in the pool or in Open work; `Fringe` and `Pool` agree with the files |
-| `G2` clusters named | 3 | selection | the clustering is from this pass; every Clusters row is complete; every pool paper's cluster is written; `Clustering`, `Temporal stability`, `Clustering rationale` and `Clusters` are present, use the Clusters table's ids, and agree with `clusters.json` and the table; `no structure` or a persisting `no stable level` is recorded as `H4` or `H5`; `review: before coreset` is recorded as `H13` |
+| `G2` clusters named | 3 | selection | the clustering is from this pass; every Clusters row is complete; every pool paper's cluster is written; `Clustering`, `Clustering rationale` and `Clusters` are present, use the Clusters table's ids, and agree with `clusters.json` and the table; `no structure` or a persisting `no stable level` is recorded as `H4` or `H5`; `review: before coreset` is recorded as `H13` |
 | `G3` coreset selected | 4 | verification, about half the cost of a pass | every role the cluster's alignment requires is filled, or recorded under Open work's `Empty roles`; every `high` cluster appears in `Dissent searches`; every dissent row quotes its contradiction; every pair of clusters that trade papers has a bridge, and every internally divided `high` cluster a second frontier or a bridge, or an `Empty roles` entry; five to ten `fringe` rows; no empty cell; no row for a paper without a cluster; provisional dimensions named in `Dimensions` |
-| `G4` verified | 5 | the output | every row verified against body text has its evidence file, covering `method summary`, `result` and each dimension not `n/a`, and every `full-text` quote is found in the fetched full text, ignoring punctuation and line breaks; every row still `abstract` is listed in Open work's `Rows needing verification`; more than 20% of them is recorded as `H10`; `Coreset` agrees with the table |
+| `G4` verified | 5 | the output | every row verified against the full text has its evidence file, covering `method summary`, `result` and each dimension not `n/a`; no quote comes from a snippet; and every `full-text` quote is found in the fetched full text, ignoring punctuation and line breaks; every row still `abstract` is listed in Open work's `Rows needing verification`; more than 20% of them is recorded as `H10`; `Coreset` agrees with the table |
 | `G5` pass ended | 7 | `Ended` stands | the output exists, with every `Questions` and `Reading` entry citing a coreset paper; each `Coverage test` line is well formed; `finished (F1)` follows a converged round, two unconverged rounds are recorded as `H11`, and `halted (<id>)` matches `Halts`; every candidate that changed the output is an assigned coreset row; no late paper is left unassigned; `Tokens`, `Halts` and `Ended` are present |
 
 Each requirement has an ID, such as `g3.fringe-quota`, which the check prints when it fails. The code is
@@ -104,8 +104,9 @@ The check also compares the survey with the last commit, where one exists. It fa
 - a pool paper was removed without `H12` or a logged merge;
 - a coreset row was removed without a `Demotions` or `Corrections` entry;
 - a row's `source` was lowered;
-- a cell of a verified row (`source` `snippet` or `full-text`) was changed without a `Corrections to existing rows`
-  entry naming the paper. A row still `abstract` is a draft, which verification rewrites freely.
+- a cell of a verified row (`source` `full-text`, or `snippet` in an older commit) was changed without a
+  `Corrections to existing rows` entry naming the paper. A row still `abstract` is a draft, which verification rewrites
+  freely.
 
 It notes, without failing, an input changed since the last commit: only the user edits the input.
 

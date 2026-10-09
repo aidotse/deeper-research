@@ -39,7 +39,7 @@ PLACEHOLDER = re.compile(r"<[a-z][^<>\n]{0,80}>")
 COMPUTED_ID = re.compile(r"\bc\d+\b")
 QUOTE = re.compile(r"[\"“][^\"”]{12,}[\"”]")
 REPEATABLE = {"Coverage test"}
-SOURCE_RANK = {"abstract": 0, "snippet": 1, "full-text": 1}
+SOURCE_RANK = {"abstract": 0, "snippet": 1, "full-text": 1}   # `snippet` only in legacy surveys and old commits
 
 
 # --- parsing --------------------------------------------------------------------------------------
@@ -346,11 +346,11 @@ def r_written(c):
 
 
 def r_cluster_lines(c):
-    if (m := need_lines(c, "Clustering", "Temporal stability", "Clustering rationale", "Clusters")):
+    if (m := need_lines(c, "Clustering", "Clustering rationale", "Clusters")):
         return m
-    ids = sorted(set(COMPUTED_ID.findall(c.line("Clustering") + " " + c.line("Temporal stability"))))
+    ids = sorted(set(COMPUTED_ID.findall(c.line("Clustering"))))
     if ids:
-        return f"`Clustering` or `Temporal stability` still uses computed ids {ids}: use the Clusters table's ids"
+        return f"`Clustering` still uses computed ids {ids}: use the Clusters table's ids"
     return None
 
 
@@ -541,11 +541,12 @@ def letters(text):
 
 
 def r_evidence(c):
-    """Every row verified against body text keeps the quotes it rests on (docs/verification.md): at least `method
-    summary`, `result`, and each declared dimension not `n/a`. A full-text quote must be in the fetched full text."""
+    """Every row verified against the full text keeps the quotes it rests on (docs/verification.md): at least `method
+    summary`, `result`, and each declared dimension not `n/a`. A full-text quote must be in the fetched full text, and
+    no quote may come from a snippet, which nothing can check afterwards."""
     header, rows = coreset_cells(c)
     dims = [k for k in header if k in c.dims]
-    missing, malformed, unfound, unchecked = [], [], [], []
+    missing, malformed, unfound, unchecked, snippets = [], [], [], [], []
     for r in rows:
         if r.get("source") in (None, "abstract"):
             continue
@@ -556,6 +557,8 @@ def r_evidence(c):
         entries = evidence_entries(path.read_text())
         if any(e[0] is None for e in entries):
             malformed.append(r["_id"])
+        if any(e[1] == "snippet" for e in entries):
+            snippets.append(r["_id"])
         covered = {cell for cells, *_ in entries if cells for cell in cells}
         need = ["method summary", "result"] + [d for d in dims if r.get(d) not in ("n/a", "")]
         if [n for n in need if n not in covered]:
@@ -575,6 +578,9 @@ def r_evidence(c):
         problems.append(f"verified rows without evidence for every claim (method summary, result, dimensions): {missing[:8]}")
     if malformed:
         problems.append(f"evidence lines not in the form ``- `cell` — source[, where] — \"quote\"``: {malformed[:8]}")
+    if snippets:
+        problems.append(f"evidence quoted from snippets, which nothing can check afterwards: quote the fetched full text "
+                        f"instead (docs/verification.md): {snippets[:8]}")
     if unfound:
         problems.append(f"full-text quotes not found in the fetched full text, so not verbatim: {unfound[:8]}")
     if unchecked:
@@ -759,7 +765,7 @@ def inferred(c):
     L, g = c.L, -1
     if c.cur:
         g = 0
-    if any(k in L for k in ("Clustering", "Temporal stability", "Clustering rationale", "Clusters")) or \
+    if any(k in L for k in ("Clustering", "Clustering rationale", "Clusters")) or \
             (c.first_pass and c.cluster_rows):
         g = max(g, 1)
     if any(k in L for k in ("Dissent searches", "Demotions")) or (c.first_pass and c.rows):

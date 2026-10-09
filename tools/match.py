@@ -24,12 +24,12 @@ most of its old papers. Then:
 Clusters smaller than 3 papers on either side are fragments: they are counted, not matched, and their papers are left
 out of the shares.
 
-`simulate` treats the pool as it stood --months ago as an earlier pass: the full method of tools/cluster.py (measure
-choice, then the finest level reaching tau) on the papers dated before each cutoff. It matches each to today's
-clustering from graphs/<topic>/clusters.json, and separates the two causes of change by also clustering the old papers
-with today's settings (today's measure and number of clusters):
+`simulate` treats the pool as it stood --months ago as an earlier pass: the method of tools/cluster.py (the `combined`
+measure, the finest level reaching tau) on the papers dated before each cutoff. It matches each to today's clustering
+from graphs/<topic>/clusters.json, and separates the two causes of change by also clustering the old papers with
+today's settings (today's number of clusters):
 
-  old pass vs old papers, today's settings      the change due to settings: a different measure or level;
+  old pass vs old papers, today's settings      the change due to settings: a different level;
   old papers, today's settings vs today          the change due to the new papers.
 
 `history` asks, per cluster, since when today's clusters exist. It divides the pool by publication date into
@@ -42,9 +42,9 @@ its papers were grouped differently. Snapshots are cumulative and drawn from tod
 still relevant today, so the history is optimistic: a real earlier pass would have looked messier.
 
 Writes graphs/<topic>/match-simulation.json (simulate) or graphs/<topic>/history.json (history). These two commands are
-not part of a pass, but `match` and `cluster_history` are: tools/cluster.py calls them after every clustering, to match
-the new clustering to the previous one (for tools/assign.py remap) and to report since when each cluster exists.
-Deterministic: every random choice is seeded.
+experiments, not part of a pass; `history` is deferred from the pass, and nothing in a pass reads history.json. The
+`match` function is part of a pass: tools/cluster.py calls it after a reclustering, to match the new clustering to the
+named one (for tools/assign.py remap). Deterministic: every random choice is seeded.
 """
 
 import json
@@ -59,9 +59,8 @@ from sklearn.metrics import adjusted_rand_score as ari
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
-from cluster import (HOLDOUT_MONTHS, LEVELS, MEASURES, MIN_CLUSTER, MIN_HOLDOUT_SHARE, SMALL, TAU,  # noqa: E402
-                     choose_level,
-                     choose_measure, combined_sim, knn_graph, leiden, level_stats, month_back, opt, refs_sim, text_sim,
+from cluster import (HOLDOUT_MONTHS, LEVELS, MEASURE, MIN_CLUSTER, MIN_HOLDOUT_SHARE, SMALL, TAU,  # noqa: E402
+                     choose_level, combined_sim, knn_graph, leiden, level_stats, month_back, opt, refs_sim, text_sim,
                      tune)
 from graph import parse, topic_dir  # noqa: E402
 
@@ -151,7 +150,7 @@ def cutoffs_for(dates):
 
 
 def curve(job):
-    """The stability curve of one measure on the papers idx, as tools/cluster.py computes it."""
+    """The stability curve on the papers idx, as tools/cluster.py computes it."""
     idx, measure, k, c, reps = job
     S, d = sim(idx, measure, c), DATES[idx]
     rng = np.random.default_rng(0)
@@ -181,13 +180,13 @@ def simulate(argv):
     cites = {a: r["citations"] or 0 for a, r in zip(ids, recs)}
     latest = date.fromisoformat(max(dates))
     passes = [(m, np.flatnonzero(dates < month_back(latest, m))) for m in months]
-    print(f"{topic}: {len(ids)} papers today; measure {rep['measure']}, level {rep['level']}; "
+    print(f"{topic}: {len(ids)} papers today; level {rep['level']}; "
           f"earlier passes {', '.join(f'{m} months ago ({len(i)} papers)' for m, i in passes)}")
 
     t0 = time.time()
     with ProcessPoolExecutor(workers, initializer=setup, initargs=(recs, dates)) as ex:
-        curves = list(ex.map(curve, [(idx, m, k, c, reps) for _, idx in passes for m in MEASURES]))
-        settled = list(ex.map(today_settings, [(idx, rep["measure"], k, c, rep["level"]) for _, idx in passes]))
+        curves = list(ex.map(curve, [(idx, MEASURE, k, c, reps) for _, idx in passes]))
+        settled = list(ex.map(today_settings, [(idx, MEASURE, k, c, rep["level"]) for _, idx in passes]))
     print(f"done in {time.time() - t0:.0f}s")
 
     def label(members):
@@ -196,10 +195,9 @@ def simulate(argv):
 
     report = []
     for pi, (m, idx) in enumerate(passes):
-        cv = {meas: curves[pi * len(MEASURES) + j] for j, meas in enumerate(MEASURES)}
-        measure, _, why = choose_measure(cv)
-        li, level_why = choose_level(cv[measure], tau)
-        lab = np.array(cv[measure][li]["labels"])
+        cv = curves[pi]
+        li, level_why = choose_level(cv, tau)
+        lab = np.array(cv[li]["labels"])
         old = {ids[i]: f"o{int(x) + 1}" for i, x in zip(idx, lab)}
         old_ids = [ids[i] for i in idx]
         now_old = [today[a] for a in old_ids]
@@ -210,8 +208,7 @@ def simulate(argv):
         counts = {f"fragments in the old pass": frags["old"]} if frags["old"] else {}
         for r in list(mo.values()) + [v for v in mn.values() if v["case"] in ("new", "reshuffled")]:
             counts[r["case"]] = counts.get(r["case"], 0) + 1
-        print(f"\n{m} months ago: {len(idx)} papers; measure {measure} ({why}); level {cv[measure][li]['clusters']} "
-              f"({level_why})")
+        print(f"\n{m} months ago: {len(idx)} papers; level {cv[li]['clusters']} ({level_why})")
         print("  ARI " + "; ".join(f"{a}: {b:.2f}" for a, b in aris.items()))
         print("  " + ", ".join(f"{n} {case}" for case, n in sorted(counts.items(), key=lambda kv: -kv[1])))
         members_old = {a: [p for p in old if old[p] == a] for a in mo}  # fragments are not in mo
@@ -222,12 +219,12 @@ def simulate(argv):
             if r["case"] in ("new", "reshuffled"):
                 members = [p for p in today if today[p] == b]
                 print(f"    {b:>4} {label(members)}  <- {r['case']} ({r['fresh']:.0%} papers new)")
-        report.append({"months_ago": m, "papers": len(idx), "measure": measure, "measure_reason": why,
-                       "level": cv[measure][li]["clusters"], "level_reason": level_why, "ari": aris,
+        report.append({"months_ago": m, "papers": len(idx), "measure": MEASURE,
+                       "level": cv[li]["clusters"], "level_reason": level_why, "ari": aris,
                        "counts": counts, "fragments": frags, "old": mo, "new": mn, "assignment": old})
     out = topic_dir(topic) / "match-simulation.json"
     out.write_text(json.dumps({"generated": time.strftime("%Y-%m-%d"), "today_level": rep["level"],
-                               "today_measure": rep["measure"], "passes": report}, indent=1))
+                               "today_measure": MEASURE, "passes": report}, indent=1))
     print(f"\nwrote {out.relative_to(ROOT)}")
 
 

@@ -81,10 +81,10 @@ relative to the pool. This is why retrieval deliberately mixes tools and routes 
 Covering requires a notion of distance and a map of the space. The spec builds both from the pool, then fills the map in
 roles.
 
-`Clusters are the map.` They are computed from the pool by a similarity measure and a level of detail that are both
-chosen by measured stability (`docs/process.md`, "Clustering method"). Stability here means that two analyses six months
-apart should find recognisably the same clusters. Clusters that shift with every rerun would make the coreset's coverage
-an artefact of the run.
+`Clusters are the map.` They are computed from the pool by a similarity measure, from text and shared references, at a
+level of detail chosen by measured stability (`docs/process.md`, "Clustering method"). Stability here means that two
+analyses six months apart should find recognisably the same clusters. Clusters that shift with every rerun would make
+the coreset's coverage an artefact of the run.
 
 `Roles fill the map.` Ranking alone would select consensus, so each coreset paper plays a role in its cluster:
 

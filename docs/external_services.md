@@ -5,9 +5,9 @@ what, by whom, how to call it, and how to check before a pass that each one work
 strategy, which is in `docs/process.md` ("Overview", and each step); it says how to carry that strategy out.
 
 The reason this matters: when a service is missing or failing, the work does not stop by itself. An agent without
-specialized MCPs still has WebSearch, and it will quietly produce a pool top-heavy with preprints. An agent without
-snippet search still has abstracts, and it will produce rows that look verified. The preflight check at the end of this
-file, and the rule that a persistent error halts the pass, exist to turn those silent failures into a halt.
+specialized MCPs still has WebSearch, and it will quietly produce a pool top-heavy with preprints. An agent without full
+text still has abstracts, and it will produce rows that look verified. The preflight check at the end of this file, and
+the rule that a persistent error halts the pass, exist to turn those silent failures into a halt.
 
 ## The services
 
@@ -54,7 +54,7 @@ without a key Asta answers at lower anonymous rate limits, which has not been te
 | `get_paper` | one paper's metadata; backward traversal via `references` |  |
 | `get_paper_batch` | metadata for many known papers in one call | prefer it to repeated `get_paper` |
 | `get_citations` | forward traversal: follow-ups and dissent among a paper's citers | default 100 results |
-| `snippet_search` | characterisation and verification; probes | about 500-word passages from the body text |
+| `snippet_search` | finding the passage a claim rests on, before quoting it from the full text; characterisation; probes | about 500-word passages from the body text; a pointer, never the quoted source |
 | `search_authors_by_name`, `get_author_papers` | a named group's work, such as a lab the input names |  |
 
 Rules for calling them:
@@ -133,8 +133,7 @@ papers' body text. Two scripts go to arXiv directly, for what Asta lacks:
 - `tools/bib.py` fetches bibliography metadata from the API, `https://export.arxiv.org/api/query`. The API returns
   metadata only: title, authors, abstract, dates.
 - `tools/fulltext.py` fetches a paper's full text from its HTML rendering, `https://arxiv.org/html/<id>`, falling back
-  to the PDF. It is for verification, when snippet search has no body text for a paper or a claim rests on a table or
-  caption. See `docs/verification.md`.
+  to the PDF. It is the source every verified row quotes. See `docs/verification.md`.
 
 Both space their requests three seconds apart, following arXiv's etiquette, and retry transient failures: a 429, a 500,
 502, 503 or 504, a dropped connection or a timeout (and for the API, a 406).
@@ -195,15 +194,17 @@ second half of the log's `Preflight` line. The agent makes the five tool calls.
 
 Why every failure halts:
 
-- `Snippet search` — without it no row can be verified to this repo's standard. Do not proceed and silently fall back to
-  abstracts. A survey that looks finished but rests on abstracts is worse than none, because nothing downstream reveals
-  the weakness.
+- `arXiv` — without its HTML and PDF pages, no row can be verified to this repo's standard, since every verified row
+  quotes the full text. Do not proceed and silently fall back to abstracts. A survey that looks finished but rests on
+  abstracts is worse than none, because nothing downstream reveals the weakness.
+- `Snippet search` — without it, verification loses its fastest way to find a claim in a long paper, and probes lose
+  their search over body text.
 - `Asta search and traversal` — without them expansion falls back to WebSearch alone. That produces a pool top-heavy
   with preprints and missing the methods they all cite, and it has happened in this repo.
 - `WebSearch` — without it orientation cannot see the current frontier.
-- `The rest` — the Graph API, arXiv and `uv` are needed later in the pass, and a missing key changes Asta's limits. No
-  failure may lead to a silent fallback that compromises the quality or repeatability of a pass, and halting here is
-  cheaper than discovering the failure at step 5.
+- `The rest` — the Graph API and `uv` are needed later in the pass, and a missing key changes Asta's limits. No failure
+  may lead to a silent fallback that compromises the quality or repeatability of a pass, and halting here is cheaper
+  than discovering the failure at step 5.
 
 The user decides whether to proceed. If they do, the log's `Halts` line records it, and the output's legend says what
 was missing.

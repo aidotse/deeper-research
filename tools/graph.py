@@ -25,8 +25,9 @@ the survey's hand-drawn clusters can be compared against the structure the
 citations themselves suggest.
 
 If tools/cluster.py has written graphs/<topic>/clusters.json, the page
-also shows how the clusters were computed: the measure and level chosen, the
-parameters, the stability curves, and each computed cluster and sub-cluster.
+also shows how the clusters were computed: the level chosen, the parameters,
+the stability curve against the null draw's, the diagnostics and notes, and
+each computed cluster and sub-cluster.
 
 Vendored libraries, in tools/vendor/, all MIT-licensed: cytoscape 3.30.2,
 layout-base 2.0.1, cose-base 2.2.0, cytoscape-fcose 2.2.0.
@@ -322,18 +323,23 @@ def load_clustering(topic, nodes):
         n["sub"] = sub_of.get(n["id"])
         if n["id"] in pos and "slider" in r:
             n["levels"] = [lv["labels"][pos[n["id"]]] for lv in r["slider"]]
-    keep = ["generated", "measure", "measure_reason", "grid_mean", "level", "level_reason", "tau_sensitivity", "params",
-            "cohesion", "ami_vs_survey_clusters", "rule", "level_tau", "level_tau_reason", "level_null",
-            "level_null_reason", "knn", "diagnostics", "health"]
+    keep = ["generated", "measure", "level", "level_reason", "tau_sensitivity", "params", "cohesion",
+            "ami_vs_survey_clusters", "knn", "health"]
     out = {k: r.get(k) for k in keep}
     out["rationale"] = clustering_rationale(topic)
-    out["history"] = r.get("history")
-    out["null_curves"] = {m: [{"clusters": l["clusters"], "stability": l["stability"]} for l in ls]
-                          for m, ls in r.get("null_curves", {}).items()}
+    # `unstable cluster` and `broad scope` are notes, not diagnostics; a clusters.json written before that change still
+    # lists them as diagnostics, so they are moved here. Its `history`, the measure comparison and the null-model rule,
+    # if present, are not shown.
+    notes = {"unstable cluster", "broad scope"}
+    out["diagnostics"] = [d for d in r.get("diagnostics", []) if d.get("case") not in notes]
+    out["notes"] = [x["text"] for x in r.get("notes", [])] + [
+        f"{d['case'][0].upper()}{d['case'][1:]}: {d['detail']}." for d in r.get("diagnostics", []) if d.get("case") in notes]
+    m = r["measure"]
+    out["null_curve"] = [{"clusters": l["clusters"], "stability": l["stability"]} for l in r.get("null_curves", {}).get(m, [])]
     out["slider"] = [{"clusters": lv["clusters"], "stability": lv["stability"], "null_stability": lv["null_stability"]}
                      for lv in r.get("slider", [])]
-    out["curves"] = {m: [{k: l[k] for k in ("clusters", "stability", "stability_se", "holdout_ari", "resample_ari",
-                                            "median_clusterwise")} for l in ls] for m, ls in r["curves"].items()}
+    out["curve"] = [{k: l.get(k) for k in ("clusters", "stability", "stability_se", "holdout_ari", "resample_ari",
+                                           "median_clusterwise")} for l in r["curves"][m]]
     out["clusters"] = [{
         "id": c["id"], "size": c["size"], "stability": c["stability"], "divided": c["divided"],
         "subclusters": [{"id": f"{c['id']}.{i + 1}", "size": s["size"], "stability": s["stability"]}

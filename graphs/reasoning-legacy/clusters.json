@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-08",
+ "generated": "2026-10-09",
  "pool_fetched": [
   "2026-09-29"
  ],
@@ -7,7 +7,7 @@
   "k": 10,
   "c": 10.0,
   "reps": 20,
-  "nulls": 2,
+  "nulls": 1,
   "levels": [
    3,
    4,
@@ -29,21 +29,7 @@
   "subcluster_score": 0.6
  },
  "measure": "combined",
- "measure_reason": "combined highest",
- "grid_mean": {
-  "text": {
-   "mean": 0.6462660661465844,
-   "se": 0.005708166365828882
-  },
-  "refs": {
-   "mean": 0.6706530256270153,
-   "se": 0.005148031471639162
-  },
-  "combined": {
-   "mean": 0.721874958524005,
-   "se": 0.004047060181628152
-  }
- },
+ "stability_from": "holdout and resampling",
  "rule": "tau",
  "level": 6,
  "level_reason": "finest level with stability >= 0.75: 0.79; next level 8 clusters at 0.67",
@@ -52,165 +38,57 @@
   "0.75": 6,
   "0.80": 5
  },
- "level_tau": 6,
- "level_tau_reason": "finest level with stability >= 0.75: 0.79; next level 8 clusters at 0.67",
- "level_null": 3,
- "level_null_reason": "largest excess over the null model: 0.64 (stability 0.94, null 0.29)",
  "null_curves": {
-  "text": [
-   {
-    "clusters": 3.0,
-    "stability": 0.5606448850589081,
-    "stability_se": 0.017087209637796807
-   },
-   {
-    "clusters": 4.0,
-    "stability": 0.5127568445217535,
-    "stability_se": 0.01776946773654027
-   },
-   {
-    "clusters": 5.0,
-    "stability": 0.4636030783655538,
-    "stability_se": 0.015344812372028768
-   },
-   {
-    "clusters": 6.0,
-    "stability": 0.47192218527962093,
-    "stability_se": 0.011739672073262085
-   },
-   {
-    "clusters": 8.0,
-    "stability": 0.44585464111910816,
-    "stability_se": 0.01373542796406106
-   },
-   {
-    "clusters": 10.0,
-    "stability": 0.4629993229612238,
-    "stability_se": 0.013708557027357966
-   },
-   {
-    "clusters": 12.0,
-    "stability": 0.4252531669415211,
-    "stability_se": 0.013869509304361913
-   },
-   {
-    "clusters": 15.5,
-    "stability": 0.4031684751936398,
-    "stability_se": 0.015582253399260847
-   },
-   {
-    "clusters": 18.0,
-    "stability": 0.45614850232576865,
-    "stability_se": 0.0142055715211545
-   },
-   {
-    "clusters": 22.0,
-    "stability": 0.4002862447899317,
-    "stability_se": 0.012850318857690609
-   }
-  ],
-  "refs": [
-   {
-    "clusters": 3.0,
-    "stability": 0.19304275173955965,
-    "stability_se": 0.00806573963422687
-   },
-   {
-    "clusters": 4.0,
-    "stability": 0.21157023588622198,
-    "stability_se": 0.009497153707689198
-   },
-   {
-    "clusters": 5.0,
-    "stability": 0.21936836276213226,
-    "stability_se": 0.011223509850761367
-   },
-   {
-    "clusters": 6.0,
-    "stability": 0.21266209702981892,
-    "stability_se": 0.009307209158398534
-   },
-   {
-    "clusters": 8.0,
-    "stability": 0.22992095295528786,
-    "stability_se": 0.011854836337205145
-   },
-   {
-    "clusters": 10.0,
-    "stability": 0.2170701961246363,
-    "stability_se": 0.007182607533709321
-   },
-   {
-    "clusters": 12.0,
-    "stability": 0.2216302117152683,
-    "stability_se": 0.00629395304443846
-   },
-   {
-    "clusters": 15.0,
-    "stability": 0.23938482716394033,
-    "stability_se": 0.00787676235717851
-   },
-   {
-    "clusters": 18.0,
-    "stability": 0.27530723034041416,
-    "stability_se": 0.007622287863487467
-   },
-   {
-    "clusters": 22.0,
-    "stability": 0.3008653547796274,
-    "stability_se": 0.006530981926132354
-   }
-  ],
   "combined": [
    {
     "clusters": 3.0,
-    "stability": 0.29497078776321,
-    "stability_se": 0.013684602220427187
+    "stability": 0.3276632113919342,
+    "stability_se": 0.020282308257025573
    },
    {
     "clusters": 4.0,
-    "stability": 0.2860596556058158,
-    "stability_se": 0.01063572551401721
+    "stability": 0.3053026409321677,
+    "stability_se": 0.014516671744050042
    },
    {
     "clusters": 5.0,
-    "stability": 0.26077067758852474,
-    "stability_se": 0.011130366895551903
+    "stability": 0.25093272841257985,
+    "stability_se": 0.012149778805434247
    },
    {
     "clusters": 6.0,
-    "stability": 0.24900889275420987,
-    "stability_se": 0.01027407698792842
+    "stability": 0.27709986703391043,
+    "stability_se": 0.015484101642693543
    },
    {
     "clusters": 8.0,
-    "stability": 0.24414602223932536,
-    "stability_se": 0.010218010128072894
+    "stability": 0.2421145298992135,
+    "stability_se": 0.013841264714108173
    },
    {
     "clusters": 10.0,
-    "stability": 0.25077316172576125,
-    "stability_se": 0.008350233005744587
+    "stability": 0.2629499360620526,
+    "stability_se": 0.013391993400065822
    },
    {
     "clusters": 12.0,
-    "stability": 0.23881079086927942,
-    "stability_se": 0.010321297545701423
+    "stability": 0.2448346309811764,
+    "stability_se": 0.014961424201318447
    },
    {
     "clusters": 15.0,
-    "stability": 0.23509447607886058,
-    "stability_se": 0.010921994556808472
+    "stability": 0.2404649398366119,
+    "stability_se": 0.0169832679806194
    },
    {
     "clusters": 18.0,
-    "stability": 0.2466306516668961,
-    "stability_se": 0.005975250303997039
+    "stability": 0.26988762669460004,
+    "stability_se": 0.008781988827237457
    },
    {
-    "clusters": 22.5,
-    "stability": 0.23887597778306296,
-    "stability_se": 0.008213904344336075
+    "clusters": 22.0,
+    "stability": 0.24296769049110142,
+    "stability_se": 0.010576553826399953
    }
   ]
  },
@@ -218,7 +96,7 @@
   {
    "clusters": 3,
    "stability": 0.9392607028530435,
-   "null_stability": 0.29497078776321,
+   "null_stability": 0.3276632113919342,
    "labels": [
     "c2",
     "c3",
@@ -420,7 +298,7 @@
   {
    "clusters": 4,
    "stability": 0.8007974723812994,
-   "null_stability": 0.2860596556058158,
+   "null_stability": 0.3053026409321677,
    "labels": [
     "c1",
     "c3",
@@ -622,7 +500,7 @@
   {
    "clusters": 5,
    "stability": 0.8110654883970982,
-   "null_stability": 0.26077067758852474,
+   "null_stability": 0.25093272841257985,
    "labels": [
     "c1",
     "c3",
@@ -824,7 +702,7 @@
   {
    "clusters": 6,
    "stability": 0.7887951334149957,
-   "null_stability": 0.24900889275420987,
+   "null_stability": 0.27709986703391043,
    "labels": [
     "c1",
     "c4",
@@ -1026,7 +904,7 @@
   {
    "clusters": 8,
    "stability": 0.6700852859753772,
-   "null_stability": 0.24414602223932536,
+   "null_stability": 0.2421145298992135,
    "labels": [
     "c5",
     "c4",
@@ -1228,7 +1106,7 @@
   {
    "clusters": 10,
    "stability": 0.6984142647740141,
-   "null_stability": 0.25077316172576125,
+   "null_stability": 0.2629499360620526,
    "labels": [
     "c10",
     "c3",
@@ -1430,7 +1308,7 @@
   {
    "clusters": 12,
    "stability": 0.7006134090607129,
-   "null_stability": 0.23881079086927942,
+   "null_stability": 0.2448346309811764,
    "labels": [
     "c8",
     "c4",
@@ -1632,7 +1510,7 @@
   {
    "clusters": 15,
    "stability": 0.6339568417518116,
-   "null_stability": 0.23509447607886058,
+   "null_stability": 0.2404649398366119,
    "labels": [
     "c15",
     "c2",
@@ -1834,7 +1712,7 @@
   {
    "clusters": 18,
    "stability": 0.5989204025117828,
-   "null_stability": 0.2466306516668961,
+   "null_stability": 0.26988762669460004,
    "labels": [
     "c16",
     "c6",
@@ -2036,7 +1914,7 @@
   {
    "clusters": 22,
    "stability": 0.5768405841199136,
-   "null_stability": 0.23887597778306296,
+   "null_stability": 0.24296769049110142,
    "labels": [
     "c18",
     "c3",
@@ -10334,9 +10212,10 @@
    "action": "keep both; treat the boundary as open, require a bridge paper between them, and note the tension for the Landscape"
   }
  ],
+ "notes": [],
  "health": {
-  "max_null_excess": 0.6442899150898336,
-  "chosen_null_excess": 0.5397862406607858,
+  "max_null_excess": 0.6115974914611093,
+  "chosen_null_excess": 0.5116952663810853,
   "thin_reference_share": 0.08205128205128205
  },
  "cohesion": {
@@ -10346,270 +10225,6 @@
  },
  "ami_vs_survey_clusters": 0.5432404729532947,
  "curves": {
-  "text": [
-   {
-    "target": 3,
-    "clusters": 3,
-    "gamma": 0.48022318542110576,
-    "holdout_ari": 0.5922489932700585,
-    "holdout_se": 0.043581101316825244,
-    "resample_ari": 0.5911124576290613,
-    "resample_se": 0.04108093830969819,
-    "stability": 0.59168072544956,
-    "stability_se": 0.029945600195991292,
-    "seed_ari": 0.7997795352727346,
-    "median_clusterwise": 0.7305983768741106
-   },
-   {
-    "target": 4,
-    "clusters": 4,
-    "gamma": 0.613237563517304,
-    "holdout_ari": 0.7623521775785319,
-    "holdout_se": 0.028389367115974687,
-    "resample_ari": 0.694557787369616,
-    "resample_se": 0.027700478817360128,
-    "stability": 0.728454982474074,
-    "stability_se": 0.01983225083012895,
-    "seed_ari": 0.9547115895029048,
-    "median_clusterwise": 0.7514799675313899
-   },
-   {
-    "target": 5,
-    "clusters": 5,
-    "gamma": 0.8849264728778423,
-    "holdout_ari": 0.7457894616237416,
-    "holdout_se": 0.01388668230282819,
-    "resample_ari": 0.6812923090143332,
-    "resample_se": 0.02545026464961606,
-    "stability": 0.7135408853190375,
-    "stability_se": 0.014496171185136944,
-    "seed_ari": 0.7522282069876467,
-    "median_clusterwise": 0.7071051832467927
-   },
-   {
-    "target": 6,
-    "clusters": 6,
-    "gamma": 1.0,
-    "holdout_ari": 0.6717039326442694,
-    "holdout_se": 0.025040314493487887,
-    "resample_ari": 0.6762874704686562,
-    "resample_se": 0.01638230245959321,
-    "stability": 0.6739957015564628,
-    "stability_se": 0.014961594031138304,
-    "seed_ari": 0.7816913015907254,
-    "median_clusterwise": 0.6690058148933558
-   },
-   {
-    "target": 8,
-    "clusters": 8,
-    "gamma": 1.6306894089533097,
-    "holdout_ari": 0.6841042023083377,
-    "holdout_se": 0.024204527470628966,
-    "resample_ari": 0.6563308066431035,
-    "resample_se": 0.011138775939427583,
-    "stability": 0.6702175044757206,
-    "stability_se": 0.013322269696876008,
-    "seed_ari": 0.843833615827255,
-    "median_clusterwise": 0.7310013419710216
-   },
-   {
-    "target": 10,
-    "clusters": 10,
-    "gamma": 2.0823650968103595,
-    "holdout_ari": 0.6837508547163428,
-    "holdout_se": 0.033394214847586964,
-    "resample_ari": 0.7115945270426463,
-    "resample_se": 0.015585281184268194,
-    "stability": 0.6976726908794946,
-    "stability_se": 0.018426031686716363,
-    "seed_ari": 0.8472357132083044,
-    "median_clusterwise": 0.701650769172012
-   },
-   {
-    "target": 12,
-    "clusters": 12,
-    "gamma": 2.6591479484724942,
-    "holdout_ari": 0.6150579913040557,
-    "holdout_se": 0.017477627094243938,
-    "resample_ari": 0.6288702059408642,
-    "resample_se": 0.01794045725618064,
-    "stability": 0.6219640986224599,
-    "stability_se": 0.012523252926120018,
-    "seed_ari": 0.7790053249984272,
-    "median_clusterwise": 0.5700913498854758
-   },
-   {
-    "target": 15,
-    "clusters": 14,
-    "gamma": 2.8267598059664953,
-    "holdout_ari": 0.6236298708773045,
-    "holdout_se": 0.034226173072397836,
-    "resample_ari": 0.6591860469422564,
-    "resample_se": 0.011771919397540772,
-    "stability": 0.6414079589097804,
-    "stability_se": 0.018097023301388047,
-    "seed_ari": 0.7848486811036861,
-    "median_clusterwise": 0.5219983603876119
-   },
-   {
-    "target": 18,
-    "clusters": 18,
-    "gamma": 3.268410690971849,
-    "holdout_ari": 0.5553894698390394,
-    "holdout_se": 0.03181846159749007,
-    "resample_ari": 0.5955103808742204,
-    "resample_se": 0.017962483432791918,
-    "stability": 0.5754499253566299,
-    "stability_se": 0.018269272765385834,
-    "seed_ari": 0.8114174063618087,
-    "median_clusterwise": 0.5050837520322815
-   },
-   {
-    "target": 22,
-    "clusters": 23,
-    "gamma": 3.837257459254965,
-    "holdout_ari": 0.5337173741533401,
-    "holdout_se": 0.023854013274356906,
-    "resample_ari": 0.5628350026919107,
-    "resample_se": 0.015088467438572973,
-    "stability": 0.5482761884226254,
-    "stability_se": 0.01411272297377505,
-    "seed_ari": 0.6871475701448772,
-    "median_clusterwise": 0.4696371806298276
-   }
-  ],
-  "refs": [
-   {
-    "target": 3,
-    "clusters": 3,
-    "gamma": 0.3760603093086394,
-    "holdout_ari": 0.7886686318353584,
-    "holdout_se": 0.035776587752171726,
-    "resample_ari": 0.6985798416696503,
-    "resample_se": 0.04524649786425669,
-    "stability": 0.7436242367525043,
-    "stability_se": 0.02884098559415502,
-    "seed_ari": 0.962140621862822,
-    "median_clusterwise": 0.7708798208223924
-   },
-   {
-    "target": 4,
-    "clusters": 4,
-    "gamma": 1.0,
-    "holdout_ari": 0.7216050874416304,
-    "holdout_se": 0.03456251285654714,
-    "resample_ari": 0.8371215593595283,
-    "resample_se": 0.0134382559509665,
-    "stability": 0.7793633234005793,
-    "stability_se": 0.018541534577555016,
-    "seed_ari": 0.9627746682780864,
-    "median_clusterwise": 0.8582432660746997
-   },
-   {
-    "target": 5,
-    "clusters": 5,
-    "gamma": 1.201266093346643,
-    "holdout_ari": 0.7042143079186146,
-    "holdout_se": 0.022972079364949587,
-    "resample_ari": 0.8092164451534231,
-    "resample_se": 0.012361926567999315,
-    "stability": 0.7567153765360188,
-    "stability_se": 0.013043520027413515,
-    "seed_ari": 0.9072734087421818,
-    "median_clusterwise": 0.6685164586770624
-   },
-   {
-    "target": 6,
-    "clusters": 6,
-    "gamma": 1.2385468015229955,
-    "holdout_ari": 0.667566167025734,
-    "holdout_se": 0.01589135517556982,
-    "resample_ari": 0.7675893046215387,
-    "resample_se": 0.015056119650884825,
-    "stability": 0.7175777358236364,
-    "stability_se": 0.010945568832384522,
-    "seed_ari": 0.8742724522859435,
-    "median_clusterwise": 0.5924030001740089
-   },
-   {
-    "target": 8,
-    "clusters": 8,
-    "gamma": 1.5339981795628426,
-    "holdout_ari": 0.7405025549078416,
-    "holdout_se": 0.01652384117176251,
-    "resample_ari": 0.6954868598839054,
-    "resample_se": 0.02187654848227782,
-    "stability": 0.7179947073958735,
-    "stability_se": 0.013707850857875988,
-    "seed_ari": 0.7461293705376751,
-    "median_clusterwise": 0.5725758706248864
-   },
-   {
-    "target": 10,
-    "clusters": 10,
-    "gamma": 1.7334752960595403,
-    "holdout_ari": 0.6826852744148353,
-    "holdout_se": 0.01820576393379837,
-    "resample_ari": 0.6098610231983029,
-    "resample_se": 0.01803288994189481,
-    "stability": 0.6462731488065692,
-    "stability_se": 0.012812444732267964,
-    "seed_ari": 0.8725543789617781,
-    "median_clusterwise": 0.5967510113499419
-   },
-   {
-    "target": 12,
-    "clusters": 12,
-    "gamma": 1.9588918957550885,
-    "holdout_ari": 0.5721210444305629,
-    "holdout_se": 0.024580206922585546,
-    "resample_ari": 0.6216880229525276,
-    "resample_se": 0.01449830288203419,
-    "stability": 0.5969045336915453,
-    "stability_se": 0.01426873644385097,
-    "seed_ari": 0.8192930132020718,
-    "median_clusterwise": 0.6123564693222453
-   },
-   {
-    "target": 15,
-    "clusters": 15,
-    "gamma": 2.3599024505301145,
-    "holdout_ari": 0.5362381481593207,
-    "holdout_se": 0.026025461521459615,
-    "resample_ari": 0.6056694406374026,
-    "resample_se": 0.019672895909675258,
-    "stability": 0.5709537943983616,
-    "stability_se": 0.01631216939035005,
-    "seed_ari": 0.7731538874593918,
-    "median_clusterwise": 0.6427495543672015
-   },
-   {
-    "target": 18,
-    "clusters": 18,
-    "gamma": 2.914486919879524,
-    "holdout_ari": 0.5365306406743504,
-    "holdout_se": 0.02147203700806584,
-    "resample_ari": 0.5665289485761993,
-    "resample_se": 0.013780291857480333,
-    "stability": 0.5515297946252748,
-    "stability_se": 0.012756810112182118,
-    "seed_ari": 0.7360900375519217,
-    "median_clusterwise": 0.6090256649805377
-   },
-   {
-    "target": 22,
-    "clusters": 21,
-    "gamma": 3.3956907089426864,
-    "holdout_ari": 0.6578165796161576,
-    "holdout_se": 0.02181847634147019,
-    "resample_ari": 0.5933706300634232,
-    "resample_se": 0.018021947753664665,
-    "stability": 0.6255936048397903,
-    "stability_se": 0.014149527471784289,
-    "seed_ari": 0.7461633354764617,
-    "median_clusterwise": 0.5819076986395098
-   }
-  ],
   "combined": [
    {
     "target": 3,
@@ -11136,217 +10751,6 @@
   "2609.15989": "c2",
   "2609.16660": "c5",
   "2609.19465": "c1"
- },
- "history": {
-  "segments": 4,
-  "seeds": 5,
-  "cutoffs": [
-   "2025-03-24",
-   "2025-10-09",
-   "2026-05-25"
-  ],
-  "snapshots": [
-   {
-    "cutoff": "2025-03-24",
-    "papers": 48,
-    "clusters": 4,
-    "stability": 0.3962976171899004
-   },
-   {
-    "cutoff": "2025-10-09",
-    "papers": 97,
-    "clusters": 6,
-    "stability": 0.7183452978045656
-   },
-   {
-    "cutoff": "2026-05-25",
-    "papers": 146,
-    "clusters": 6,
-    "stability": 0.8355295673508898
-   }
-  ],
-  "clusters": {
-   "c1": {
-    "first_seen": "2025-10-09",
-    "snapshots": [
-     {
-      "cutoff": "2025-03-24",
-      "present": 5,
-      "matched_seeds": 0,
-      "case": "new",
-      "why": "too few papers (5)",
-      "snapshot_stability": 0.3962976171899004
-     },
-     {
-      "cutoff": "2025-10-09",
-      "present": 29,
-      "matched_seeds": 5,
-      "case": "matched",
-      "why": "found",
-      "snapshot_stability": 0.7183452978045656
-     },
-     {
-      "cutoff": "2026-05-25",
-      "present": 44,
-      "matched_seeds": 5,
-      "case": "matched",
-      "why": "found",
-      "snapshot_stability": 0.8355295673508898
-     }
-    ],
-    "statement": "probably since 2025-10-09 (that snapshot's stability 0.72); before that, too few papers (5)"
-   },
-   "c2": {
-    "first_seen": "2026-05-25",
-    "snapshots": [
-     {
-      "cutoff": "2025-03-24",
-      "present": 2,
-      "matched_seeds": 0,
-      "case": "new",
-      "why": "too few papers (2)",
-      "snapshot_stability": 0.3962976171899004
-     },
-     {
-      "cutoff": "2025-10-09",
-      "present": 9,
-      "matched_seeds": 0,
-      "case": "new",
-      "why": "too few papers (9)",
-      "snapshot_stability": 0.7183452978045656
-     },
-     {
-      "cutoff": "2026-05-25",
-      "present": 29,
-      "matched_seeds": 5,
-      "case": "matched",
-      "why": "found",
-      "snapshot_stability": 0.8355295673508898
-     }
-    ],
-    "statement": "since 2026-05-25; before that, too few papers (9)"
-   },
-   "c3": {
-    "first_seen": "2025-03-24",
-    "snapshots": [
-     {
-      "cutoff": "2025-03-24",
-      "present": 9,
-      "matched_seeds": 5,
-      "case": "matched",
-      "why": "found",
-      "snapshot_stability": 0.3962976171899004
-     },
-     {
-      "cutoff": "2025-10-09",
-      "present": 15,
-      "matched_seeds": 5,
-      "case": "matched",
-      "why": "found",
-      "snapshot_stability": 0.7183452978045656
-     },
-     {
-      "cutoff": "2026-05-25",
-      "present": 23,
-      "matched_seeds": 5,
-      "case": "matched",
-      "why": "found",
-      "snapshot_stability": 0.8355295673508898
-     }
-    ],
-    "statement": "probably since 2025-03-24 or earlier (that snapshot's stability 0.40)"
-   },
-   "c4": {
-    "first_seen": "2025-03-24",
-    "snapshots": [
-     {
-      "cutoff": "2025-03-24",
-      "present": 20,
-      "matched_seeds": 5,
-      "case": "matched",
-      "why": "found",
-      "snapshot_stability": 0.3962976171899004
-     },
-     {
-      "cutoff": "2025-10-09",
-      "present": 23,
-      "matched_seeds": 5,
-      "case": "matched",
-      "why": "found",
-      "snapshot_stability": 0.7183452978045656
-     },
-     {
-      "cutoff": "2026-05-25",
-      "present": 25,
-      "matched_seeds": 5,
-      "case": "matched",
-      "why": "found",
-      "snapshot_stability": 0.8355295673508898
-     }
-    ],
-    "statement": "probably since 2025-03-24 or earlier (that snapshot's stability 0.40)"
-   },
-   "c5": {
-    "first_seen": "2025-03-24",
-    "snapshots": [
-     {
-      "cutoff": "2025-03-24",
-      "present": 12,
-      "matched_seeds": 5,
-      "case": "matched",
-      "why": "found",
-      "snapshot_stability": 0.3962976171899004
-     },
-     {
-      "cutoff": "2025-10-09",
-      "present": 21,
-      "matched_seeds": 5,
-      "case": "matched",
-      "why": "found",
-      "snapshot_stability": 0.7183452978045656
-     },
-     {
-      "cutoff": "2026-05-25",
-      "present": 24,
-      "matched_seeds": 5,
-      "case": "matched",
-      "why": "found",
-      "snapshot_stability": 0.8355295673508898
-     }
-    ],
-    "statement": "probably since 2025-03-24 or earlier (that snapshot's stability 0.40)"
-   },
-   "c6": {
-    "first_seen": null,
-    "snapshots": [
-     {
-      "cutoff": "2025-03-24",
-      "present": 0,
-      "matched_seeds": 0,
-      "case": "new",
-      "why": "too few papers (0)",
-      "snapshot_stability": 0.3962976171899004
-     },
-     {
-      "cutoff": "2025-10-09",
-      "present": 0,
-      "matched_seeds": 0,
-      "case": "new",
-      "why": "too few papers (0)",
-      "snapshot_stability": 0.7183452978045656
-     },
-     {
-      "cutoff": "2026-05-25",
-      "present": 1,
-      "matched_seeds": 0,
-      "case": "new",
-      "why": "too few papers (1)",
-      "snapshot_stability": 0.8355295673508898
-     }
-    ],
-    "statement": "new since 2026-05-25; before that, too few papers (1)"
-   }
-  }
  },
  "clusters": [
   {
