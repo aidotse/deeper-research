@@ -6,22 +6,31 @@ import re, subprocess, sys, json
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
-from build import build, clean, ROOT, T
+from build import build, clean, autoclean, ROOT, T
 from faults import sub, resub, S, G, O, I, first_row, run
 
 def fails(out): return sorted(set(re.findall(r"FAIL  G\d (g\d\.[a-z0-9-]+)", out)))
 def head(out): return next(l for l in out.splitlines() if l.startswith("gates:"))
 res = []
+autoclean()
 def check(name, cond, out=""):
     res.append(cond); print(f"{'ok ' if cond else 'BAD'} {name}" + ("" if cond else "\n" + out[-800:]))
 
-# 1 waiver
-f = build(); S.write_text(S.read_text().replace(first_row("fringe") + "\n", "", 1))
+# 1 waiver: drop a fringe row (and its bib entry, for parity), then waive the quota
+import check as chk
+f = build()
+gone = next(l for l in S.read_text().splitlines()
+            if l.startswith("| [") and "| fringe |" in l and chk.row_id(l) != f["changed"])
+S.write_text(S.read_text().replace(gone + "\n", "", 1))
+gone_id = chk.row_id(gone)
+O.write_text(O.read_text().replace(gone_id, chk.row_id(first_row("anchor"))))   # the output cites the dropped row
+bib = ROOT / f"bib/{T}.bib"
+bib.write_text("".join(e for e in re.split(r"(?=@misc\{)", bib.read_text()) if f"{{{gone_id.split(':')[-1]}}}" not in e))
 sub(S, "- **Halts:** none", "- **Waivers:** g3.fringe-quota — only four distinct ideas — user agreed, 2026-10-09\n- **Halts:** none")
 sub(S, "Coreset:** 19 rows", "Coreset:** 18 rows")
-sub(ROOT / f"bib/{T}.bib", "", "")  # bib parity handled below
 code, out = run("--gate", "G5")
-check("waived requirement does not fail, and is reported", "g3.fringe-quota" not in fails(out) and "waived" in out, out)
+check("waived requirement does not fail, is reported, and the gate passes",
+      code == 0 and "g3.fringe-quota" not in fails(out) and "waived" in out, out)
 
 # 2 pending halt holds later gates and fails --gate
 f = build(); sub(S, "- **Halts:** none", "- **Halts:** H5 — no stable level after expansion — pending")
@@ -64,7 +73,6 @@ old = S.read_text()
 old = old.replace("### Pass 2026-10-09", "### Pass 2026-09-01\n\n- **Pool:** 10 papers in scope\n\n### Pass 2026-10-09", 1)
 S.write_text(old)
 committed_text = old
-import check as chk
 def fake(path):
     return committed_text if path.name == f"{T}.md" and "surveys" in str(path) else None
 gates.committed = fake
@@ -118,13 +126,12 @@ check("reject refuses a pool paper", r.returncode != 0 and "H12" in r.stderr, r.
 r = subprocess.run(["python3", "tools/assign.py", "reject", T, "math.GT/0309136", "x"], cwd=ROOT, capture_output=True, text=True)
 check("reject refuses a non-canonical ID", r.returncode != 0, r.stdout + r.stderr)
 
-# 8 reasoning (legacy) unaffected; --gate on legacy is a failure
-r = subprocess.run(["python3", "tools/check.py", "reasoning"], cwd=ROOT, capture_output=True, text=True)
-check("reasoning still passes", r.returncode == 0, r.stdout[-400:])
-r = subprocess.run(["python3", "tools/check.py", "reasoning", "--gate", "G1"], cwd=ROOT, capture_output=True, text=True)
+# 8 the legacy survey is unaffected; --gate on a legacy survey is a failure
+r = subprocess.run(["python3", "tools/check.py", "reasoning-legacy"], cwd=ROOT, capture_output=True, text=True)
+check("reasoning-legacy still passes", r.returncode == 0, r.stdout[-400:])
+r = subprocess.run(["python3", "tools/check.py", "reasoning-legacy", "--gate", "G1"], cwd=ROOT, capture_output=True, text=True)
 check("--gate on a legacy survey fails clearly", r.returncode == 1 and "coreset layout" in r.stdout, r.stdout[-300:])
-r = subprocess.run(["python3", "tools/check.py", "reasoning", "--gate", "G9"], cwd=ROOT, capture_output=True, text=True)
+r = subprocess.run(["python3", "tools/check.py", "reasoning-legacy", "--gate", "G9"], cwd=ROOT, capture_output=True, text=True)
 check("bad gate is a usage error (2)", r.returncode == 2)
 print(f"\n{sum(res)} of {len(res)} behaviours as expected")
-clean()
 sys.exit(0 if all(res) else 1)

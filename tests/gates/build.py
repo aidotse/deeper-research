@@ -1,17 +1,19 @@
-"""Build the zz-gate fixture: a complete, passing coreset-layout pass from reasoning's data.
+"""Build the gate fixture: a complete, passing coreset-layout pass from reasoning-legacy's data.
 
-Used by faults.py and behaviour.py; `clean()` removes every file it writes. Needs graphs/reasoning/.
+Used by faults.py and behaviour.py; `clean()` removes every file it writes, and `autoclean()` makes that happen when the
+process exits, even after a crash. The topic is `zz-gate-<pid>`, so two runs never share files; set ZZ_GATE_TOPIC to
+choose the name. `python3 tests/gates/build.py` builds the fixture and keeps it, for inspection. Needs
+graphs/reasoning-legacy/.
 """
-import json, re, shutil, sys
+import atexit, json, os, re, shutil, sys
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 from graph import parse
 from check import link
 
-T, DATE = "zz-gate", "2026-10-09"
-# The source is the legacy survey: `reasoning` until it is renamed for the fresh coreset run.
-SOURCE = "reasoning-exhaustive" if (ROOT / "graphs/reasoning-exhaustive").exists() else "reasoning"
+T, DATE = os.environ.get("ZZ_GATE_TOPIC") or f"zz-gate-{os.getpid()}", "2026-10-09"
+SOURCE = "reasoning-legacy"   # the legacy survey; its pool, clustering and fringe data seed the fixture
 src, dst = ROOT / f"graphs/{SOURCE}", ROOT / f"graphs/{T}"
 
 
@@ -202,5 +204,11 @@ def clean():
         (ROOT / f).unlink(missing_ok=True)
 
 
+def autoclean():
+    atexit.register(clean)
+
+
 if __name__ == "__main__":
     build()
+    print(f"built {T}; remove it with: ZZ_GATE_TOPIC={T} python3 -c 'import sys; sys.path.insert(0, \"tests/gates\"); "
+          f"import build; build.clean()'")

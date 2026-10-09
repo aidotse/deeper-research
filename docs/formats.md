@@ -300,8 +300,8 @@ output cites.
 
 The working files of a pass: everything the scripts compute that is too large, or too numeric, for the survey. Scripts
 write them, never agents, with two exceptions: the screening agent fills two columns of `fringe-screen.md`, and the
-verifying agents write `evidence/` (`docs/verification.md`, "Recording the evidence"). Sizes are from `reasoning` (about
-200 pool papers).
+verifying agents write `evidence/` (`docs/verification.md`, "Recording the evidence"). Sizes are from `reasoning-legacy`
+(about 200 pool papers).
 
 | file | what it holds | written by | read by | in git |
 | -- | -- | -- | -- | -- |

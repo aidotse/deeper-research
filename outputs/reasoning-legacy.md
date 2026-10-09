@@ -1,9 +1,9 @@
 # Test-time compute and reasoning: where the open problems actually are
 
-This is an analysis of `surveys/reasoning.md` (195 papers) against the brief in `inputs/reasoning.md`. Two constraints
-shape everything below. The first is fit with your advisor's group, which is a theory lab: statistical physics of
-learning, order parameters and phase transitions, curriculum learning, continual learning, data imbalance, model
-collapse, compositionality. The second is that the money comes from defence, so a direction has to be sellable as
+This is an analysis of `surveys/reasoning-legacy.md` (195 papers) against the brief in `inputs/reasoning-legacy.md`. Two
+constraints shape everything below. The first is fit with your advisor's group, which is a theory lab: statistical
+physics of learning, order parameters and phase transitions, curriculum learning, continual learning, data imbalance,
+model collapse, compositionality. The second is that the money comes from defence, so a direction has to be sellable as
 bearing on security or oversight without that framing being a fig leaf.
 
 **How to read provenance.** Every claim below traces to a survey row. Where a claim rests on a row whose `source` is

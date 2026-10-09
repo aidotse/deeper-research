@@ -102,9 +102,9 @@ is in `docs/formats.md`.
   clears the ones that did not match, and lists the new clusters to name. Until it has run, `clusters` refuses, so old
   names cannot land on new clusters.
 
-See `docs/process.md`, step 3 and "Late papers". On a test topic built from `reasoning`, the nearest-cluster rule put
-all 15 held-out papers in the cluster the full clustering had chosen. That is an optimistic test, since those papers had
-taken part in that clustering.
+See `docs/process.md`, step 3 and "Late papers". On a test topic built from `reasoning-legacy`, the nearest-cluster rule
+put all 15 held-out papers in the cluster the full clustering had chosen. That is an optimistic test, since those papers
+had taken part in that clustering.
 
 ## Pool metadata
 
@@ -152,8 +152,8 @@ first use.
 need the large JSON files. `naming-sheet.md` (step 3) gives, per computed cluster: its size and stability, since when it
 exists, its diagnostics, its most-cited and most recent papers, and its sub-clusters, marked "internally divided" when
 at least two of them score 0.6 or more. `fringe-sheet.md` (step 4) lists the highest fringe scores, with year, cluster,
-reference count and whether the paper is already a coreset row. On `reasoning` they come to about 2.8k and 0.8k tokens.
-Rerun it after naming, so that the sheets show the names.
+reference count and whether the paper is already a coreset row. On `reasoning-legacy` they come to about 2.8k and 0.8k
+tokens. Rerun it after naming, so that the sheets show the names.
 
 ## Graph viewer
 
@@ -198,8 +198,8 @@ PDF's text, marked `(pdf)` in the file's header, with `[page N]` markers; words 
 breaks, so search for word stems. A paper without an arXiv ID is fetched from the open-access PDF Semantic Scholar lists
 for it, if that link serves a PDF; publishers' links often serve a web page, or refuse. A paper with no fetchable full
 text is listed in a note and the exit status stays 0: it is the uncheckable outcome of `docs/verification.md`, not a
-failure. No model is involved, so the text is verbatim. Existing files are kept; `--refresh` refetches. On `reasoning`,
-all 27 abstract-sourced rows came from HTML, at 9–68k tokens per paper, in 90 seconds.
+failure. No model is involved, so the text is verbatim. Existing files are kept; `--refresh` refetches. On
+`reasoning-legacy`, all 27 abstract-sourced rows came from HTML, at 9–68k tokens per paper, in 90 seconds.
 
 ## Bibliography
 
@@ -237,12 +237,13 @@ and raises anything else.
 ## Tests
 
 `python3 tests/gates/faults.py` and `python3 tests/gates/behaviour.py` test the gates of `tools/check.py`. Both build a
-temporary topic, `zz-gate`, from `reasoning`'s data (`tests/gates/build.py`), and remove every file they wrote when they
-finish. `faults.py` injects at least one fault per gate requirement and confirms that its own requirement catches it.
-`behaviour.py` checks what single requirements cannot show: waivers, a pending halt, progress inferred mid-pass and by
-the safety net, the history checks, and `tools/assign.py reject`. Run both after any change to `tools/check.py` or
-`tools/gates.py`; each exits 1 on a miss. Their source is the legacy survey, `reasoning-exhaustive` once the old
-`reasoning` is renamed, and `reasoning` until then.
+temporary topic, `zz-gate-<pid>`, from the data of the legacy survey `reasoning-legacy` (`tests/gates/build.py`). The
+name is unique per run, so two runs never share files, and every file a run wrote is removed when it exits, even after a
+crash. `faults.py` first confirms that the unmodified fixture passes `--gate G5`, since a fault is only caught if the
+baseline passes. It then injects at least one fault per gate requirement and confirms that its own requirement catches
+it. `behaviour.py` checks what single requirements cannot show: waivers, a pending halt, progress inferred mid-pass and
+by the safety net, the history checks, and `tools/assign.py reject`. Run both after any change to `tools/check.py` or
+`tools/gates.py`; each exits 1 on a miss. A change to a requirement comes with its test case, in the same commit.
 
 ## Formatting
 

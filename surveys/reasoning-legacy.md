@@ -1,7 +1,8 @@
 # Survey: test-time compute and reasoning in LLMs
 
-Factual cache for `inputs/reasoning.md`. Descriptive only — salience and quality judgements live in
-`outputs/reasoning.md`.
+Factual cache for `inputs/reasoning-legacy.md`. Descriptive only — salience and quality judgements live in
+`outputs/reasoning-legacy.md`. Renamed from `reasoning` on 2026-10-09, before a fresh coreset pass on the same input;
+the log entries below keep the names they were written with.
 
 ## Retrieval log
 

@@ -483,7 +483,7 @@ Recluster instead, with `tools/cluster.py`, in two cases:
 
 - `Many late papers` — late papers since the last full clustering would exceed 10% of the pool. `tools/assign.py late`
   refuses and says so. The clusters survive losing 20% of the papers, so a few late papers rarely move them, but a large
-  addition can: adding the 118 fringe candidates on `reasoning` moved the clustering to ARI 0.70.
+  addition can: adding the 118 fringe candidates on `reasoning-legacy` moved the clustering to ARI 0.70.
 - `A new cluster` — the coverage test judged that a candidate belongs to a cluster not in the Clusters table. That
   judgement never creates a cluster. It triggers a targeted expansion of the region (the `More data` lever); the
   expansion's in-scope papers join the batch, and the batch is reclustered. If the region is real, it forms a cluster.

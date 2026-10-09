@@ -5,7 +5,7 @@ Usage: python3 tests/gates/faults.py (from anywhere). Exit status 1 if any fault
 import json, re, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build import build, clean, ROOT, T
+from build import build, clean, autoclean, ROOT, T
 from check import link
 S, G, O, I = ROOT / f"surveys/{T}.md", ROOT / f"graphs/{T}", ROOT / f"outputs/{T}.md", ROOT / f"inputs/{T}.md"
 
@@ -17,10 +17,6 @@ def resub(path, pat, b):
 
 def jset(name, fn):
     d = json.loads((G / name).read_text()); fn(d); (G / name).write_text(json.dumps(d))
-
-def drop_row(pat):
-    t = S.read_text().splitlines(); i = next(i for i, l in enumerate(t) if re.search(pat, l) and l.startswith("|"))
-    del t[i]; S.write_text("\n".join(t) + "\n")
 
 def first_row(role):
     return next(l for l in S.read_text().splitlines() if l.startswith("| [") and f"| {role} |" in l)
@@ -61,7 +57,7 @@ F = {
  "g2.clusters-line": lambda f: sub(S, "6 (2 high", "6 (3 high"),
  "g2.diagnosis-halts": lambda f: jset("clusters.json", lambda d: d["diagnostics"].append({"case": "no structure", "detail": "x"})),
  "g2.review": lambda f: I.write_text(I.read_text() + "\n## Clustering\n\n- `review`: before coreset\n"),
- "g3.roles": lambda f: drop_row(r"\| frontier \|.*$(?<!abstract \|)") if False else S.write_text(S.read_text().replace(first_row("anchor") + "\n", "", 1)),
+ "g3.roles": lambda f: S.write_text(S.read_text().replace(first_row("anchor") + "\n", "", 1)),
  "g3.dissent-searched": lambda f: sub(S, ' | two: "does not" -> found', ""),
  "g3.dissent-quoted": lambda f: sub(S, 'reports "accuracy falls when the chain is truncated early"', "reports a fall"),
  "g3.bridges": lambda f: S.write_text(S.read_text().replace(first_row("bridge:three") + "\n", "", 1)),
@@ -91,6 +87,13 @@ def run(*extra):
     return r.returncode, r.stdout + r.stderr
 
 def main():
+    autoclean()
+    build()
+    code, out = run("--gate", "G5")
+    if code != 0:   # a fault is only "caught" if the unmodified fixture passes
+        print("MISS baseline: the unmodified fixture fails --gate G5, so no fault result means anything\n" + out[-1500:])
+        return 1
+    print("ok  baseline                 the unmodified fixture passes --gate G5")
     bad = 0
     for rid, fn in F.items():
         f = build(); fn(f)
@@ -103,7 +106,6 @@ def main():
         if not ok and "Traceback" in out:
             print(out[-1500:])
     print(f"\n{len(F) - bad} of {len(F)} faults caught")
-    clean()
     return 1 if bad else 0
 
 
