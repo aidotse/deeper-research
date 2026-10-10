@@ -49,6 +49,36 @@ These are judgement calls whose effect only real data will show. When auditing t
     about 0.49). Whether that is a real signal is `UNVERIFIED`. If a run's fringe list again leans towards papers
     without references, start here.
 
+- `Z2`, the cost of verifying from full text. The estimate is the same order of tokens per row as snippet-based
+  verification, possibly somewhat higher. It is `UNVERIFIED`: the ~10k-per-row baseline comes from snippet-based passes,
+  and no row has yet been verified from a fetched full text. `R6` measures it. The reasoning: the paper lands on disk at
+  no token cost, and the agent reads only Grep hits and a few sections, which cost about what a `snippet_search` call
+  returned (about 700 tokens per call, two or more calls per row). The risks to check, in order:
+
+  - an agent that `Read`s a whole full text pulls in 10–70k tokens at once. If verification tokens per row come out
+    high, look here first;
+  - Grep may need more tries than one semantic snippet query, especially in PDF text, where words are hyphenated across
+    lines;
+  - parallel verification agents that each fetch their own papers exceed arXiv's 3-second spacing together. `R1` (the
+    main session fetches in one batch) is the fix, due in Phase 3. The measured rate is 27 papers in 90 seconds, so
+    about 3 minutes for 60 rows, once per pass;
+  - a paper with no fetchable full text stays `abstract`, where snippets could once have verified it. Too many of those
+    trip `H10`. All 195 papers of `reasoning-legacy` have an arXiv ID, so this field is safe; another field may not be.
+    `R3` now shows the share per topic, and `R5` is the reserve.
+
+  Asta with a key allows 10 requests per second, against arXiv's one per 3 seconds. But a single `snippet_search` has
+  been seen to hang for over two minutes, so Asta is not clearly faster in practice.
+
+- `Z2`, what targeted reading misses. Verification has two jobs. Confirming the claims a draft already makes suits Grep,
+  since the agent knows what to look for. Catching what the draft left out (an author-stated limitation, a condition on
+  a result, a dissent paper that in fact agrees) does not, since Grep finds only what the agent already suspects. The
+  expectation is high recall on the first job and lower on the second, `UNVERIFIED` until `R4` measures it. Until then,
+  read rows for missing caveats more sceptically than for wrong numbers.
+
+- The viewer has never been rendered in a browser. Headless Chromium could not start here, so both the Phase 1 changes
+  (panels removed with `Z3` and `Z5`) and the `R3` colour mode were checked in node only. Open
+  `graphs/<topic>/graph.html` once before relying on it.
+
 - `M12`, the age cohort: the 30 papers nearest by publication date. Cohorts of 20 to 50 barely changed the top of the
   list on `reasoning-legacy`. A pool of 30 or fewer is ranked as a whole. That is fine for a smoke pass, but there the
   correction does nothing.
@@ -221,7 +251,11 @@ These are judgement calls whose effect only real data will show. When auditing t
   - `assign.py reject` reads `id<TAB>reason` lines on stdin, all or none.
   - `fringe.py judge` reads `s2<TAB>yes|no|maybe<TAB>reason` lines, refusing the whole batch on any bad line.
 - `T8` — partial, Phase 0 (`5d18f12`) and `d600a69`:
-  - Done: the baseline assertion, cleanup at exit, a unique topic per run, and the waiver no-op.
+  - Done: the baseline assertion, cleanup at exit, a unique topic per run, and the waiver no-op. Fixing the no-op
+    exposed a second hidden integrity failure in the waiver case: the dropped fringe row was cited in the output. The
+    case now asserts exit 0. A deliberately broken baseline returns 1, and a simulated crash leaves no files behind.
+  - Counts: 48 faults and 20 behaviours after Phase 0, 49 and 21 after Phase 1 (one new each, for `snippet` evidence and
+    a `snippet` source in the coreset layout).
   - Phase 2 grew the suites from 49 faults and 21 behaviours to 70 and 35.
   - Still untested, from the audit's list: `g1.errored` without a retry outcome, the stale date in `g1.rejected`,
     `g2.diagnosis-halts` for `H5`, `g5.converged` for `H11`, history's pool removal and input-changed note, and a
@@ -236,16 +270,23 @@ These are judgement calls whose effect only real data will show. When auditing t
 - `Z2` — adopted, `532e697`:
   - A row's `source` is `full-text` or `abstract`; `snippet` stays valid only in legacy surveys.
   - `G4` fails evidence quoted from a snippet.
-  - The cost questions it raised became `R1`, `R2`, `R4` and `R6`.
+    - `docs/verification.md` was rewritten: the full text is the source, a snippet is a pointer, and snippets alone do
+      not verify a row. The preflight rationale in `docs/external_services.md` now names arXiv as the verification
+      dependency.
+  - The fixture's verified rows quote their own synthetic full texts, one of them hyphenated across a line break.
+  - The cost questions it raised became `R1`, `R2`, `R4` and `R6`. See "Watch in the first run".
 - `Z3` — adopted, `532e697`. The measure is fixed to `combined`, and `--rule` is a usage error.
 - `Z4` — adopted, `532e697`. One null draw, used only for `no structure`. `--nulls 0` is a usage error.
 - `Z5` — adopted, `532e697`. The history is out of the pass, and `match.py history` stays as an experiment
-  (`docs/experiments.md`). Clustering runtime fell from 154.5 s to about 31 s, with identical assignments.
+  (`docs/experiments.md`). The `Temporal stability` log line and its `G2` requirement went with it, as did the sheet
+  section and the viewer panels. Clustering runtime fell from 154.5 s to about 31 s, with identical assignments,
+  clusterwise scores and fringe ranking. `graphs/reasoning-legacy/clusters.json` was regenerated in the new format, with
+  `notes` and `stability_from` added and the history fields removed. The `Clustering` log line has a new format.
 - `Z6` — deferred until after the run (user, 2026-10-09).
 - `Z7` — adopted, `532e697`. The prerequisite held without an API call: `fringe.py` already sent `positivePaperIds`, and
   that call produced the 56 `new` candidates on record. The `new` route is seeded from the frontier candidates, plus up
   to 10 pool papers most cited within the pool. That those seeds need at least one in-pool citation was checked offline
-  only.
+  only. The provisional-clustering row is gone from the order of operations, and `H8` now comes at step 3.
 - `Z8` — adopted, `532e697`. The experiments are in `docs/experiments.md`, indexed for human reviewers only.
 - `Z9` — adopted, `532e697`. `unstable cluster` and `broad scope` are printed notes, not diagnostics.
 
@@ -262,6 +303,14 @@ These are judgement calls whose effect only real data will show. When auditing t
   - the viewer has an "arXiv ID" colour mode and an overview count, checked in node only.
 
   On `reasoning-legacy`, all 195 pool papers have an arXiv ID.
+
+- `R4` — pending, Phase 4. Settled so far (user, 2026-10-10): it runs outside the pass loop, with the main session as
+  orchestrator. The main session dispatches cheap-model locators and strong agents, and does the reference reading (arm
+  `C`) itself. It records arm `C`'s findings before reading arms `A` and `B`, so that their maps cannot shape what it
+  notices. The design is in the plan.
+
+- `R5` — parked (user, 2026-10-10). Supporting papers without arXiv is likely overengineering for now; a snippet backup
+  would be a nice reserve. Build it only if `R3` shows a topic where such papers are a real share of the coreset.
 
 ## Pending
 
