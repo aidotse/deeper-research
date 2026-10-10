@@ -24,6 +24,10 @@ Alongside the survey's own clusters, the script computes citation communities
 the survey's hand-drawn clusters can be compared against the structure the
 citations themselves suggest.
 
+It also counts the pool and coreset papers that have an arXiv ID, whose full
+text tools/fulltext.py fetches from arXiv: the paper's own ID, or, for a
+CorpusId paper, the `arxiv` field of its record in graphs/<topic>/pool.json.
+
 If tools/cluster.py has written graphs/<topic>/clusters.json, the page
 also shows how the clusters were computed: the level chosen, the parameters,
 the stability curve against the null draw's, the diagnostics and notes, and
@@ -85,8 +89,12 @@ def arxiv_month(aid):
 def parse(topic):
     from inputs import read_input
     dimensions = list(read_input(topic)[0] or {})  # declared in the input; see docs/formats.md
-    text = (ROOT / "surveys" / f"{topic}.md").read_text()
-    secs = sections(text)
+    path = ROOT / "surveys" / f"{topic}.md"
+    secs = sections(path.read_text()) if path.exists() else {}
+    if "Coreset" not in secs:
+        sys.exit(f"error: the viewer draws the coreset of surveys/{topic}.md, which "
+                 + ("has no `## Coreset` section" if path.exists() else "does not exist"))
+    text = path.read_text()
     title = next((l[2:].strip() for l in text.splitlines() if l.startswith("# ")), topic)
     coreset_layout = "Clusters" in secs and "Pool" in secs
 
@@ -388,6 +396,8 @@ def build(topic, refresh=False):
     nodes = []
     for aid in sorted(ids):
         p = papers[aid]
+        # A paper's arXiv ID is its own ID, or, for a CorpusId paper, the one the pool sidecar records for it, if any.
+        arxiv = aid if ARXIV_ONLY.match(aid) else (records.get(aid) or {}).get("arxiv")
         nodes.append({
             "id": aid,
             "title": p["title"],
@@ -399,6 +409,7 @@ def build(topic, refresh=False):
             "year": p.get("year"),
             "month": round(submitted(aid, records.get(aid), p.get("year")) or 0, 3),
             "url": link(aid),
+            "arxiv": arxiv or None,
             "citations": p.get("citations"),
             "indeg": indeg[aid],
             "source": p["source"],
@@ -407,6 +418,10 @@ def build(topic, refresh=False):
         })
 
     clustering = load_clustering(topic, nodes)
+    # How many papers have an arXiv ID, so that tools/fulltext.py can fetch their text from arXiv: the rest depend on
+    # an open-access PDF. A legacy survey has no pool, so its papers are all coreset rows.
+    arxiv_share = {s: [sum(1 for n in sel if n["arxiv"]), len(sel)] for s, sel in
+                   (("pool", nodes), ("coreset", [n for n in nodes if n["coreset"]]))}
 
     data = {
         "topic": topic,
@@ -421,6 +436,7 @@ def build(topic, refresh=False):
             "citation": round(modularity({n: adj[n] for n in connected}, communities), 3) if connected else None,
         },
         "unresolved": unresolved,
+        "arxiv": arxiv_share,
         "clustering": clustering,
         "nodes": nodes,
         "edges": [[a, b] for a, b in edges],
@@ -439,6 +455,9 @@ def build(topic, refresh=False):
           f"{len(comm_list)} citation communities")
     print(f"modularity: declared clusters {data['modularity']['declared']}, "
           f"citation communities {data['modularity']['citation']}")
+    (pa, pn), (ca, cn) = arxiv_share["pool"], arxiv_share["coreset"]
+    print(f"arXiv:   {ca} of {cn} coreset papers have an arXiv ID"
+          + (f", {pa} of {pn} pool papers" if coreset_layout else ""))
     if unresolved:
         print(f"note:    Semantic Scholar returned nothing for {len(unresolved)} paper(s): {unresolved}")
     print(f"wrote {out.relative_to(ROOT)}")

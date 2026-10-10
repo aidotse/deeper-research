@@ -491,6 +491,16 @@ if (DATA.nodes.some(n => n.source)) {
   MODES.push({ id: "source", label: "Verification source", key: n => n.source,
                groups: keys.map(k => ({ key: k, label: k, mapLabel: k })) });
 }
+// Whether tools/fulltext.py can fetch a paper's text from arXiv, or must find an open-access PDF.
+{
+  const arxivKey = n => n.arxiv ? "arxiv" : "none";
+  const groups = [
+    { key: "arxiv", label: "arXiv ID", mapLabel: "arXiv ID", listSub: true, sub: "full text from arXiv" },
+    { key: "none", label: "No arXiv ID", mapLabel: "No arXiv ID", listSub: true, sub: "full text only from an open-access PDF, if any" },
+  ];
+  MODES.push({ id: "arxiv", label: "arXiv ID", key: arxivKey,
+               groups: groups.filter(g => DATA.nodes.some(n => arxivKey(n) === g.key)) });
+}
 for (const m of MODES) {
   m.enc = encoding(m.groups.map(g => g.key));
   m.byKey = new Map(m.groups.map(g => [g.key, g]));
@@ -1163,7 +1173,7 @@ function renderGroups() {
         ev.stopPropagation(); open ? state.open.delete(g.key) : state.open.add(g.key); renderGroups(); } }),
       sw, el("span", { class: "name" }, el("span", { text: g.label }), g.listSub ? el("small", { text: g.sub }) : null),
       el("span", { class: "n", title: g.cohesion == null ? "" : "share of this group's citation links that stay inside it",
-        text: `${counts.get(g.key) || 0}${g.cohesion == null || state.mode.id.startsWith("dim:") ? "" : " · " + Math.round(g.cohesion * 100) + "%"}` }));
+        text: `${counts.get(g.key) || 0}${g.cohesion == null || state.mode.id.startsWith("dim:") || state.mode.id === "arxiv" ? "" : " · " + Math.round(g.cohesion * 100) + "%"}` }));
     const members = el("div", { class: "members" }, ...(open ? g.members.filter(id => visibleNode(byId.get(id))).map(id =>
       el("button", { text: byId.get(id).title, title: byId.get(id).title, onclick: () => select(id, true) })) : []));
     return el("div", { class: "grp" + (open ? " open" : "") + (state.focus === g.key ? " focus" : ""), role: "listitem" }, row, members);
@@ -1275,6 +1285,10 @@ function renderPanel() {
     el("p", { text: "Each bar is the share of a group's citation links that stay inside the group, least cohesive first. A group near the top mostly cites other groups: it is a label rather than a neighbourhood, and worth questioning." }),
     el("p", { class: "empty", text: "Small groups have fewer possible internal links, so a low share partly reflects size." }),
     cohesionBars(ranked),
+    el("h2", { text: "How many papers have an arXiv ID?" }),
+    el("p", { text: (([ca, cn], [pa, pn]) => `${ca} of ${cn} coreset papers` + (legacy ? "" : `, and ${pa} of ${pn} pool papers`) +
+      ". Verification quotes a paper's full text, which tools/fulltext.py fetches from arXiv; a paper without an arXiv ID can be fetched only from an open-access PDF that Semantic Scholar lists for it, if there is one. " +
+      "Colour by “arXiv ID” to see which.")(DATA.arxiv.coreset, DATA.arxiv.pool) }),
     el("p", { class: "empty", text: "Hover a paper for its title, click it for its survey row. On the citation map, drag a paper: its links stretch like elastic and it springs back. Click a group's name on the map or in the list to focus it. Esc clears." }),
     el("p", { class: "empty", text: `Citation links come from ${DATA.edgesFrom}. Only links between papers in this set are drawn.` +
       (DATA.unresolved.length ? ` Semantic Scholar had no record for ${DATA.unresolved.length} paper(s).` : "") +
