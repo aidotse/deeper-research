@@ -1,18 +1,18 @@
 # Literature research agent harness
 
-The repo builds trustworthy literature surveys with LLM agents. It does this in three moves:
+A literature research harness that builds trustworthy literature surveys with LLM agents. It does this in three moves:
 
-- It gathers a broad, cheap pool of in-scope papers.
+- It gathers a broad, cheap pool of in-scope papers, starting from a user query.
 - It computes a stable map of the pool's themes, from embeddings and shared references rather than the model's opinion.
 - It picks a small coreset of papers per theme, each in a stated role (anchor, frontier, dissent, bridge, fringe), and
   checks each against the paper's body text with quotes recorded.
 
 The value over commercial deep-research tools is about
 
-- Evidence: every claim traces to its source, the structure is reproducible, the stopping rule is stated, and the output
-  refuses to claim "nobody has done X" or to count papers as if they were field statistics.
-
-- Coresets: a principled methodology for finding the representative papers that matter.
+- Evidence: every claim traces to its source, the structure is reproducible, the stopping rule is stated, we don't aim
+  to prove negatives (the output refuses to claim "nobody has done X") or to interpret paper counts as if they were
+  field statistics.
+- Coresets: we use a principled methodology for finding the representative papers that matter, from the wider pool.
 
 ## Pipeline and philosophy
 
