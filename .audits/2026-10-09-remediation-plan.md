@@ -2,7 +2,7 @@
 
 This plan is for the findings in `.audits/2026-10-09-docs-full-spec.md`. The IDs (`C1`, `M4`, …) are that audit's, and
 each issue's evidence, rationale and remediation are there. This file says only what is done, in what order, and why in
-that order.
+that order. What was actually done, per ID, is in `.audits/2026-10-09-disposition.md`.
 
 ## Principles
 
@@ -115,17 +115,8 @@ place them.
 - Done when: both suites pass on an unchanged tree, a deliberately broken baseline fails `faults.py`, and
   `check.py reasoning-legacy` exits 0.
 
-Status, 2026-10-09: done.
-
-- `Z7`'s prerequisite holds without an API call: `tools/fringe.py:109` already sends a list of seeds
-  (`positivePaperIds`) to the recommendations endpoint, and that call produced the 56 `new` candidates in
-  `graphs/reasoning-legacy/fringe.json`.
-- The rename is done. The survey's header and the output's first line name the new files, and the log entries keep the
-  names they were written with.
-- `faults.py`: the baseline passes, 48 of 48 faults are caught, and a deliberately broken baseline returns 1.
-- `behaviour.py`: 20 of 20. Fixing the no-op at line 22 exposed a second hidden integrity failure in the waiver case:
-  the dropped fringe row was cited in the output. The case now also asserts exit 0.
-- A simulated crash after `build()` left no files behind.
+Status, 2026-10-09: done. What was done, per ID, with its judgement calls and caveats, is in
+`.audits/2026-10-09-disposition.md`.
 
 ## Phase 1: simplify
 
@@ -155,41 +146,8 @@ Issues this phase resolves or makes moot:
 Done when: the test suites pass; `check.py reasoning` still exits 0 on the legacy survey; and a clustering run on a
 scratch copy of `reasoning` still chooses about 6 clusters.
 
-Status, 2026-10-09: done.
-
-- `Z2`:
-  - `check.py` accepts `source` `full-text` or `abstract` in the coreset layout, and `snippet` only in a legacy survey.
-  - `G4` fails evidence quoted from a snippet.
-  - The fixture's verified rows quote their own synthetic full texts.
-  - The docs changed: `docs/verification.md` was rewritten (full text is the source, a snippet is a pointer, and
-    snippets alone do not verify a row), plus `formats.md`, `gates.md`, `process.md` and `external_services.md` (the
-    preflight rationale now names arXiv as the verification dependency), and `tooling.md`.
-- `Z3`, `Z4`, `Z5`, `Z7`, `Z9`, done by a background agent:
-  - The measure is fixed to `combined`. There is one null draw, used only for the `no structure` guard. `--rule` and
-    `--nulls 0` are usage errors.
-  - The history is gone from the pass path; `match.py history` remains as an experiment.
-  - `fringe.py collect` needs no clustering. It seeds the `new` route from the `Orientation` frontier candidates plus up
-    to 10 pool papers most cited within the pool.
-  - `unstable cluster` and `broad scope` are printed notes, no longer diagnostics. `clusters.json` gains `notes` and
-    `stability_from`.
-  - `M13` is fixed along the way: when every cutoff is skipped, stability comes from resampling only, with a printed
-    note.
-  - Runtime on `reasoning-legacy` fell from 154.5 s to about 31 s, with identical assignments, clusterwise scores and
-    fringe ranking. `graphs/reasoning-legacy/clusters.json` was regenerated in the new format.
-  - The viewer's in-browser rendering is `UNVERIFIED`: headless Chromium could not start, so the page's script was
-    checked with node only.
-- `Z8`: the experiments moved to `docs/experiments.md`, indexed in `CLAUDE.md` as for human reviewers only. The history
-  method is described there.
-- Doc edits forced by the above, in `process.md`, `formats.md`, `tooling.md`, `dispatch.md`, `gates.md` and
-  `coresets.md`:
-  - the provisional-clustering row is removed;
-  - `H8` now comes at step 3;
-  - the `Temporal stability` line is removed, and the `G2` requirement for it goes with it;
-  - the `Clustering` line format is new;
-  - the `new` route's seeds are described.
-- Checks: 49 of 49 faults (one new, for snippet evidence), 21 of 21 behaviours (one new, for a `snippet` source in the
-  coreset layout). `check.py reasoning-legacy`, `sheets.py` and `graph.py` all pass.
-- Not re-run live: the requirement that the most-cited seeds have at least one in-pool citation. It was checked offline.
+Status, 2026-10-09: done. What was done, per ID, with its judgement calls and caveats, is in
+`.audits/2026-10-09-disposition.md`.
 
 ## Phase 2: correctness, by file group
 
@@ -262,48 +220,8 @@ Done when, for the whole phase: every finding above is fixed with a test where o
 `check.py reasoning` pass; and the scratch-topic simulations from the audit that showed each bug now fail or behave
 correctly.
 
-Status, 2026-10-10: done. `2a` and `2e` were done in the main session; `2b`, `2c` and `2d` by agents in worktrees, whose
-commits were reviewed and cherry-picked.
-
-- `2a`: every item above, plus `C6`, after `2d` landed: `add-fringe` uses the gate's test, `gates.judged`. The judgement
-  calls:
-  - `M1`: at least 6 words per part of a quote. Matching is on whole words, with line-break hyphenation both joined and
-    not, and the parts in order, each within 3000 characters of the last.
-  - `M2`: a `full-text` row's `method summary` must rest on a full-text quote. A verified dissent row's quoted claim
-    must be among its evidence quotes (new requirement `g4.dissent-evidence`).
-  - `S1`: the form is ``proposed: `<name>` — values: `<a>`, `<b>`; ...``, with at least two values each.
-    `g3.dimension-columns` now applies to declared dimensions too: no extra column, and none missing.
-  - `S6`: `; rejected: none` at the end of `Expansion`.
-  - `M4`: the `Coverage test` IDs are those that open an entry, so an ID inside "what it changed" is not counted.
-  - `C5`: the reverse marker check applies to the coreset layout only. The legacy output mentions the marker in prose
-    after its legend.
-  - `M6`: a pass ended at a halt with the user's decision needs only its declared gates, plus its closing lines.
-  - Checks: 70 of 70 faults, 35 of 35 behaviours.
-- `2b`: `*`, `+` and numbered bullets are accepted, since mdformat rewrites `*` and keeps numbers. Lazy continuation
-  lines are joined. A prose bullet in `Coreset Spec` still fails; prose goes in paragraphs or nested bullets.
-- `2c`:
-  - `M11`: the mixed fringe score is a rescaled mix of normal scores, ranked once within the cohort. Mixing raw distances
-    failed, because their scales differ by 10x. Zero-reference papers in the top 8 went from 5 to 1.
-  - `M12`: the cohort is the 30 papers nearest by date.
-  - `M14`: sub-cluster scores are computed on the part itself.
-  - `M20`: holdouts recompute the measure on the subset. Stability at the chosen level went from 0.789 to 0.799.
-  - `C10` and `T9`: defaults, seeds and versions are in `params`, and versions are pinned.
-  - The assignment and level are unchanged.
-- `2d`:
-  - `C9`: the PDF bibliography is cut. Tested on synthetic text only, since no local full text is PDF-derived.
-    `UNVERIFIED` on real pypdf output.
-  - `R2`: `fulltext.py show` prints an outline, matching passages and whole sections.
-  - `R3`: the `Pool` line, `check.py`'s printout, and a viewer colour mode with an overview count.
-  - `T5`: `reject` from stdin; `fringe.py judge`.
-  - `M15`, `M16`, `M17`, `A9`, `C10`, and the `M20` bib part. `maybe` on the screening sheet is a parking state, counted
-    as unjudged.
-  - `M17`: the backfill ran on `reasoning-legacy`: 195 of 195 records now have `arxiv`, and nothing else changed.
-- Left over:
-  - `recursive.py` still slices the rank normalisation, since only its docstring was in scope.
-  - `history.json` and `match-simulation.json` do not record seeds.
-  - `UNVERIFIED`: that the recommendations endpoint returns `externalIds`, which `collect` now asks for to exclude
-    rejected papers.
-  - The viewer's rendering is still checked with node only.
+Status, 2026-10-10: done. What was done, per ID, with its judgement calls and caveats, is in
+`.audits/2026-10-09-disposition.md`.
 
 ## Phase 3: spec coherence
 
@@ -362,8 +280,8 @@ One pass over `docs/`, `CLAUDE.md` and `.claude/agents/`, describing the code as
   - `docs/tooling.md`:
     - the `add` hint; `reject` from stdin; `fringe.py judge` and `maybe`; `collect` skipping rejected papers;
     - the `pool.py` backfill; the PDF cut; `fulltext.py show`; the viewer's arXiv mode;
-    - the defaults (k 10, c 10, reps 20, nulls 1, τ 0.75, cohort 30), the new `params` keys, exit 2 on usage errors,
-      and pinned versions;
+    - the defaults (k 10, c 10, reps 20, nulls 1, τ 0.75, cohort 30), the new `params` keys, exit 2 on usage errors, and
+      pinned versions;
     - the Stop hook's scope.
   - `docs/process.md`:
     - the fringe score (the cohort, the rescaled mix, the reading "further than 95% of its cohort", at a resolution of
