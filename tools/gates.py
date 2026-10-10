@@ -14,8 +14,8 @@ A gate is a point in the order of operations (docs/process.md) after which a set
   G4 verified          after step 5: every verified row's evidence recorded under its own ID, its full-text quotes
                        found verbatim and in order, a dissent row's quoted claim among them; every row still `abstract`
                        listed as needing verification, H10 if over 20%
-  G5 pass ended        after step 7: the output and its sections, a converged coverage test or a recorded halt, no
-                       late paper left, the closing log lines
+  G5 pass ended        after step 7: the output and its sections, a converged coverage test or a recorded halt, each
+                       round's sheet backing its line, no late paper left, the judgement audits, the closing log lines
 
 Requirements are cumulative: a gate's check also checks every earlier gate. Which gates are required is worked out from
 the files: the log's `Gates` line (the gates the main session has passed), plus a safety net of evidence that a later
@@ -795,7 +795,7 @@ def rounds(c):
         if m:
             # The IDs that open an entry, `(<id>: <what it changed>, <id>: ...)`, not IDs inside what it changed.
             ids = re.findall(rf"(?:\(|[,;]\s*){BARE_ID.pattern}\s*:", m.group(4) or "")
-            out.append({"k": int(m.group(2)), "n": int(m.group(3)), "ids": ids,
+            out.append({"r": int(m.group(1)), "k": int(m.group(2)), "n": int(m.group(3)), "ids": ids,
                         "new": (m.group(5) or "").strip()})
         else:
             out.append(None)
@@ -821,6 +821,45 @@ def r_coverage(c):
         if not r["new"]:
             problems.append(f"round {i} does not say `new clusters: none | <which>`")
     return "; ".join(problems) or None
+
+
+def r_coverage_sheets(c):
+    """Each round's sheet, written by tools/coverage.py, backs its `Coverage test` line: every candidate judged, N its
+    rows, the IDs the line counts in K its `changes` rows, and a proposed cluster not reported as `none`."""
+    from coverage import counted, sheet
+    problems = []
+    for r in (x for x in rounds(c) if x):
+        path = ROOT / "graphs" / c.topic / f"coverage-{r['r']}.md"
+        rows = sheet(read(path))
+        if not rows:
+            problems.append(f"round {r['r']} has no sheet {path.relative_to(ROOT)} (`uv run tools/coverage.py draw`)")
+            continue
+        left = [x["id"] for x in rows if not x.get("verdict")]
+        changed, new = counted(rows)
+        if left:
+            problems.append(f"round {r['r']}'s sheet has candidates without a verdict: {left[:6]}")
+        if len(rows) != r["n"]:
+            problems.append(f"round {r['r']} says {r['n']} sampled candidates, but its sheet has {len(rows)}")
+        if {x["id"] for x in changed} != set(r["ids"]):
+            problems.append(f"round {r['r']} counts {sorted(set(r['ids']))} in K, but its sheet marks "
+                            f"{sorted(x['id'] for x in changed)} as changing a target")
+        if new and r["new"].strip().lower() == "none":
+            problems.append(f"round {r['r']}'s sheet proposes a new cluster ({', '.join(x['id'] for x in new)}), but "
+                            "the line says `new clusters: none`")
+    return "; ".join(problems) or None
+
+
+def r_judgement_audit(c):
+    """The `Judgement audit` line, as tools/audit.py computes it from the two judged sheets."""
+    from audit import summary
+    if (m := need_lines(c, "Judgement audit")):
+        return m + " (`python3 tools/audit.py line`)"
+    value, missing = summary(c.topic)
+    if missing:
+        return f"the judgement audits are not done: {missing}"
+    if " ".join(c.line("Judgement audit").split()) != value:
+        return f"`Judgement audit` does not match its sheets; `python3 tools/audit.py line {c.topic}` prints: {value}"
+    return None
 
 
 def r_converged(c):
@@ -879,8 +918,9 @@ REQUIREMENTS = {
     4: [("g4.evidence", r_evidence), ("g4.dissent-evidence", r_dissent_evidence), ("g4.abstract-listed", r_abstract_listed),
         ("g4.h10", r_h10), ("g4.coreset-line", r_coreset_line)],
     5: [("g5.output", r_output), ("g5.cite-entries", r_cite_entries), ("g5.coverage", r_coverage),
-        ("g5.converged", r_converged), ("g5.changed-in-coreset", r_changed_in_coreset), ("g5.late-empty", r_late_empty),
-        ("g5.end-lines", r_end_lines)],
+        ("g5.coverage-sheets", r_coverage_sheets), ("g5.converged", r_converged),
+        ("g5.changed-in-coreset", r_changed_in_coreset), ("g5.late-empty", r_late_empty),
+        ("g5.judgement-audit", r_judgement_audit), ("g5.end-lines", r_end_lines)],
 }
 
 

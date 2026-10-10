@@ -80,6 +80,64 @@ Tags: `blocker` (cannot proceed, or certainly fails a gate), `guess` (must impro
 - `P14` — `minor`. Whether the main session waits for the user to accept proposed dimensions before Preflight was not
   stated. Suggested: say whether the plan report is blocking.
 
+### `P` — Phase 4's simulation
+
+Phase 4 was tested by a partial simulation that ran for real. A blind agent (no `.audits/`, roadmap, `tests/` or git
+history) played the main session of a pass on a scratch copy of the gate fixture, `zz-sim`, from step 7 to the end, and
+played each brief itself. Every script ran, and full texts were fetched from arXiv; only outside retrieval (WebSearch,
+Asta) was imagined. It was steered through two coverage rounds, the first not converging, with a recency candidate and a
+Revise. It reached `F1` and `--gate G5` passed. About 200k tokens, on 2026-10-10. It found no `blocker`, 12 `guess` and
+9 `minor`; its full report, with the run log, is `.audits/2026-10-09/phase4-simulation.md`. Three recur from the third
+tabletop of Phase 3, left unfixed then by agreement (marked `recurs`). None is fixed yet: whether to fix and simulate
+again, or leave them to the first run, is the user's call. Tags as above.
+
+- `P15` — `guess`. Revise is "done when `tools/check.py` passes again", but the plain check passed right after round 1,
+  before any counted paper was a coreset row; only `G5` checks that. Suggested: once a `Coverage test` line exists, the
+  plain check fails on each counted ID not yet an assigned coreset row.
+- `P16` — `guess`. "End the round" says "another round" without saying where to re-enter, and the audit rows sit between
+  Revise and End the round. Suggested: on a round that did not converge, return to "Draw the coverage sample" with R+1,
+  skipping the audit rows.
+- `P17` — `guess`. The fresh recency query's window is unclear: the pass's `Recency window` ended before step 7.
+  Suggested: the pass's window, extended to the day of the round.
+- `P18` — `guess`. The recency query (text, window, result count) is recorded nowhere, so a round with no recency rows
+  looks like one where the query never ran. Suggested: `coverage.py` writes a `recency query:` line on the sheet.
+- `P19` — `guess`. The role for a counted paper does not cover a `Gaps` change that is a tension or an open problem.
+  Suggested: map each kind of change to a role.
+- `P20` — `guess`. Dissent rows added through the coverage test have no `Dissent searches` entry, and nothing says
+  whether they need one. Suggested: say not, or define `<cluster>: coverage round R -> found: <id>`.
+- `P21` — `guess`. When verification contradicts a coverage verdict's reason, nothing says what to do. Re-running
+  `coverage.py judge` overwrote the verdict silently, and `G5` passed with a stale `Coverage test` line. Suggested:
+  `judge` reports replaced verdicts; Revise re-judges and re-pastes the line; `G5` compares the whole line with
+  `coverage.py line`, as it does for `Judgement audit`.
+- `P22` — `guess`. Which step-4 rows Revise reruns is unclear (Fringe and Bridges). Suggested: Selection for the counted
+  papers; Bridges only on the check's note; Fringe only for a counted paper proposed as `fringe`.
+- `P23` — `guess`. Revise's batch fetch also fetched two older `abstract` rows listed as having no body text; nothing
+  says whether Verification now takes them. Suggested: say so, or have `fulltext.py` print rows that have become
+  fetchable.
+- `P24` — `guess`, `recurs`. Whether `Ended` waits for the user's cluster review: "Cluster review" says before `Ended`,
+  the row says "if given", and `G5` accepts "not yet reviewed". Suggested: say plainly which.
+- `P25` — `guess`. The faithfulness rubric does not cover `Reading` and `Questions` sentences that claim nothing about a
+  paper ("start here"). Suggested: `trace` leaves those two sections out.
+- `P26` — `guess`. `Ended`'s "measured numbers" have no form. Suggested: give it: last round's K of N, the bound, the
+  radius, the rounds, the coreset size.
+- `P27` — `minor`. The Coverage test brief and row say to `add` every candidate that changed a target; drawn candidates
+  are pool papers already. Suggested: "each recency candidate that ...".
+- `P28` — `minor`. `coverage.py judge --recency` writes the bare ID as the paper cell, against "title, linked by its
+  ID", and does not check the paper exists. Suggested: take the title from the pool or Semantic Scholar.
+- `P29` — `minor`, `recurs`. The step-7 `Late papers` row reruns the `late` that "After every dispatch" just ran.
+  Suggested: say the row is that run.
+- `P30` — `minor`, `recurs`. The Selection brief's `Read` list leaves out step 7's paragraph on counted papers' roles.
+  Suggested: add it for the Revise use.
+- `P31` — `minor`. `G2` does not check that a `high` cluster's definition states its central claim, which step-7
+  `dissent` rows are judged against. Suggested: a `g2` requirement.
+- `P32` — `minor`. `--gate G5` says "add `G5 <today>` to `Gates`" when it is already there. Suggested: only when
+  missing; likewise for every gate.
+- `P33` — `minor`. `coverage.py line` joins reasons as ".,". Suggested: strip the reason's final full stop.
+- `P34` — `minor`. The entry had no `Waivers` line and every gate passed, though the format says it is written as
+  `none`. Suggested: `G0` requires it.
+- `P35` — `minor`. `docs/tooling.md` says `trace` draws 15 sentences; with 9 it takes all. Suggested: "15, or all if
+  fewer".
+
 ## By phase
 
 | phase | commits | IDs handled |
@@ -88,7 +146,7 @@ Tags: `blocker` (cannot proceed, or certainly fails a gate), `guess` (must impro
 | 1 | `532e697` | `Z2`–`Z5`, `Z7`–`Z9`, `M13`; moot with them: `M9`, `M10`, `T1`, `S3`, half of `A7`, the history half of `M20` |
 | 2 | `d600a69`, `4d8e9a2`, `46d9dfd`, `4dc8dff`, `cda762a`, `f99ec2c`, `c43ba0c` | `C1`–`C6`, `C8`, `C9`, `M1`–`M6`, `M11`, `M12`, `M14`–`M19`, `S6`, `A9`, `T5`, `T9`, `R2`, `R3`; the code side of `C10`, `M20`, `S1`, `S2`, `S4`, `S15`; `T8` in part |
 | 3 | `558e816`, and "Remediation phase 3: a second tabletop" | `W1`–`W4`, `S5`, `S7`, `S9`–`S12`, `S14`, `A1`–`A8`, `R1`, `P1`–`P14`; the doc side of `C10`, `S1`, `S2`, `S4`, `S15`; the code side of `S10` and `A2`; `T8` in part |
-| 4 | pending | TODO 1 (the third tabletop's blocker); `T2`, `T3`, `T4`, `T6`, `R4`, the tool half of `A3` |
+| 4 | "Remediation phase 4: instrument the run" | TODO 1 (the third tabletop's blocker); `T2`, `T3`, `T4`, `T6`, `R4`, the tool half of `A3`; `T8` in part; `P15`–`P35` found, open |
 | 5 | pending | `R6`, and `Z1` in practice |
 | after the run | pending | `Z6`, `C7`, `M7`, `M8`, `S8`, `S13`, `T7`, `W3` step 2, `M20`'s hidden route, `R5`, the rest of `T8` |
 
@@ -105,6 +163,7 @@ Tags: `blocker` (cannot proceed, or certainly fails a gate), `guess` (must impro
 | 2d | `f99ec2c` | `tools/fulltext.py`, `tools/graph.py` |
 | 2 | `c43ba0c` | the arXiv backfill of `reasoning-legacy`'s pool |
 | 3 | `558e816`, and "Remediation phase 3: a second tabletop" | the spec pass over `docs/`, `CLAUDE.md` and the agents; `S10`'s gate change; `A2`'s sheet column; the first tabletop's fixes |
+| 4 | "Remediation phase 4: instrument the run" | `tools/coverage.py`, `tools/audit.py`, `check.py --print`, two `G5` requirements; the `R4` experiment and its records; the simulation's findings |
 
 ## Watch in the first run
 
@@ -130,11 +189,11 @@ These are judgement calls whose effect only real data will show. When auditing t
     about 0.49). Whether that is a real signal is `UNVERIFIED`. If a run's fringe list again leans towards papers
     without references, start here.
 
-- `Z2`, the cost of verifying from full text. The estimate is the same order of tokens per row as snippet-based
-  verification, possibly somewhat higher. It is `UNVERIFIED`: the ~10k-per-row baseline comes from snippet-based passes,
-  and no row has yet been verified from a fetched full text. `R6` measures it. The reasoning: the paper lands on disk at
-  no token cost, and the agent reads only Grep hits and a few sections, which cost about what a `snippet_search` call
-  returned (about 700 tokens per call, two or more calls per row). The risks to check, in order:
+- `Z2`, the cost of verifying from full text. The estimate before Phase 4 was the ~10k per row of snippet-based passes.
+  `R4` measured about 26k per row: 27 rows verified by strong agents reading with the section reader and Grep, by the
+  harness's per-agent token counts (what those include is `UNVERIFIED`). `docs/process.md` now plans with 26k per row
+  and 2–2.5M per pass, up from 1–1.5M. `R6` measures it again inside a real pass, where agents verify a block of rows
+  and also write evidence files. The risks to check, in order:
 
   - an agent that `Read`s a whole full text pulls in 10–70k tokens at once. If verification tokens per row come out
     high, look here first;
@@ -150,11 +209,11 @@ These are judgement calls whose effect only real data will show. When auditing t
   Asta with a key allows 10 requests per second, against arXiv's one per 3 seconds. But a single `snippet_search` has
   been seen to hang for over two minutes, so Asta is not clearly faster in practice.
 
-- `Z2`, what targeted reading misses. Verification has two jobs. Confirming the claims a draft already makes suits Grep,
-  since the agent knows what to look for. Catching what the draft left out (an author-stated limitation, a condition on
-  a result, a dissent paper that in fact agrees) does not, since Grep finds only what the agent already suspects. The
-  expectation is high recall on the first job and lower on the second, `UNVERIFIED` until `R4` measures it. Until then,
-  read rows for missing caveats more sceptically than for wrong numbers.
+- `Z2`, what targeted reading misses. `R4` measured it: reading by the section reader and Grep found about 90% of what a
+  whole reading of the paper found, on 8 papers, and most of what it missed was in appendices or footnotes. So the
+  verification method gained a step: read the appendix sections a result turns on. That step was added after the
+  measurement and is itself untested; watch whether it raises tokens per row, and whether evidence files cite
+  appendices. The measurement's limits are in `docs/experiments.md`: one reference reader, not blind scoring, 8 papers.
 
 - The viewer has never been rendered in a browser. Headless Chromium could not start here, so both the Phase 1 changes
   (panels removed with `Z3` and `Z5`) and the `R3` colour mode were checked in node only. Open
@@ -195,8 +254,20 @@ These are judgement calls whose effect only real data will show. When auditing t
   `metric` too. One quote may cover several cells, so the cost should be small, but it adds to verification tokens per
   row, which `R6` measures.
 
-- `A3`, the coverage sheet. Until Phase 4's tool writes it, the Coverage agent writes `coverage-<R>.md` itself, and no
-  gate checks it. Check that the first run's sheets have a row for every sampled candidate.
+- `A3` and `T4`, the coverage sample. `tools/coverage.py draw` now draws ten pool papers at random from the
+  worst-covered quarter, and the hand weighting the spec had (toward thin clusters, plus a few high fringe scores) is
+  gone, since the worst-covered papers subsume both in intent. That is a judgement call: a high-fringe-score paper far
+  from its age cohort but near a coreset row is no longer sampled. If the first run's coverage rounds look too easy,
+  start here. The bound the line prints holds only for the worst-covered quarter, and leaves the recency candidates out.
+  Distances are in rank units of the `combined` measure, so a radius of 0.45 means a paper whose nearest coreset row is,
+  on average, outside its nearest 45% of the pool: interpret the radius relative to other rounds and topics, not in
+  absolute terms. On the gate fixture's 19 rows the radius was 0.451, p90 0.215.
+
+- `T2` and `T3`, the judgement audits. Both are new on every pass, at about 50–100k tokens. Nothing yet says what rate
+  is acceptable, and the audits measure without repairing: each `differ` or `unsupported` goes to the user. The
+  re-verifying agent is blind to the rows only by instruction (it could open the survey); check its report says it did
+  not. The comparison verdicts `agree`, `partly`, `differ` are judged by a second agent; whether two judges agree on
+  them is itself unmeasured.
 
 - `S11`, the user's cluster review. It is now taken before `Ended`, when the output is shown; a review after `Ended`
   goes into the next pass's entry. If users routinely review later, the `Clusters` line of a finished pass will always
@@ -231,7 +302,8 @@ The third run's findings, 17 in all (1 `blocker`, 8 `guess`, 8 `minor`):
 - `blocker`: on a return to step 3, `--gate G2` cannot pass. A `Coverage test` line makes `check.py` require `G0`–`G4`,
   and `--gate` passes only when nothing fails, so the return's open work fails it; Revise's `G3` likewise, and `g4.h10`
   while new rows await verification. Confirmed on the fixture. Fix: on a return, skip re-gating until Revise is done.
-  Scheduled as the first item of Phase 4, rather than left to the run.
+  Fixed in Phase 4 (TODO 1), as suggested, and extended to Revise without a return, which met the same wall: its `G3`
+  and `G4` gate rows are skipped too, since the `Coverage test` line already makes the plain check require them.
 - `guess`: `H6` at naming. An unratable cluster cannot get a valid row, yet the rows up to the viewer must run, and
   nothing says who applies the user's rating later. Fix: a provisional rating, marked in `alignment reason`, and a
   Naming re-dispatch for the decision.
@@ -481,10 +553,13 @@ The third run's findings, 17 in all (1 `blocker`, 8 `guess`, 8 `minor`):
   date. Naming writes each `high` cluster's central claim as the second sentence of its `definition`. A new column was
   considered and rejected, since it would change the Clusters table's checks for no gain. Dissent is defined against
   that sentence, with two named non-cases.
-- `A3` — rubric half fixed, Phase 3. What counts as a change (a claim added, removed or reversed; not an added citation
-  or a refinement), the evidence level (abstracts, snippets for doubt), and the service for the fresh recency query
-  (WebSearch, as in step 1) are stated. Every sampled candidate is recorded in `coverage-<R>.md`, written for now by the
-  Coverage agent; the tool that draws the sample and writes the sheet is Phase 4.
+- `A3` — fixed: the rubric in Phase 3, the tool in Phase 4. What counts as a change (a claim added, removed or reversed;
+  not an added citation or a refinement), the evidence level (abstracts, snippets for doubt), and the service for the
+  fresh recency query (WebSearch, as in step 1) are stated. `tools/coverage.py` draws the sample with a recorded seed
+  and writes `coverage-<R>.md`; the agent records verdicts with `coverage.py judge`, adding recency candidates with
+  `--recency`; `coverage.py line` prints the `Coverage test` line, so K and N are counted by script. A new requirement,
+  `g5.coverage-sheets`, checks each round's line against its sheet: every candidate judged, N the sheet's rows, K's IDs
+  its `changes` rows, a proposed cluster not reported as `none`. Four faults test it.
 - `A4` — fixed, Phase 3. Step 3 has explicit rows for a targeted expansion, once per region, and for fetching with
   `pool.py` and reclustering. A rerun after naming is followed by `remap`, on any pass. `H7` is reached only after the
   targeted expansion Naming triggers. Papers from step 3's expansions are not late papers.
@@ -503,9 +578,29 @@ The third run's findings, 17 in all (1 `blocker`, 8 `guess`, 8 `minor`):
 ## T — tool work
 
 - `T1` — resolved by `Z2`: quotes come only from the fetched full text, which `G4` checks.
+- `T2` — fixed, Phase 4. `tools/audit.py trace` draws 15 output sentences that cite a coreset paper (seeded) and writes
+  `faithfulness.md`: each sentence beside its cited rows' cells and evidence quotes, once per paper. A "Judgement audit"
+  agent, which wrote neither the rows nor the output, judges each `supported`, `partly` or `unsupported`
+  (`docs/process.md`, "Auditing the judgements"). Departure: the audit measures and does not repair; each `unsupported`
+  goes to the user, since fixing only the sampled sentences would leave the rate describing nothing.
+- `T3` — fixed, Phase 4, as a standing part of every pass rather than the first run only. `tools/audit.py reverify`
+  draws 10% of the full-text rows, at least five; a fresh agent fills their claim cells and dimensions from the full
+  text alone (`fill`), given the paper IDs, the column definitions and the `Dimensions` line; `compare` sets each cell
+  beside the survey's, and the Judgement audit agent marks it `agree`, `partly` or `differ`. `audit.py line` prints the
+  `Judgement audit` line with both rates; `g5.judgement-audit` requires it, recomputes it from the sheets, and fails on
+  any unjudged row. Three faults test it. Departure: the audit had said "compare cell by cell" without saying who; a
+  second agent judges, since free-text cells cannot be compared by string.
+- `T4` — fixed, Phase 4: `tools/coverage.py radius [--loo]` prints the coreset's radius (max, p90, mean) under the
+  `combined` measure and the ten worst-covered pool papers; `--loo` prints each row's leave-one-out growth. `draw` takes
+  the coverage sample from the worst-covered quarter (`A3`). Departure: distances are 1 minus the `combined` similarity,
+  which is rank-based, rather than the SPECTER2 cosine distance of the audit's simulation; that keeps one measure for
+  clustering and coverage and makes a distance read as a share of the pool. The radius is reported, not gated.
 - `T5` — fixed, `46d9dfd`:
   - `assign.py reject` reads `id<TAB>reason` lines on stdin, all or none.
   - `fringe.py judge` reads `s2<TAB>yes|no|maybe<TAB>reason` lines, refusing the whole batch on any bad line.
+- `T6` — fixed, Phase 4: `tools/check.py <topic> --print <section>[:<cluster id>]` prints one section or one cluster's
+  block with its line span, checking nothing. The docs that told agents to find line offsets with `grep -n` now point to
+  it (step 6, the briefs' reading note, `.claude/agents/survey-pass.md`). Three behaviours test it.
 - `T8` — partial, Phase 0 (`5d18f12`) and `d600a69`:
   - Done: the baseline assertion, cleanup at exit, a unique topic per run, and the waiver no-op. Fixing the no-op
     exposed a second hidden integrity failure in the waiver case: the dropped fringe row was cited in the output. The
@@ -513,7 +608,9 @@ The third run's findings, 17 in all (1 `blocker`, 8 `guess`, 8 `minor`):
   - Counts: 48 faults and 20 behaviours after Phase 0, 49 and 21 after Phase 1 (one new each, for `snippet` evidence and
     a `snippet` source in the coreset layout).
   - Phase 2 grew the suites from 49 faults and 21 behaviours to 70 and 35. Phase 3 added two faults (`S10`, and
-    `r_errored` below) and one behaviour (the halt dash): 72 and 36.
+    `r_errored` below) and one behaviour (the halt dash): 72 and 36. Phase 4 added seven faults (`g5.coverage-sheets`,
+    `g5.judgement-audit`) and eight behaviours (`--print`, a coverage round through `tools/coverage.py`): 79 and 44. The
+    fixture now carries a coverage sheet and the audit sheets, written through the tools' own functions.
   - Still untested, from the audit's list: `g1.errored` without a retry outcome, the stale date in `g1.rejected`,
     `g2.diagnosis-halts` for `H5`, `g5.converged` for `H11`, history's pool removal and input-changed note, and a
     dedicated test per integrity check.
@@ -565,10 +662,18 @@ The third run's findings, 17 in all (1 `blocker`, 8 `guess`, 8 `minor`):
 
   On `reasoning-legacy`, all 195 pool papers have an arXiv ID.
 
-- `R4` — pending, Phase 4. Settled so far (user, 2026-10-10): it runs outside the pass loop, with the main session as
-  orchestrator. The main session dispatches cheap-model locators and strong agents, and does the reference reading (arm
-  `C`) itself. It records arm `C`'s findings before reading arms `A` and `B`, so that their maps cannot shape what it
-  notices. The design is in the plan.
+- `R4` — done, Phase 4. Run as designed (user, 2026-10-10), outside the pass loop: arm `A` (strong agents, section
+  reader and Grep) and arm `B` (Haiku locators mapping each whole paper, then strong agents reading the mapped places)
+  on all 27 `abstract`-sourced rows of `reasoning-legacy`; arm `C`, the main session reading 8 whole papers, recorded
+  before any `A` or `B` output was opened. Result: `A` found 90% of `C`'s findings at about 26k tokens per row; `B`
+  found 84% at about 35k Haiku plus 27k strong tokens per row; `A` beat `B` on 7 of 8 papers. The Haiku maps had wrong
+  line numbers (3 of 8), passages from another paper in the batch (1), and an invented limitation (1). Decision:
+  verification reads with the section reader alone; a step to read the appendix sections a result turns on was added,
+  since most of `A`'s misses were there. Departures: a spend limit stopped five agents mid-run, so the missing papers
+  were rerun, and some token counts are unknown; the rerun prompt for `B` added that map line numbers may be off.
+  Scoring was by the main session, not blind. Records: `graphs/reasoning-legacy/r4/` (`README.md`, `tokens.md`,
+  `compare.md`) and `docs/experiments.md`. The 27 rows' results were not written back into `reasoning-legacy`, which
+  Phase 5 reruns.
 
 - `R5` — parked (user, 2026-10-10). Supporting papers without arXiv is likely overengineering for now; a snippet backup
   would be a nice reserve. Build it only if `R3` shows a topic where such papers are a real share of the coreset.
@@ -610,11 +715,13 @@ rows are gone, and the step-3 and step-4 rows serve both cases (user's decision,
 - `P12` — fixed: forward from the seeds and the frontier candidates, in the prose and the bullet.
 - `P13` — fixed, as suggested.
 - `P14` — fixed: the plan report does not block; the user can stop the pass, or change the dimensions in the input.
+- `P15`–`P35` — open, found by Phase 4's simulation (defined above). Not fixed, pending the user's decision: fix them
+  and simulate again, or leave them to the first run, as Phase 3's third tabletop was. Three (`P24`, `P29`, `P30`) are
+  the third tabletop's findings recurring.
 
 ## Pending
 
-- Phase 4: first, TODO 1, the third tabletop's blocker (re-gating on a return to step 3); then `T2`, `T3`, `T4`, `T6`,
-  `R4`, and the tool half of `A3`.
+- Phase 4's simulation findings, `P15`–`P35`: fix and simulate again, or leave to the first run (the user's call).
 - Phase 5: `R6`, and `Z1` in practice.
 - After the run: `Z6`, `C7`, `M7`, `M8`, `S8`, `S13`, `T7`, `W3` step 2, `M20`'s hidden route, `R5`, and the rest of
   `T8`.

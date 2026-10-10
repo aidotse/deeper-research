@@ -5,7 +5,7 @@ process exits, even after a crash. The topic is `zz-gate-<pid>`, so two runs nev
 choose the name. `python3 tests/gates/build.py` builds the fixture and keeps it, for inspection. Needs
 graphs/reasoning-legacy/.
 """
-import atexit, json, os, re, shutil, sys
+import atexit, contextlib, io, json, os, re, shutil, sys
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -125,6 +125,7 @@ def build():
 - **Late papers:** none
 - **Coverage test:** round 1: 1 of 12 sampled candidates changed the output ({changed}: gap: a new gap); new
   clusters: none
+- **Judgement audit:** JUDGEMENT_AUDIT
 - **Probes:** none
 - **Corrections to existing rows:** none
 - **Tokens:** step 1: 80k
@@ -201,6 +202,34 @@ A tension ({cite[2]}).
 
 1. {cite[3]} — start here.
 """)
+    # The coverage sheet of round 1: the paper the line counts, and eleven pool papers outside the coreset.
+    import coverage, audit
+    others = [p for p in sorted(a) if p not in all_rows][:11]
+    cov = [dict(paper=f"[{titles[changed]}]({link(changed)})", **{"drawn as": "worst-covered", "distance": "0.300",
+                "nearest row": all_rows[0], "verdict": "changes Gaps", "reason": "it adds a gap the output lacks"})]
+    cov += [dict(paper=f"[{titles[p].replace('|', '/')}]({link(p)})", **{"drawn as": "worst-covered", "distance": "0.200",
+                 "nearest row": all_rows[0], "verdict": "no change", "reason": "its nearest row already makes the claim"})
+            for p in others]
+    coverage.write_sheet(dst / "coverage-1.md", T, 1, f"Drawn {DATE} by `tools/coverage.py draw`, seed 1.", cov)
+    # The judgement audits, run through tools/audit.py as the order of operations runs them.
+    def call(fn, *args, stdin=""):
+        with contextlib.redirect_stdout(io.StringIO()):
+            old, sys.stdin = sys.stdin, io.StringIO(stdin)
+            try:
+                assert fn(T, *args) == 0, fn.__name__
+            finally:
+                sys.stdin = old
+    cells = dict(zip(cols[4:-1], ["M", "does a thing", "GSM8K", "accuracy", "+2"] + list(dims.values())))
+    call(audit.reverify, 1)
+    picked = [l.split("abs/")[1].split(")")[0] for l in (dst / "reverify.md").read_text().splitlines() if "arxiv.org/abs/" in l]
+    call(audit.fill, stdin="".join(f"{p}\t{k}\t{v}\n" for p in picked for k, v in cells.items()))
+    call(audit.compare)
+    call(audit.judge, "reverify", stdin="".join(f"{p}\t{k}\tagree\tthe same claim\n" for p in picked for k in cells))
+    call(audit.trace, 15, 1)
+    n = (dst / "faithfulness.md").read_text().count("| S")
+    call(audit.judge, "faithfulness", stdin="".join(f"S{i}\tsupported\tthe row says so\n" for i in range(1, n + 1)))
+    s = (ROOT / f"surveys/{T}.md").read_text().replace("JUDGEMENT_AUDIT", audit.summary(T)[0])
+    (ROOT / f"surveys/{T}.md").write_text(s)
     return dict(verified=verified, dissent=[d1, d2], abstract=abstract, rows=all_rows, changed=changed, fr1=fr1, fr2=fr2, names=names, a=a)
 
 

@@ -109,15 +109,24 @@ region.
 `Sufficiency is tested directly`, by the coverage test (`docs/process.md`, step 7). It samples pool papers not in the
 coreset, and for each asks whether it opens a new cluster or would change a claim in the output's targets. The coreset
 is sufficient when a round changes almost nothing. This is a sampled test, so sufficiency is established with the
-confidence a sample of 10–15 allows, not proven. That confidence is modest. A round of 15 with one change is consistent,
-at 95% confidence, with up to 28% of unsampled pool papers changing the output; a round of 10 with one change, with up
-to 39% (`docs/process.md`, step 7, gives the table). The sample leans toward thinly covered clusters and high fringe
-scores, which is where a failure is most likely, so the true share is probably lower. Nothing measures it directly yet.
+confidence a sample allows, not proven. That confidence is modest. The sample is drawn at random from the worst-covered
+quarter of the pool, the papers furthest from any row, which is where a failure is most likely. A round of ten such
+papers with one change is consistent, at 95% confidence, with up to 39% of that quarter changing the output
+(`docs/process.md`, step 7). The rest of the pool is closer to a row, so its share is probably lower; that is reasoned,
+not measured.
 
-`Minimality is not tested directly.` No step removes a row and checks whether the output changes. It is approximated
-instead by the role structure, which gives each row a distinct job, and by the sizing rules: about two to four rows per
-cluster, and past about 80 rows, a check that no role is filled twice. Size alone is not an error: a topic with many
-`high` clusters can legitimately need more. A direct removal test is an open item.
+The covering itself is measured, as the k-center view above suggests: `tools/coverage.py` computes the coreset's radius
+over the pool, the distance from the worst-covered pool paper to its nearest row (`docs/tooling.md`, "Coverage"). It is
+a number to report beside the coverage verdict, not a stopping rule. Distances are taken under the clustering's measure,
+so they say how near a row is in the pool's own terms, not whether the row says what the paper says.
+
+`Minimality is not tested directly.` No step removes a row and checks whether the output changes. A proxy exists:
+`tools/coverage.py radius --loo` prints how much the radius grows when each row alone is removed, so a row whose removal
+changes nothing covers no pool paper on its own. That is a fact about the pool's geometry, not about the output, and a
+`dissent` or `fringe` row is there for what it says, not for where it sits. Otherwise, minimality is approximated by the
+role structure, which gives each row a distinct job, and by the sizing rules: about two to four rows per cluster, and
+past about 80 rows, a check that no role is filled twice. Size alone is not an error: a topic with many `high` clusters
+can legitimately need more. A direct removal test is an open item.
 
 Two different stabilities are in play, and they are easy to confuse:
 
@@ -157,7 +166,7 @@ whole field, and should say so. This is not yet part of a pass; like a probe, it
 
 ## Open questions
 
-- `Minimality` has no direct test (see above).
+- `Minimality` has no direct test, only the radius proxy (see above).
 - `Sufficiency` is judged by a model reading the output, not by a metric. Whether two agents would agree on "would this
   change a claim" has not been measured.
 - `The covering is only as good as the pool.` Retrieval bias toward well-publicised or recent work becomes coverage

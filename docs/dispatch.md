@@ -82,6 +82,8 @@ The agent reads its own brief below, and then only the spec sections the brief l
 Every agent also reads `docs/process.md`, "When a pass ends", for the halts. `CLAUDE.md` and the agent's own
 instructions are loaded for it. The rest of the spec is rationale or main-session procedure, and costs reading without
 changing what the agent does. If a listed section points elsewhere for something the job needs, follow that pointer.
+Read the survey itself one section at a time, with `python3 tools/check.py <topic> --print <section>`, or
+`--print Coreset:<cluster id>` for one block, never whole: it is mostly its Pool table.
 
 ### The briefs
 
@@ -165,15 +167,31 @@ changing what the agent does. If a listed section points elsewhere for something
   uncheckable rows, for the main session to offer their roles to Selection.
   - Read: `docs/verification.md`, "Verification"; `docs/tooling.md`, "Full text"; `docs/formats.md`, "3. Coreset", "1.
     Retrieval log" and "5. Open work"; `docs/external_services.md`, "Tools, and when to use each".
-- **Coverage test** (step 7), once per round. Hand over: the round's number; the per-cluster lines of the
-  `tools/check.py` printout; the recency window for the fresh query. The agent draws the sample (`docs/process.md`, step
-  7), using `fringe-sheet.md` for the fringe scores, judges each candidate against the output, writes the round's sheet,
-  and adds every candidate that changed a target, or belongs to a proposed cluster, with `tools/assign.py add`. Writes:
-  `coverage-<R>.md`; Pool rows; `Coverage test`. Returns: each proposed new cluster, with its region, for a targeted
-  expansion.
+- **Coverage test** (step 7), once per round. Hand over: the round's number; the path of `coverage-<R>.md`, which
+  `tools/coverage.py draw` has written; the recency window for the fresh query. The agent adds up to five candidates
+  from the recency query, judges every candidate against the output, records the verdicts with
+  `tools/coverage.py judge`, and adds every candidate that changed a target, or belongs to a proposed cluster, with
+  `tools/assign.py add`. Writes: the sheet's verdicts and recency rows; Pool rows; `Coverage test`, as
+  `tools/coverage.py line` prints it. Returns: each proposed new cluster, with its region, for a targeted expansion; the
+  bound the line's printout gives.
   - Read: `docs/process.md`, "Step 7: the coverage test", "Screening for scope" and "Late papers"; `docs/formats.md`,
     "`Coreset Spec`", "1. Retrieval log" and "The coverage sheet"; `docs/external_services.md`, "WebSearch and
-    WebFetch", "Tools, and when to use each" and "Rate limits and errors"; `docs/tooling.md`, "Pool table".
+    WebFetch", "Tools, and when to use each" and "Rate limits and errors"; `docs/tooling.md`, "Pool table" and
+    "Coverage".
+- **Re-verification** (step 7), once, by a fresh agent. Hand over: the path of `reverify.md`, which
+  `tools/audit.py reverify` has written; the log's `Dimensions` line. Nothing else: not the survey, the rows or their
+  evidence, which would unblind it. The agent reads each sampled paper's full text through `tools/fulltext.py show`, as
+  verification does, and fills every cell from it with `tools/audit.py fill`, writing `n/a` where the column's
+  definition allows. It never opens `surveys/`, `outputs/` or `graphs/<topic>/evidence/`. Writes: the cells of
+  `reverify.md`. Returns: the cells it was unsure about.
+  - Read: `docs/process.md`, "Auditing the judgements"; `docs/formats.md`, "3. Coreset"; `docs/verification.md`,
+    `What "verify" means`; `docs/tooling.md`, "Full text" and "Judgement audits".
+- **Judgement audit** (step 7), once, by an agent that wrote neither the rows nor the output. Hand over: the paths of
+  `reverify-compare.md` and `faithfulness.md`. The agent judges every row of both sheets by the rubric, from the sheets
+  alone, and records the verdicts with `tools/audit.py judge`. Writes: the verdicts; `Judgement audit`, as
+  `tools/audit.py line` prints it. Returns: each `differ` and `unsupported`, for the main session to report to the user.
+  - Read: `docs/process.md`, "Auditing the judgements"; `docs/formats.md`, "1. Retrieval log"; `docs/tooling.md`,
+    "Judgement audits".
 - **Probe** (on request). Hand over: the question, and the coreset rows closest to it. The agent follows
   `docs/verification.md` ("Probes") and adds each paper it finds with `tools/assign.py add`; they are late papers.
   Writes: `Probes`. Returns: found, with IDs, or survived a refutation attempt.

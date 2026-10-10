@@ -2,6 +2,7 @@
 """Consistency check for one topic's pipeline artifacts, and the gates of a pass.
 
 Usage: python3 tools/check.py <topic> [--gate G<n>] [--status]
+       python3 tools/check.py <topic> --print <section>[:<cluster id>]
 
 Two kinds of check, both failing with exit status 1:
 
@@ -27,6 +28,11 @@ It also prints, without failing: each cluster's in-degree leaders within the poo
 not an in-degree leader, the `source` tally, how many coreset and pool papers have an arXiv ID, and pool papers still
 waiting for a cluster. Notes also flag clusters that trade papers with no bridge yet, while G3 is not yet required, and
 papers both rejected and in the pool.
+
+`--print` prints one section of the survey instead, checking nothing: `Retrieval log`, `Clusters`, `Coreset`, `Pool` or
+`Open work` (case and dashes do not matter, so `open-work` will do), or one cluster's block, `Coreset:<cluster id>`. It
+heads the text with the line numbers it spans, so that an agent can Read on or Edit from there. A survey is mostly its
+Pool table, so this is the cheap way to read the rest.
 
 Surveys written before the coreset structure (no `## Clusters` section) get only the integrity checks that apply to
 them, and no gates. Exit status 2 is a usage error.
@@ -510,7 +516,47 @@ def check_output(output, coreset_ids, abstract, layout, targets, failures, notes
                          "an unrepresented connection is \"not represented in the coreset\"")
 
 
+def print_section(topic, survey, what):
+    """Print one `## ` section of the survey, or one `### <cluster id> — ...` block of the Coreset, with its line span."""
+    name, _, block = what.partition(":")
+    key = re.sub(r"[\s_-]+", " ", name).strip().lower()
+    lines = survey.splitlines()
+    heads = [(i, l[3:].strip()) for i, l in enumerate(lines) if l.startswith("## ")]
+    match = [(i, h) for i, h in heads if h.lower() == key]
+    if not match:
+        print(f"usage error: no section {name!r} in surveys/{topic}.md; it has: {', '.join(h for _, h in heads)}",
+              file=sys.stderr)
+        return 2
+    start = match[0][0]
+    end = next((i for i, _ in heads if i > start), len(lines))
+    if block:
+        subs = [i for i in range(start, end) if lines[i].startswith("### ")]
+        hit = [i for i in subs if lines[i][4:].split(" — ")[0].strip() == block.strip()]
+        if not hit:
+            ids = [lines[i][4:].split(" — ")[0].strip() for i in subs]
+            print(f"usage error: no block {block!r} in {match[0][1]}; it has: {', '.join(ids) or 'none'}",
+                  file=sys.stderr)
+            return 2
+        start, end = hit[0], next((i for i in subs if i > hit[0]), end)
+    while end > start + 1 and not lines[end - 1].strip():
+        end -= 1
+    print(f"surveys/{topic}.md, lines {start + 1}-{end}:\n")
+    print("\n".join(lines[start:end]))
+    return 0
+
+
 def main(argv):
+    if "--print" in argv:
+        i = argv.index("--print")
+        rest = argv[:i] + argv[i + 2:]
+        if i + 1 >= len(argv) or len(rest) != 1 or rest[0].startswith("--"):
+            print(__doc__.strip())
+            return 2
+        survey = read(ROOT / "surveys" / f"{rest[0]}.md")
+        if survey is None:
+            print(f"FAIL  surveys/{rest[0]}.md does not exist")
+            return 1
+        return print_section(rest[0], survey, argv[i + 1])
     gate = argv[argv.index("--gate") + 1] if "--gate" in argv else None
     status = "--status" in argv
     args = [a for a in argv if not a.startswith("--") and a != gate]

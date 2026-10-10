@@ -77,6 +77,12 @@ It also prints, without failing:
 
 Surveys written before the coreset structure (no Clusters section) get only the integrity checks that apply to them.
 
+`python3 tools/check.py <topic> --print <section>` prints one section of the survey and checks nothing: `Retrieval log`,
+`Clusters`, `Coreset`, `Pool` or `Open work`, in any case and with dashes for spaces, or one cluster's block, as
+`--print Coreset:<cluster id>`. It heads the text with the line numbers it spans, so that an agent can Read on or Edit
+from there. A survey is mostly its Pool table, so this is how to read the rest of it. An unknown section or block is a
+usage error, and the message lists the ones there are.
+
 ## Preflight
 
 `python3 tools/preflight.py` runs the preflight checks that need no agent: the Graph API, the arXiv API and HTML, `uv`,
@@ -263,6 +269,49 @@ the lines that look like headings, and a heading such as "B Additional results" 
 Scholar for a paper without an arXiv ID. It takes each row's paper from the first link in the row, as `tools/check.py`
 does. See `docs/formats.md`.
 
+## Coverage
+
+`tools/coverage.py` measures how well the coreset covers the pool, and runs the coverage test's sample (step 7).
+
+A pool paper's distance from the coreset is 1 minus its similarity to the nearest coreset row, under the `combined`
+measure the clustering uses. That measure is built from neighbour ranks, so a distance reads as a share of the pool:
+0.05 means the nearest coreset row is among the paper's nearest 5% of pool papers. The coreset's radius is the largest
+such distance.
+
+- `uv run tools/coverage.py radius <topic> [--loo]` prints the radius (max, p90 and mean) and the ten worst-covered pool
+  papers, each with its nearest row. With `--loo`, it also prints how much the radius grows when each row alone is
+  removed: a proxy for how much each row is needed.
+- `uv run tools/coverage.py draw <topic> <R> [--n 10] [--seed <R>]` writes round R's sheet, `coverage-<R>.md`: `--n`
+  pool papers drawn at random, with the seed recorded, from the worst-covered quarter of those outside the coreset and
+  not sampled in an earlier round. It refuses to redraw a round.
+- `python3 tools/coverage.py judge <topic> <R>` reads `<id><TAB><verdict><TAB><reason>` lines on stdin: `no change`,
+  `changes <target>` or `new cluster`, the target being one of the input's. With `--recency`, each line adds a candidate
+  from the recency query as a row of its own. A bad line refuses the whole batch.
+- `python3 tools/coverage.py line <topic> <R>` prints the round's `Coverage test` line, counted from the sheet, and the
+  bound on what the round missed. It refuses while a candidate has no verdict.
+
+On the gate fixture's 195 papers and 19 rows, `radius --loo` takes about 4 seconds. `tools/check.py` reads the sheets
+for `G5`.
+
+## Judgement audits
+
+`python3 tools/audit.py` runs the two judgement audits (`docs/process.md`, "Auditing the judgements"). Standard library
+only.
+
+- `reverify <topic> [--seed 1]` draws 10% of the rows verified from the full text, at least five, and writes
+  `reverify.md`, with the claim and dimension cells empty.
+- `fill <topic>` reads `<id><TAB><column><TAB><text>` lines on stdin into those cells. The re-verifying agent uses it.
+- `compare <topic>` writes `reverify-compare.md`: each cell beside the survey's, to judge. It refuses while a cell of
+  `reverify.md` is empty.
+- `trace <topic> [--n 15] [--seed 1]` draws output sentences that cite a coreset paper, and writes `faithfulness.md`:
+  each sentence, then each cited row's cells and evidence quotes.
+- `judge <topic> reverify|faithfulness` reads verdicts on stdin:
+  `<id><TAB><column><TAB>agree|partly|differ<TAB><reason>` or `S<n><TAB>supported|partly|unsupported<TAB><reason>`.
+- `line <topic>` prints the `Judgement audit` line, once every row of both sheets has a verdict. `tools/check.py`
+  recomputes it for `G5`.
+
+Each draw is made once a pass, and refuses to overwrite its sheet.
+
 ## Experiments
 
 `tools/recursive.py`, `tools/match.py simulate` and `history`, and `tools/fringe.py analyse` are experiments, not part
@@ -283,8 +332,10 @@ name is unique per run, so two runs never share files, and every file a run wrot
 crash. `faults.py` first confirms that the unmodified fixture passes `--gate G5`, since a fault is only caught if the
 baseline passes. It then injects at least one fault per gate requirement and confirms that its own requirement catches
 it. `behaviour.py` checks what single requirements cannot show: waivers, a pending halt, progress inferred mid-pass and
-by the safety net, the history checks, and `tools/assign.py reject`. Run both after any change to `tools/check.py` or
-`tools/gates.py`; each exits 1 on a miss. A change to a requirement comes with its test case, in the same commit.
+by the safety net, the history checks, `tools/assign.py reject`, `tools/check.py --print`, and a coverage round through
+`tools/coverage.py`. The fixture's coverage sheet and audit sheets are written through the same tools' functions. Run
+both after any change to `tools/check.py` or `tools/gates.py`; each exits 1 on a miss. A change to a requirement comes
+with its test case, in the same commit.
 
 ## Formatting
 

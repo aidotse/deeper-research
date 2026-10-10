@@ -36,9 +36,14 @@ across line breaks, so search for word stems, and the "sections" are its pages a
 in the full text. A snippet is a pointer, not evidence. Quote the full text, never the snippet: nothing can check a
 snippet afterwards, so a quote from one would be a claim presented as retrieved. Set `source` to `full-text`.
 
-Which way into a paper works best, the section reader alone or a cheaper model mapping the paper first, has not been
-measured. Until it is, use the section reader as above, and read for what the draft row left out as carefully as for
-what it got wrong.
+4. Read the outline's appendix headings too, and the appendix sections a result turns on: robustness checks, failure
+   cases, ablations, the training or evaluation details a number depends on. Appendices are where a result's conditions
+   most often live, and they are the part of a paper a targeted reading most often skips.
+
+Read for what the draft row left out as carefully as for what it got wrong. This way of reading was measured against
+reading whole papers: it found about 90% of what a whole reading found, at about 26k tokens per row, and most of what it
+missed sat in appendices, hence step 4. Mapping the paper first with a cheaper model found less (about 84%) and cost
+more, so it is not used (`docs/experiments.md`, "Reading a paper for verification").
 
 Then check every cell:
 

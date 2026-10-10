@@ -49,3 +49,26 @@ enough to be found and cited today. The history is therefore optimistic: a real 
 
 `uv run tools/fringe.py analyse <topic>` is the experiment behind the fringe routes: it reclusters with the screened
 candidates added, and reports per route how they behave. Its report is `graphs/<topic>/fringe-analysis.json`.
+
+## Reading a paper for verification
+
+An experiment, not a script (`R4` of the audit of 2026-10-09): does targeted reading find what a whole reading finds?
+The 27 `abstract`-sourced rows of `reasoning-legacy` were verified against their full texts by two arms, and 8 of them
+also by a reference reading of the whole paper. The inputs, every arm's output, the token counts and the scoring are in
+`graphs/reasoning-legacy/r4/` (`README.md`, `tokens.md`, `compare.md`).
+
+- Arm A, a strong agent reading by the section reader and Grep, found 90% of the reference's findings (115.5 of 129) at
+  about 26k tokens per row.
+- Arm B, a cheap-model locator (Haiku) reading each whole paper into a map of line numbers and quotes, then a strong
+  agent reading only the mapped places, found 84% (108 of 129) at about 35k locator tokens plus 27k strong tokens per
+  row. Three of the eight maps had wrong line numbers throughout, one held passages from another paper in its batch, and
+  one invented a limitation; the strong readers caught these, but often by reading around the map.
+- A beat B on 7 of the 8 papers. Most of what A missed was in appendices or footnotes, so the verification method now
+  reads the appendix sections a result turns on (`docs/verification.md`, `What "verify" means`).
+- Each arm found real things the reference missed: the reference is a reading, not ground truth.
+
+Caveats: one reference reader (the main session), 8 papers, scoring by the same reader and not blind to the arm. The
+token figures are the harness's per-agent counts, which are comparable across arms but are not bills (`UNVERIFIED` what
+they include). Two arms' runs were interrupted by a spend limit and rerun for the missing papers, so 5 of 27 rows of arm
+A and 14 of 27 of arm B have no token count. Midway, the rerun prompt for arm B added that a map's line numbers may be
+off. Decided (2026-10-10): verification reads with the section reader alone, with the appendix step added; no locator.

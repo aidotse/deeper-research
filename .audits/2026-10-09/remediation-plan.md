@@ -328,6 +328,11 @@ What turns the run into a measurement rather than a demo:
 Done when: each tool runs on the gate fixture, the briefs that use them name them, and `R4` has decided the reading
 method.
 
+Status, 2026-10-10: done. TODO 1, `T2`, `T3`, `T4`, `T6`, the tool half of `A3` and `R4` are in, per ID in
+`.audits/2026-10-09/disposition.md`. `R4` decided the reading method: the section reader alone, plus a step for
+appendices; no locator. A blind simulation of step 7 to `G5` on the gate fixture finished the pass and found 21 issues
+(`P15`–`P35`, none blocking), recorded in the disposition and not yet fixed.
+
 ## Phase 5: the runs
 
 1. The topic name is settled: the legacy survey is `reasoning-legacy` (Phase 0).
@@ -376,6 +381,7 @@ run shows.
 | `T2`, `T3`, `T4`, `T6`, `R4`; tools for `A3` | Phase 4 |
 | `R1` | Phase 3 (the step-5 row), used in Phase 5 |
 | `P1`–`P14` (found by Phase 3's tabletops; defined in the disposition) | Phase 3 |
+| `P15`–`P35` (found by Phase 4's simulation; defined in the disposition) | open: fix and simulate again, or the first run |
 | `R6` | Phase 5 |
 | `R5` | after the run, if needed |
 | `Z1` | the plan as a whole; `T7` after the run |

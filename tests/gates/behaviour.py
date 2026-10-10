@@ -220,5 +220,38 @@ r = subprocess.run(["python3", "tools/check.py", "reasoning-legacy", "--gate", "
 check("--gate on a legacy survey fails clearly", r.returncode == 1 and "coreset layout" in r.stdout, r.stdout[-300:])
 r = subprocess.run(["python3", "tools/check.py", "reasoning-legacy", "--gate", "G9"], cwd=ROOT, capture_output=True, text=True)
 check("bad gate is a usage error (2)", r.returncode == 2)
+
+# 9 check.py --print: one section, or one cluster's block, with its line span; a wrong name is a usage error
+f = build()
+r = subprocess.run(["python3", "tools/check.py", T, "--print", "Coreset:two"], cwd=ROOT, capture_output=True, text=True)
+check("--print prints one cluster's block", r.returncode == 0 and r.stdout.splitlines()[2].startswith("### two")
+      and "### three" not in r.stdout and "lines " in r.stdout.splitlines()[0], r.stdout[-400:])
+r = subprocess.run(["python3", "tools/check.py", T, "--print", "open-work"], cwd=ROOT, capture_output=True, text=True)
+check("--print finds a section by a loose name", r.returncode == 0 and "## Open work" in r.stdout, r.stdout[-300:])
+r = subprocess.run(["python3", "tools/check.py", T, "--print", "Coreset:nine"], cwd=ROOT, capture_output=True, text=True)
+check("--print of an unknown block is a usage error (2)", r.returncode == 2 and "one, two" in r.stderr, r.stderr)
+
+# 10 a second coverage round through tools/coverage.py: drawn by seed, judged, its line pasted; G5 still holds
+f = build()
+uv = lambda *a, stdin=None: subprocess.run(["uv", "run", "-q", "tools/coverage.py", *a], cwd=ROOT, capture_output=True,
+                                           text=True, input=stdin)
+r = uv("draw", T, "2", "--seed", "7")
+drawn = re.findall(r"arxiv\.org/abs/([0-9.]+)\)", (G / "coverage-2.md").read_text()) if r.returncode == 0 else []
+first = set(re.findall(r"arxiv\.org/abs/([0-9.]+)\)", (G / "coverage-1.md").read_text()))
+check("draw writes ten candidates, none from round 1 or the coreset",
+      len(drawn) == 10 and not (set(drawn) & first) and not (set(drawn) & set(f["rows"])), r.stdout + r.stderr)
+again = subprocess.run(["uv", "run", "-q", "tools/coverage.py", "draw", T, "2"], cwd=ROOT, capture_output=True, text=True)
+check("draw refuses to redraw a round", again.returncode == 1 and "drawn once" in again.stderr, again.stderr)
+r = uv("judge", T, "2", stdin="".join(f"{p}\tno change\tits nearest row already says it\n" for p in drawn))
+line = subprocess.run(["python3", "tools/coverage.py", "line", T, "2"], cwd=ROOT, capture_output=True, text=True).stdout
+check("line counts the sheet", "round 2: 0 of 10 sampled candidates changed the output; new clusters: none" in line
+      and "at most 26%" in line, line)
+sub(S, "  clusters: none\n", "  clusters: none\n" + line.splitlines()[0] + "\n")
+code, out = run("--gate", "G5")
+check("a round pasted from its sheet passes G5", code == 0, out)
+r = subprocess.run(["python3", "tools/coverage.py", "judge", T, "2"], cwd=ROOT, capture_output=True, text=True,
+                   input="2401.00001\tchanges Landscape\tnot on the sheet at all\n")
+check("judge refuses a paper not on the sheet, writing nothing", r.returncode == 1 and "nothing written" in r.stderr,
+      r.stderr)
 print(f"\n{sum(res)} of {len(res)} behaviours as expected")
 sys.exit(0 if all(res) else 1)

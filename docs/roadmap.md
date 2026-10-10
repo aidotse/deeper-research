@@ -114,9 +114,10 @@ agreement rate goes into a new log line, `Audits`:
 It measures the error rate of each kind of judgement rather than proving any single call right, as the coverage test
 does for the coreset as a whole. Estimated 50–100k tokens per pass, under 10% of one. Below a first-guess agreement (say
 80%), the gate would flag the disagreements for the main session, and halt if they concentrate in one kind of judgement.
-A first piece is scheduled: a blind re-verification of a random 10% of rows on the first run (audit of 2026-10-09, `T3`,
-in Phase 4 of its remediation). Prerequisite, now done: the traces the audits sample (rejections recorded by
-`tools/assign.py reject`, dissent rows quoting their contradiction). Also done: each verified row's evidence, kept in
+Two pieces are now part of every pass, with their rates in the log's `Judgement audit` line: a blind re-verification of
+10% of the rows, and a check of the output's sentences against the rows they cite (`docs/process.md`, "Auditing the
+judgements"). The rest above is still a proposal. Prerequisite, done: the traces the audits sample (rejections recorded
+by `tools/assign.py reject`, dissent rows quoting their contradiction). Also done: each verified row's evidence, kept in
 `graphs/<topic>/evidence/` (2026-10-09), so that the cheapest audit, whether a quote supports its cell, needs no new
 search. Pilot it on the fresh coreset run, and adopt it into `docs/gates.md` once the agreement rates of a real pass are
 known.

@@ -218,6 +218,8 @@ One entry per pass, in date order:
   `tools/cluster.py`'s printout>
 - **Coverage test:** round R: K of N sampled candidates changed the output (<id>: <what it changed>, ...); new
   clusters: none | none (proposed <which>, not formed) | <which>
+- **Judgement audit:** re-verification: A of C cells agree, P partly, D differ, over N rows (seed S); faithfulness: F of
+  M sentences supported, P' partly, U unsupported (seed S')
 - **Probes:** none | "<question>": searched <phrasings, citation traversals, WebSearch, date ranges> -> found: <ids> |
   survived a refutation attempt
 - **Corrections to existing rows:** none | <id> — <old text> -> <new text>, and why
@@ -231,11 +233,12 @@ The `F1` and `H` IDs are defined in `docs/process.md`, "When a pass ends". Who w
 operations, column `writes` (`docs/process.md`): that column is the only authority on it. An agent running in parallel
 with others never writes the log; it returns its lines under `Log:`, and the main session writes them.
 
-Five lines, or parts of them, are printed by scripts, ready to paste: the script half of `Preflight` by
+Seven lines, or parts of them, are printed by scripts, ready to paste: the script half of `Preflight` by
 `tools/preflight.py`, which the Preflight agent completes; `Pool` by `tools/pool.py`, which `tools/assign.py late` also
-runs; `Fringe` and `Late papers` by `tools/assign.py`; and `Clustering` by `tools/cluster.py`. Replace the computed
-cluster ids (`c1`, `c2`, …) with the Clusters table's ids, and each `<action taken>` with what was done. Every other
-number in the log comes from a script's printout or a tool's result, never from counting by hand.
+runs; `Fringe` and `Late papers` by `tools/assign.py`; `Clustering` by `tools/cluster.py`; `Coverage test` by
+`tools/coverage.py line`; and `Judgement audit` by `tools/audit.py line`. Replace the computed cluster ids (`c1`, `c2`,
+…) with the Clusters table's ids, and each `<action taken>` with what was done. Every other number in the log comes from
+a script's printout or a tool's result, never from counting by hand.
 
 What some lines need, beyond their form:
 
@@ -257,9 +260,12 @@ What some lines need, beyond their form:
 - `Dissent searches` — one entry per searched cluster, separated by `;` or `|`, so neither may appear inside "what was
   searched", and the arrow is `->`, not `→`; an entry the check cannot read counts as missing. Every ID after `found:`
   must be a `dissent` row of that cluster, or be named in `Demotions`.
-- `Coverage test` — one line per round. "What it changed" names the target and the claim, such as "gap: <the new gap>"
-  or "assumption: <which one>, revised". Only the IDs that open an entry are counted, and there must be K of them. A
-  proposed cluster that the recluster did not form is recorded as `none (proposed <which>, not formed)`.
+- `Coverage test` — one line per round, printed from the round's sheet. "What it changed" names the target and the
+  claim, such as "Gaps: <the new gap>" or "Assumptions: <which one>, revised". Only the IDs that open an entry are
+  counted, and there must be K of them: the sheet's `changes` rows. A proposed cluster that the recluster did not form
+  is recorded as `none (proposed <which>, not formed)`.
+- `Judgement audit` — printed from the three audit sheets (`docs/process.md`, "Auditing the judgements"), and pasted as
+  printed: `tools/check.py` recomputes it.
 - `Tokens` — one entry per dispatch, appended when it returns, from the usage it reports: the brief's name and its
   scope, without commas or colons, then the tokens, without thousands separators, for example
   `Preflight: 4k, Orient: 81k, Selection c1+c2: 64200`.
@@ -417,8 +423,9 @@ output as finished: it lists every `abstract`-sourced paper the output cites.
 ## `graphs/<topic>/`
 
 The working files of a pass: everything the scripts compute that is too large, or too numeric, for the survey. Scripts
-write them, never agents, with three exceptions: the screening agent fills two columns of `fringe-screen.md`, through
-`tools/fringe.py judge`; the coverage-test agent writes its round's sheet, `coverage-<R>.md`; and the verifying agents
+write them, never agents, with these exceptions: the screening agent fills two columns of `fringe-screen.md`, through
+`tools/fringe.py judge`; the coverage-test agent fills the verdicts of `coverage-<R>.md`, through
+`tools/coverage.py judge`; the audit agents fill the audit sheets, through `tools/audit.py`; and the verifying agents
 write `evidence/` (`docs/verification.md`, "Recording the evidence"). Sizes are from `reasoning-legacy` (about 200 pool
 papers).
 
@@ -430,8 +437,9 @@ papers).
 | `rejected.md` | the candidates judged out of scope in orientation and expansion: paper, date, reason | `tools/assign.py reject` (steps 1 and 2, targeted expansions) | reviewers; `tools/check.py` (`G1`) | yes: the judgements are part of the pass's record |
 | `fringe-screen.md` (120 KB, about 30k tokens) | the blind screening sheet: one row per candidate, shuffled, without its route or year, with the agent's `in scope` (`yes` or `no`; `maybe` while undecided) and `reason` | `tools/fringe.py collect` writes the rows, keeping earlier judgements on a rerun; the screening agent fills `in scope` and `reason` with `tools/fringe.py judge` (step 2) | `tools/assign.py add-fringe` | yes: the judgements are part of the pass's record |
 | `naming-sheet.md` (about 3k tokens) | per computed cluster: size, stability, diagnostics and notes, most-cited papers, most recent papers with their citations per month, sub-clusters | `tools/sheets.py` (step 3) | the naming agent (step 3) and the selection agents (step 4) | no: regenerable |
-| `fringe-sheet.md` (about 1k tokens) | the highest fringe scores, with year, cluster, reference count, and whether the paper is a coreset row | `tools/sheets.py` (step 3) | the fringe-selection agent (step 4) and the coverage-test agent (step 7) | no: regenerable |
-| `coverage-<R>.md` | coverage-test round R: one row per sampled candidate, with how it was drawn, its verdict and the reason (see below) | the coverage-test agent (step 7) | reviewers, auditors | yes: the judgements are part of the pass's record |
+| `fringe-sheet.md` (about 1k tokens) | the highest fringe scores, with year, cluster, reference count, and whether the paper is a coreset row | `tools/sheets.py` (step 3) | the fringe-selection agent (step 4) | no: regenerable |
+| `coverage-<R>.md` | coverage-test round R: one row per sampled candidate, with how it was drawn, its verdict and the reason; the seed and the coreset's radius (see below) | `tools/coverage.py draw` (step 7); the verdicts and the recency-query rows by the coverage-test agent, with `tools/coverage.py judge` | the coverage-test agent; `tools/check.py` (`G5`); reviewers, auditors | yes: the judgements are part of the pass's record |
+| `reverify.md`, `reverify-compare.md`, `faithfulness.md` | the judgement audits (`docs/process.md`, "Auditing the judgements"): the re-verified sample, each of its cells beside the survey's with a verdict, and the sampled output sentences beside their rows and evidence with a verdict | `tools/audit.py` (step 7); the cells and verdicts by the audit agents, with `tools/audit.py fill` and `judge` | the audit agents; `tools/check.py` (`G5`); reviewers | yes: the judgements are part of the pass's record |
 | `graph.html` (1.3 MB) | the viewer | `tools/graph.py` (step 3) | the user, in a browser | no: regenerable |
 | `evidence/<id>.md` | per verified coreset row: the verbatim quotes each claim rests on, and where they are in the paper | the verifying agent (step 5), one file per row, so parallel agents never share one | reviewers, auditors; `tools/check.py` (`G4`), which finds every full-text quote in the full text | yes: it is the record behind `source` |
 | `fulltext/<id>.txt` (10–70k tokens each) | a paper's full text, flattened, without its bibliography | `tools/fulltext.py`: the main session's batch fetch before verification (step 5) | the verifying agent, through `tools/fulltext.py show` and Grep | no: third-party text, regenerable |
@@ -440,14 +448,15 @@ papers).
 
 `pool.json` and `clusters.json` are what make the clustering reproducible offline, `fringe.json` with `fringe-screen.md`
 is the record of what the fringe routes found and how it was screened, `rejected.md` the record of what expansion
-screened out, the coverage sheets the record of every coverage-test verdict, and `evidence/` the record behind each
-verified row; so all of them are committed.
+screened out, the coverage sheets the record of every coverage-test verdict, the audit sheets the record of how often
+the judgements held, and `evidence/` the record behind each verified row; so all of them are committed.
 
 **Never Read a JSON file here, or `graph.html`, whole.** They are mostly embeddings and numbers: `pool.json` alone is
 about 400k tokens. What an agent needs from them reaches it in three ways:
 
 - a script's printout, which the main session hands over with the job (`docs/dispatch.md`, "Briefs");
-- a sheet: `naming-sheet.md`, `fringe-sheet.md`, `fringe-screen.md`. These are written to be read whole;
+- a sheet: `naming-sheet.md`, `fringe-sheet.md`, `fringe-screen.md`, `coverage-<R>.md` and the audit sheets. These are
+  written to be read whole;
 - `jq`, for one field, never a whole record, which carries the embedding, for example
   `jq '.papers["2504.13837"] | {date, citations, reference_count}' graphs/<topic>/pool.json`.
 
@@ -457,11 +466,15 @@ A full text is read through `tools/fulltext.py show` and Grep, at the sections a
 ### The coverage sheet
 
 One file per coverage-test round, `graphs/<topic>/coverage-<R>.md`, with one row per sampled candidate, the ones that
-changed nothing included:
+changed nothing included. `tools/coverage.py draw` writes it, with a header giving the date, the seed, the set drawn
+from and the coreset's radius; the agent fills `verdict` and `reason`, and adds the recency query's candidates, with
+`tools/coverage.py judge`, never by editing the file:
 
 | column | contents |
 | -- | -- |
 | `paper` | title, linked by its ID |
-| `drawn as` | `thin cluster <cluster id>`, `recency query`, or `fringe score` (`docs/process.md`, step 7) |
+| `drawn as` | `worst-covered` or `recency query` (`docs/process.md`, step 7) |
+| `distance` | how far the paper is from its nearest coreset row; empty for a recency candidate, which is not yet in the pool |
+| `nearest row` | that row's paper ID |
 | `verdict` | `no change`, `changes <target>`, or `new cluster` |
 | `reason` | one sentence: the claim it would change and how, or why it changes nothing |
