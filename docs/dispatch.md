@@ -116,48 +116,53 @@ changing what the agent does. If a listed section points elsewhere for something
   before it finishes. Writes: the `in scope` and `reason` cells. Returns: the rows it was unsure about.
   - Read: `docs/process.md`, "Screening for scope" and "Fringe routes"; `docs/tooling.md`, "Fringe candidates".
 - **Naming** (step 3). Hand over: the printout of `tools/cluster.py`, which has the diagnostics, the notes and the
-  `Clustering` line; on a later pass, or after a rerun, the printout of `tools/assign.py remap`. The agent reads
-  `naming-sheet.md` and the input, and names, defines and rates every computed cluster that has no name; for each `high`
-  cluster, the definition's second sentence states its central claim. After a recluster, it also settles every cluster
-  `remap` did not match: renamed or retired (`docs/process.md`, "Late papers"). Writes: Clusters rows, with `computed`
-  ids; `Clustering`, with the Clusters table's ids; `Clustering rationale`; `Clusters`. Returns: the ratings it was
-  unsure about, and any `expect` theme with no cluster, for a targeted expansion. Halts: `H6`; `H7` only if a targeted
-  expansion for that theme has already run.
+  `Clustering` line; the regions a targeted expansion covered, by paper ID, and whether each is still thin; on a later
+  pass, or after a rerun, the printout of `tools/assign.py remap`. The agent reads `naming-sheet.md` and the input, and
+  names, defines and rates every computed cluster that has no name; for each `high` cluster, the definition's second
+  sentence states its central claim. After a recluster, it also settles every cluster `remap` did not match: renamed or
+  retired (`docs/process.md`, "Late papers"). Writes: Clusters rows, with `computed` ids; `Clustering`, with the
+  Clusters table's ids; `Clustering rationale`; `Clusters`. Returns: the ratings it was unsure about, and any `expect`
+  theme with no cluster, for a targeted expansion. Halts: `H6`; `H7` only if a targeted expansion for that theme has
+  already run.
   - Read: `docs/process.md`, "Step 3: cluster", "Recording it" and "When stability fails", on a later pass "Matching
     clusters across passes", and after a recluster "Late papers"; `docs/formats.md`, "2. Clusters" and "1. Retrieval
     log".
 - **Selection** (step 4), one agent per block of clusters, in parallel; and in step 5, for a cluster with an uncheckable
   row. Hand over: the block's cluster ids and their alignment, and the lines of the `tools/check.py` printout for those
-  clusters (pool size, roles filled, in-degree leaders); in step 5, the uncheckable rows instead. The agent fills
-  anchor, frontier and dissent per "Sizing" (`docs/process.md`, step 4), and the extra frontier or bridge for a `high`
-  cluster that `naming-sheet.md` marks internally divided. A dissent row's `selected because` quotes the claim that
-  contradicts the cluster's central claim. It drafts every cell from the abstract, dimensions included, with `source`
-  `abstract`; verification re-derives them from the body text. On a later pass, it keeps every verified row that still
-  fills a role, and demotes the rest. In step 5, it looks for another paper to take the uncheckable row's role,
-  preferring one with an arXiv ID (its ID is one, or `jq '.papers["<id>"].arxiv' graphs/<topic>/pool.json` gives one),
-  since those are the papers whose full text can most surely be fetched; the main session's next batch fetch settles it.
-  It demotes the old row if it finds one. Writes: Coreset rows, in its blocks only. Returns, under `Log:`, its parts of
-  `Dissent searches` and `Demotions`, and under `Open work:`, its empty roles and its new rows, for
-  `Rows needing verification`.
+  clusters (pool size, roles filled, in-degree leaders); the log's `Dimensions` line; in step 5, the uncheckable rows
+  instead; in step 7's Revise, each paper the coverage round counted, with what it changed and its proposed role. The
+  agent fills anchor, frontier and dissent per "Sizing" (`docs/process.md`, step 4), and the extra frontier or bridge
+  for a `high` cluster that `naming-sheet.md` marks internally divided. A dissent row's `selected because` quotes the
+  claim that contradicts the cluster's central claim. It drafts every cell from the abstract, dimensions included, with
+  `source` `abstract`; verification re-derives them from the body text. On a later pass, it keeps every verified row
+  that still fills a role, and demotes the rest. In step 5, it looks for another paper to take the uncheckable row's
+  role, preferring one with an arXiv ID (its ID is one, or `jq '.papers["<id>"].arxiv' graphs/<topic>/pool.json` gives
+  one), since those are the papers whose full text can most surely be fetched; the main session's next batch fetch
+  settles it. It demotes the old row if it finds one. Writes: Coreset rows, in its blocks only. Returns, under `Log:`,
+  its parts of `Dissent searches` and `Demotions`, and under `Open work:`, its empty roles and its new rows, for
+  `Rows needing verification`; and, under `For the pool:`, dissent papers it found outside the pool, which the main
+  session adds and assigns before dispatching Selection again for their cluster.
   - Read: `docs/process.md`, "Step 4: select" and "Sizing", and on a later pass "Rules for re-runs"; `docs/formats.md`,
     "3. Coreset", "1. Retrieval log" and "5. Open work"; `docs/external_services.md`, "Tools, and when to use each" and
     "Rate limits and errors".
 - **Bridges** (step 4), once, after selection, and only if `tools/check.py` notes a pair of clusters that trade papers
-  without a bridge. Hand over: those pairs. Writes: `bridge:` rows; Open work: their `Rows needing verification`, and an
-  `Empty roles` entry for a pair left without a bridge. Returns: pairs left without a bridge, and why.
-  - Read: `docs/process.md`, "Step 4: select" and "Sizing"; `docs/formats.md`, "3. Coreset" and "5. Open work".
-- **Fringe selection** (step 4), once, last. Hand over: the path of `fringe-sheet.md`, rewritten after selection. The
-  agent reads the abstracts through Asta (`get_paper_batch`) and the coreset rows, and keeps five to ten papers that
-  each carry an idea no other row has. Writes: `fringe` rows, in the block of each paper's computed cluster; Open work:
-  their `Rows needing verification`. Returns: the near misses.
+  without a bridge. Hand over: those pairs; the log's `Dimensions` line. Writes: `bridge:` rows; Open work: their
+  `Rows needing verification`, and an `Empty roles` entry for a pair left without a bridge. Returns: pairs left without
+  a bridge, and why.
+  - Read: `docs/process.md`, "Step 4: select" and "Sizing"; `docs/formats.md`, "3. Coreset" and "5. Open work";
+    `docs/external_services.md`, "Tools, and when to use each".
+- **Fringe selection** (step 4), once, last. Hand over: the path of `fringe-sheet.md`, rewritten after selection; the
+  log's `Dimensions` line. The agent reads the abstracts through Asta (`get_paper_batch`) and the coreset rows, and
+  keeps five to ten papers that each carry an idea no other row has. Writes: `fringe` rows, in the block of each paper's
+  computed cluster; Open work: their `Rows needing verification`. Returns: the near misses.
   - Read: `docs/process.md`, "Step 4: select" and "The fringe score"; `docs/formats.md`, "3. Coreset" and "5. Open
     work"; `docs/external_services.md`, "Tools, and when to use each".
 - **Verification** (step 5), one agent per block of clusters, in parallel. Hand over: the block's cluster ids, and which
-  rows: all, or only those still `abstract`; the papers the batch fetch could not fetch. The agent follows
-  `docs/verification.md`, reading the fetched full texts through `tools/fulltext.py show`; it does not fetch. Writes:
-  the rows' cells and `source`, and each row's evidence file. Returns, under `Log:`, its `Corrections to existing rows`,
-  and under `Open work:`, its rows still needing verification, with why; and the uncheckable rows, for the main session
-  to offer their roles to Selection.
+  rows: all, or only those still `abstract`; the papers the batch fetch could not fetch; the log's `Dimensions` line.
+  The agent follows `docs/verification.md`, reading the fetched full texts through `tools/fulltext.py show`; it does not
+  fetch. Writes: the rows' cells and `source`, and each row's evidence file. Returns, under `Log:`, its
+  `Corrections to existing rows`, and under `Open work:`, its rows still needing verification, with why; and the
+  uncheckable rows, for the main session to offer their roles to Selection.
   - Read: `docs/verification.md`, "Verification"; `docs/tooling.md`, "Full text"; `docs/formats.md`, "3. Coreset", "1.
     Retrieval log" and "5. Open work"; `docs/external_services.md`, "Tools, and when to use each".
 - **Coverage test** (step 7), once per round. Hand over: the round's number; the per-cluster lines of the

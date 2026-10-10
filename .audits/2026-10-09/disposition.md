@@ -21,74 +21,63 @@ with its phase.
 
 ## Issues found during remediation
 
-### `P` — Phase 3's tabletop
+### `P` — Phase 3's tabletops
 
 Phase 3's done-when was a fresh tabletop of a first pass, by an agent blind to `.audits/`, the roadmap and git history,
-playing the main session and each brief from the docs alone. It ran on 2026-10-10, at about 220k tokens. It met none of
-the stalls the audit's own tabletop had found, and found these 20 new ones, mostly on paths Phase 3 had just written.
-Tags: `blocker` (cannot proceed, or certainly fails a gate), `guess` (must improvise, so two agents would differ),
-`minor` (wording or findability); `fails open` marks a check that passes when it should fail.
+playing the main session and each brief from the docs alone. Two ran on 2026-10-10, at about 210k tokens each. The first
+met none of the stalls the audit's own tabletop had found, and found 20 new ones; all were fixed in `558e816`. The
+second, run on the fixed docs with the same prompt, found none of those 20 as first described. Its 14 findings are
+below: 7 left by incomplete fixes or caused by them (marked `after a fix`), and 7 new. This list keeps only the current
+issues; the first run's are in git history (`920b823`).
 
-- `P1` — `blocker`. After a recluster at step 7, coreset rows sit in the blocks of clusters they no longer belong to,
-  and `check.py` fails; no row of the order of operations moves them. A moved `dissent` row then fails
-  `g3.dissent-searched`, and its quote answers the wrong cluster's claim; the block it left can lose its anchor. `remap`
-  says to "retire, merge or rename" unmatched clusters, which no doc defines. Confirmed on a scratch fixture. Suggested:
-  a row after the recluster in which `survey-edit` moves rows to their computed blocks, then Selection re-checks the
-  roles of moved and orphaned rows, dissent included; define retirement.
-- `P2` — `blocker`. After any recluster once names exist, Naming's done-when ("`check.py` passes") cannot be met: the
-  pool's cluster cells differ from the new assignment until `assign.py clusters`, the next row, runs. At step 7 the
-  safety net also requires `G3` for the new cluster before its selection has run. A literal rule-follower halts (`H9`).
-  Confirmed on a scratch fixture. Suggested: run `assign.py clusters` straight after Naming; exempt a newly named
-  cluster from `G3` and `G4` until its Revise rows run.
-- `P3` — `blocker`, `fails open`. `halts()` in `tools/gates.py` took the decision from the first `—` after the halt ID,
-  so `H2 — query "prm survey" — 429 after 3 retries — pending` read as decided, and `--gate` passed. Confirmed by
-  running it. Suggested: take the text after the entry's last `—` as the decision.
-- `P4` — `guess`. Once a `Coverage test` line exists, `G4` is required, so Revise's first new rows make the `Coreset`
-  line's count stale, and new `abstract` rows can push the share over 20% (`g4.h10`) before verification; only main
-  rewrites `Coreset`. The `h10` part is read from code, not run. Suggested: refresh `Coreset` after every dispatch;
-  apply `g4.h10` only at the `--gate G4` row.
-- `P5` — `guess`. Step 3's targeted expansion runs before `sheets.py`, so the Expand agent gets only `cluster.py`'s
-  printout for the region; its done-when ("as the Expand row") has no meaning for a region. Suggested: write the sheets
-  first, hand over the cluster's naming-sheet section, and give a regional done-when.
-- `P6` — `guess`. After the rerun, a thin cluster cannot be told to be the same region or a new one: `cluster.py`
-  matches clusterings only once names exist, and renumbers clusters by size, so the computed id in `Expansion` is
-  reused. Suggested: always match against the previous `clusters.json`, named or not.
-- `P7` — `guess`. "Frontier candidate" is undefined, yet the list sets `G1`'s traversal requirement, the fringe `new`
-  route's seeds, and step 4's frontier priority; one agent lists 8, another 25. Suggested: define it, for example "in
-  scope and within the recency window, or named by the field as current".
-- `P8` — `guess`. Step 2 says to traverse forward "from anchors", which are only chosen at step 4. Suggested: "from the
-  seeds and frontier candidates".
-- `P9` — `guess`. The frontier's impact criterion cannot be applied from the naming sheet: it shows only the three
-  newest papers per cluster, which on `reasoning-legacy` all read 0.0 citations per month. Suggested: list every paper
-  in the window by citations per month.
-- `P10` — `guess`. "Uncheckable: say so in the row" has no cell to go in, and an extra column fails
-  `g3.dimension-columns`. Suggested: name the cell.
-- `P11` — `guess`. Step 5's replacement Selection cannot know which papers are fetchable: it may not fetch, and the
-  full-text section is not on its reading list. Suggested: main pre-fetches the candidates, or the brief states a proxy.
-- `P12` — `guess`. "After every dispatch" runs `assign.py late` after a coverage round, but the proposed-cluster path
-  wants the expansion first and at most one recluster per round; `late` can return `RECLUSTER:` and make it two. On the
-  recluster path, nothing prints a `Late papers` line. Suggested: after a round that proposes a cluster, fetch with
-  `pool.py` only and defer `late`.
-- `P13` — `guess`. Every candidate counted in a coverage round must become an assigned coreset row, but its role is
-  unstated; a `new cluster` verdict is not said to count, or not, in K; and a recency find Semantic Scholar does not
-  know cannot enter the pool at all. Suggested: state the role, the K rule, and the unknown-paper case.
-- `P14` — `guess`. The coverage sample has no drawing procedure: the agent hand-picks, while the stated bound assumes a
-  random draw. Suggested: a script that draws by the stated weights, with a seed.
-- `P15` — `guess`. `no structure` said to halt "with the coarsest level, 3 clusters", but `cluster.py` still chooses its
-  level by `τ`; getting 3 takes `--level 3`, logged as a user override. Suggested: have `cluster.py` choose the coarsest
-  level on `no structure`.
-- `P16` — `minor`. `Dissent searches` parsing drops an entry with a `;` inside "what was searched", or `→` for `->`, and
-  then reports it missing. Confirmed by running it. Suggested: state both constraints in `docs/formats.md`.
-- `P17` — `minor`, `fails open`. `r_errored` read the line as clean whenever it began with `none`, so entries appended
-  after Orient's `none` skipped the `H2` check. Read from code. Suggested: say "replace `none`", or parse the entries
-  regardless.
-- `P18` — `minor`. An empty `method name` fails `g3.cells`, but the doc says only "if the paper introduces one"; and
-  proposed dimensions have no guidance to include `n/a`. Suggested: say "write `n/a`", and allow it among proposed
-  values.
-- `P19` — `minor`. A bridge row must sit in the block of the cluster its paper was computed into, one of the two; that
-  rule was only in `docs/tooling.md`, which the Bridges brief does not list. Suggested: one sentence at step 4.
-- `P20` — `minor`. The `G5` row adds to `Gates` after `Ended` is written, against "a line may be updated until the pass
-  ends, never after". Suggested: run `G5` before `Ended`, or exempt `Gates`.
+Tags: `blocker` (cannot proceed, or certainly fails a gate), `guess` (must improvise, so two agents would differ),
+`minor` (wording or findability).
+
+- `P1` — `blocker`, after a fix. "After every dispatch" wrote `Coreset` once the coreset changed, which is right after
+  Selection. But `check.py` takes a `Coreset` line as proof that step 4 is done, and so requires `G3` before Bridges and
+  Fringe selection have run: `g3.fringe-quota` fails, and in the trading-pair branch `g3.bridges` too. Confirmed on the
+  gate fixture. Suggested: write `Coreset` only from step 5's row on, or infer `G3` from a `fringe` row.
+- `P2` — `guess`, trips `G5`. Step 7 said the counted papers are added only when a round does not converge. But
+  `g5.changed-in-coreset` needs the K = 1 paper of a converging round as an assigned coreset row too. Confirmed on the
+  fixture. Suggested: the counted papers of an `F1` round also go through Late papers and Revise before `Ended`.
+- `P3` — `guess`. Selection's dissent search finds papers outside the pool through forward citations, but the brief
+  gives it no way to add them, parallel agents may not write the pool, and a paper needs a cluster before a role; a
+  dissent paper computed into another cluster cannot sit in this one's block. Suggested: Selection returns such papers;
+  the main session adds them, runs `late`, and dispatches again.
+- `P4` — `guess`. `H5` (and `H4`) is raised at the Cluster row, before naming and the viewer, but the review must show
+  the named Clusters table and the viewer, and the review row came after `G2`, which cannot pass while the halt is
+  pending. Suggested: state that the rows up to the viewer run while the halt is pending, and put the review before
+  `G2`.
+- `P5` — `guess`, after a fix. Naming must write the action taken for a cluster "still thin after one targeted
+  expansion", but nothing hands it which regions were expanded, or the same-region judgement. Suggested: hand over the
+  regions expanded, by paper ID, and whether each is still thin.
+- `P6` — `guess`, after a fix. The "pool.py only" exception covered only the coverage dispatch, so after the targeted
+  expansion for a proposed cluster the rule said `late`, which assigns the batch to existing clusters before the
+  recluster. In a round with no proposed cluster, `late` had already run after the dispatch, and the `Late papers` line
+  it printed was in no row's `writes`. Suggested: extend the exception to the step-7 expansion, and give the line to
+  "After every dispatch".
+- `P7` — `guess`, after a fix. Between the step-7 rename and the move, the check fails on rows in the wrong block, on a
+  retired cluster's block, and on a `bridge:` naming a retired cluster, none of which the Revise exemption listed; read
+  strictly, `H9`. Suggested: exempt rows not yet moved, and retarget `bridge:` cells.
+- `P8` — `guess`, after a fix. A counted coverage paper takes "dissent for a contradiction", but it lands in whatever
+  cluster `late` gives it, which may not be `high` and so has no central claim; a `fringe` row may exceed the quota; and
+  Selection has no hand-over for "place this paper in this role". Suggested: a fallback role, and a Revise hand-over.
+- `P9` — `guess`. Proposed dimensions carry names and values but no meaning, and no brief hands agents the `Dimensions`
+  line, so Selection can invent a value (an integrity failure) and Verification "re-derives" a dimension it has no
+  definition of. Suggested: a one-clause definition per proposed dimension, and the line in every brief that drafts or
+  verifies cells.
+- `P10` — `minor`. `add-fringe` lists in-scope candidates without an ID "for Open work", and `g1.fringe-added` needs
+  them there, but the row's `writes` omitted Open work. Suggested: add it.
+- `P11` — `minor`. In `Expansion`, a "not" anywhere in a traversal part voids it, and `(35, note)` does not match
+  `(<n>)`: `backward from A (40), B (35, references not all resolved)` fails `g1.expansion` for both. Confirmed by
+  running it. Suggested: say the bracket holds only the count, or relax the pattern.
+- `P12` — `minor`, after a fix. Step 2's bullet said forward traversal starts from the seeds and the frontier papers;
+  its prose and done-when said only from the seeds. Suggested: pick one.
+- `P13` — `minor`. The `CLAUDE.md` index's "when to read" column reads as whole files for `survey-pass`, against the
+  brief's section lists; and the Bridges brief listed no Asta section, though it reads abstracts through Asta.
+  Suggested: have the index defer to the briefs, and add the section.
+- `P14` — `minor`. Whether the main session waits for the user to accept proposed dimensions before Preflight was not
+  stated. Suggested: say whether the plan report is blocking.
 
 ## By phase
 
@@ -97,8 +86,8 @@ Tags: `blocker` (cannot proceed, or certainly fails a gate), `guess` (must impro
 | 0 | `5d18f12` | the rename to `reasoning-legacy`; `T8` in part |
 | 1 | `532e697` | `Z2`–`Z5`, `Z7`–`Z9`, `M13`; moot with them: `M9`, `M10`, `T1`, `S3`, half of `A7`, the history half of `M20` |
 | 2 | `d600a69`, `4d8e9a2`, `46d9dfd`, `4dc8dff`, `cda762a`, `f99ec2c`, `c43ba0c` | `C1`–`C6`, `C8`, `C9`, `M1`–`M6`, `M11`, `M12`, `M14`–`M19`, `S6`, `A9`, `T5`, `T9`, `R2`, `R3`; the code side of `C10`, `M20`, `S1`, `S2`, `S4`, `S15`; `T8` in part |
-| 3 | `558e816` | `W1`–`W4`, `S5`, `S7`, `S9`–`S12`, `S14`, `A1`–`A8`, `R1`, `P1`–`P20`; the doc side of `C10`, `S1`, `S2`, `S4`, `S15`; the code side of `S10` and `A2`; `T8` in part |
-| 4 | pending | `T2`, `T3`, `T4`, `T6`, `R4`, the tool half of `A3`, `P14` |
+| 3 | `558e816`, and "Remediation phase 3: a second tabletop" | `W1`–`W4`, `S5`, `S7`, `S9`–`S12`, `S14`, `A1`–`A8`, `R1`, `P1`–`P14`; the doc side of `C10`, `S1`, `S2`, `S4`, `S15`; the code side of `S10` and `A2`; `T8` in part |
+| 4 | pending | `T2`, `T3`, `T4`, `T6`, `R4`, the tool half of `A3` |
 | 5 | pending | `R6`, and `Z1` in practice |
 | after the run | pending | `Z6`, `C7`, `M7`, `M8`, `S8`, `S13`, `T7`, `W3` step 2, `M20`'s hidden route, `R5`, the rest of `T8` |
 
@@ -114,7 +103,7 @@ Tags: `blocker` (cannot proceed, or certainly fails a gate), `guess` (must impro
 | 2c | `cda762a` | `tools/cluster.py`, `tools/match.py` |
 | 2d | `f99ec2c` | `tools/fulltext.py`, `tools/graph.py` |
 | 2 | `c43ba0c` | the arXiv backfill of `reasoning-legacy`'s pool |
-| 3 | `558e816` | the spec pass over `docs/`, `CLAUDE.md` and the agents; `S10`'s gate change; `A2`'s sheet column; the tabletop's fixes (`P1`–`P20`) |
+| 3 | `558e816`, and "Remediation phase 3: a second tabletop" | the spec pass over `docs/`, `CLAUDE.md` and the agents; `S10`'s gate change; `A2`'s sheet column; the first tabletop's fixes |
 
 ## Watch in the first run
 
@@ -209,6 +198,11 @@ These are judgement calls whose effect only real data will show. When auditing t
 - `S11`, the user's cluster review. It is now taken before `Ended`, when the output is shown; a review after `Ended`
   goes into the next pass's entry. If users routinely review later, the `Clusters` line of a finished pass will always
   read "not yet reviewed".
+
+- `Returning to step 3`. A recluster after step 3, for a proposed cluster or on `RECLUSTER:`, now reruns the step-3 rows
+  and step 4's block set-up, and leans on one exemption ("the return's open work") until the check passes again. Neither
+  tabletop exercised this version. If the first run reaches it, check that the main session could tell that open work
+  from a real failure.
 
 - `R2`, the section reader (`fulltext.py show`): its PDF heading detection is a guess. Letter-prefixed headings such as
   "B Additional results" are not detected. Whether verification uses it at all is for `R4` to decide.
@@ -342,16 +336,16 @@ These are judgement calls whose effect only real data will show. When auditing t
   they see it in the plan report, and can stop the pass there.
 - `S2` — fixed, `d600a69` and Phase 3. The `check.py` messages name `pool.py` or `assign.py late` and say to paste the
   `Pool` line. The procedure is a standing row of the order of operations, "After every dispatch": append `Tokens`,
-  fetch any added pool rows (`pool.py` until step 3 is done, `late` after it), paste `Pool`, then check. Selection and
-  the other row-adding agents list their new rows under `Rows needing verification`, so a Revise round no longer trips
-  `g4.abstract-listed`. One wrinkle remains: during step 3's targeted-expansion loop, this pass's `clusters.json`
-  exists, so `check.py` suggests `late`, while the procedure says `pool.py` (the rerun clusters the papers). Both
-  satisfy the gate; the row says which to run.
+  fetch any added pool rows (`pool.py` up to step 3, and on a return to it; `late` after), paste `Pool`, then check.
+  Selection and the other row-adding agents list their new rows under `Rows needing verification`, so a Revise round no
+  longer trips `g4.abstract-listed`. One wrinkle remains: during step 3's targeted-expansion loop, and on a return to
+  step 3, this pass's `clusters.json` exists, so `check.py` suggests `late`, while the procedure says `pool.py` (the
+  recluster places the papers). Both satisfy the gate; the row says which to run.
 - `S3` — moot with `Z7`.
 - `S4` — fixed, `d600a69` and Phase 3. The code already accepted `new clusters: none (proposed <x>, not formed)` as
-  converged, and behaviour case 6i pins it. Step 7 now has a targeted-expansion row for each proposed cluster, and the
-  Late papers row reclusters after it even below 10%. The main session records the outcome from the `changes:` line:
-  formed, or `none (proposed <x>, not formed)`.
+  converged, and behaviour case 6i pins it. A proposed cluster now returns the pass to step 3 ("Returning to step 3"): a
+  targeted expansion, a recluster even below 10%, and the main session records the outcome from the `changes:` line,
+  formed or `none (proposed <x>, not formed)`. See `P6`–`P8` for why it no longer has step-7 rows of its own.
 - `S6` — fixed, `d600a69`. `; rejected: none` at the end of `Expansion` replaces `rejected.md`. Verified: behaviour case
   6h.
 - `S5` — fixed, Phase 3. `docs/process.md`, step 7, gives the one-sided 95% bounds (recomputed: 26/39%, 22/34% and
@@ -524,56 +518,45 @@ These are judgement calls whose effect only real data will show. When auditing t
 
 ## P — issues found during remediation
 
-All in `558e816`, unless said otherwise. The fixes were not tabletopped again.
+All in the commit after `920b823`, "Remediation phase 3: a second tabletop". These fixes have not been tabletopped.
 
-- `P1` — fixed, as suggested. Step 7 has a "Rename after a recluster" row (Naming settles every cluster `remap` did not
-  match) and a "Move the coreset rows" row (`assign.py clusters`, then `survey-edit` for rows in the wrong block). "Late
-  papers" defines rename, merge and retire: retiring removes a Clusters row, and its block once emptied, and no paper.
-  Revise re-selects for every cluster whose rows changed, and keeps a moved dissent row only if it contradicts its new
-  cluster's claim.
-- `P2` — fixed, partly as suggested. "After every dispatch" runs `assign.py clusters` after Naming, before the check.
-  For Revise, no code exemption: a rule says a Revise round's own open work (a new cluster's roles and dissent search,
-  rows not yet verified, the `abstract` share) is not `H9`, and Revise is done when the check passes again. Why not
-  exempt in code: a gate that relaxes itself mid-round is the kind of hole the audit closed elsewhere. Watch: whether
-  the main session can tell open work from a real failure.
-- `P3` — fixed, as suggested, in `tools/gates.py`: entries are split on `; H<n> —`, and the decision is what follows the
-  entry's last `—`. Verified: behaviour case 2b.
-- `P4` — fixed in part. `Coreset` is refreshed in "After every dispatch" whenever the coreset changed. `g4.h10` was left
-  as it is: the Revise rule of `P2` covers a share over 20% while rows await verification.
-- `P5` — fixed, as suggested: the targeted-expansion row writes the sheets first, hands over the region's section of
-  `naming-sheet.md`, and has a regional done-when (backward traversal from the region's most-cited papers, and a search
-  on its theme, under the stopping rule).
-- `P6` — fixed in the docs, not as suggested. A region is named by one of its papers, in `Expansion` and when judging a
-  thin cluster after the rerun: it is the same region if it holds that paper. Matching unnamed clusterings in
-  `cluster.py` would also work, but the paper rule is enough for a once-per-region loop.
-- `P7` — fixed, close to the suggestion: in scope, and within the recency window or named as current by the sources
-  orientation reads. An older find is a pool paper.
-- `P8` — fixed, as suggested; step 4 repeats forward traversal from each anchor.
-- `P9` — fixed, with code. `tools/sheets.py` lists each cluster's papers from the last 12 months, top 5 by citations per
-  month, counted to the fetch date. "Recent" for the frontier role is now the last 12 months rather than the recency
-  window, so the sheet and the rule agree.
-- `P10` — fixed: an uncheckable row's `selected because` ends `(uncheckable: <why>)`.
-- `P11` — fixed by the proxy: the replacement search prefers papers with an arXiv ID, and the next batch fetch settles
-  it.
-- `P12` — fixed, as suggested. After a round that proposes a cluster, `pool.py` alone fetches the new rows, and the Late
-  papers row reclusters after the expansion. On the recluster path the main session writes `Late papers` in a stated
-  form, from `cluster.py`'s `changes:` line.
-- `P13` — fixed. A candidate counted in K takes the role that matches its change (dissent, frontier, bridge, or fringe
-  within the quota), even above the sizing minimum; a `new cluster` verdict goes under `new clusters:`, not in K; an
-  unknown paper is redrawn and noted in Open work.
-- `P14` — deferred to Phase 4 (`T4`, the scripted draw). Until then, `docs/process.md` marks the bounds as indicative.
-- `P15` — fixed in the docs, not as suggested: `H4` halts at the level `cluster.py` chose, and a coarser level, or one
-  cluster, is the user's call. Changing `cluster.py` would have fixed the level by rule where the user decides anyway.
-- `P16` — fixed, as suggested, in `docs/formats.md`.
-- `P17` — fixed both ways: the doc says the first entry replaces `none`, and `r_errored` reads entries before looking
-  for `none`. Verified: a second `g1.errored` fault.
-- `P18` — fixed, as suggested.
-- `P19` — fixed, as suggested, at step 4's `bridge`.
-- `P20` — fixed by the exemption: `Gates` takes `G5` after `Ended`, since `G5` checks `Ended`.
+The second tabletop's findings clustered on one path, the recluster at step 7, where the first round's fixes had added
+three rows (rename, move rows, a step-7 targeted expansion) that collided with other rules. Rather than patch them a
+third time, the step-7 recluster now returns the pass to step 3: `docs/process.md`, "Returning to step 3". The three
+rows are gone, and the step-3 and step-4 rows serve both cases (user's decision, 2026-10-10). That settles `P6` and
+`P7`, and most of `P8`, by construction.
+
+- `P1` — fixed, as first suggested: `Coreset` is refreshed after a dispatch only once step 5's row has written it.
+  `inferred()` was left as it is.
+- `P2` — fixed, as suggested: Revise runs on a converging round too, and "End the round" requires every counted paper to
+  be an assigned coreset row.
+- `P3` — fixed, as suggested. Selection returns out-of-pool dissent papers under `For the pool:`; the main session adds
+  and assigns them, and dispatches Selection again. A paper computed into another cluster may make a `bridge`, not this
+  cluster's dissent.
+- `P4` — fixed, as suggested: the Cluster review row sits before `G2`, and says the rows up to the viewer run while the
+  halt is pending.
+- `P5` — fixed, as suggested, in the Naming row and brief.
+- `P6` — fixed by the return to step 3: while the pass has returned to step 3, "After every dispatch" fetches with
+  `pool.py`, as before step 3. `late` runs only in the Late papers row, and when it does, "After every dispatch" writes
+  its `Late papers` line. A recluster's line is written by hand, in the stated form.
+- `P7` — fixed by the return to step 3: rows are moved by step 4's "Set up the coreset blocks", now also a `survey-edit`
+  job on a return, and one exemption, "the return's open work", lists rows in another block and `bridge:` cells naming a
+  retired cluster. Retargeting a bridge is left to Selection, since it is a judgement.
+- `P8` — fixed. A counted paper whose matching role cannot be had (its cluster states no central claim, or the `fringe`
+  quota is full) takes `frontier`, and says what it changed. Selection's Revise hand-over gives each counted paper, its
+  change and its proposed role.
+- `P9` — fixed, as suggested. The proposed form carries a bracketed clause after the values, which the parser already
+  ignores; checked. Selection, Bridges, Fringe selection and Verification are handed the `Dimensions` line.
+- `P10` — fixed, as suggested.
+- `P11` — fixed in the docs: the bracket holds the count only, and a note goes in a part of its own. The pattern was not
+  relaxed.
+- `P12` — fixed: forward from the seeds and the frontier candidates, in the prose and the bullet.
+- `P13` — fixed, as suggested.
+- `P14` — fixed: the plan report does not block; the user can stop the pass, or change the dimensions in the input.
 
 ## Pending
 
-- Phase 4: `T2`, `T3`, `T4`, `T6`, `R4`, the tool half of `A3`, and `P14`.
+- Phase 4: `T2`, `T3`, `T4`, `T6`, `R4`, and the tool half of `A3`.
 - Phase 5: `R6`, and `Z1` in practice.
 - After the run: `Z6`, `C7`, `M7`, `M8`, `S8`, `S13`, `T7`, `W3` step 2, `M20`'s hidden route, `R5`, and the rest of
   `T8`.

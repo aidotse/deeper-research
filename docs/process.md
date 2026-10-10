@@ -53,7 +53,7 @@ the log's `Tokens` line.
 
 | step | operation | run by | reads | writes | done when | tokens |
 | -- | -- | -- | -- | -- | -- | -- |
-| any | After every dispatch | main: `python3 tools/bib.py <topic>` if the coreset changed; if pool rows were added, `python3 tools/pool.py <topic>` until step 3 is done, `uv run tools/assign.py late <topic>` after it (the Late papers row), except after a coverage round that proposes a cluster, when `tools/pool.py` alone fetches them and the Late papers row reclusters later; after Naming, `python3 tools/assign.py clusters <topic>` (the next row); then `python3 tools/check.py <topic>` | the agent's report | `Tokens`, one entry appended; the `Pool` line the fetch printed; `Coreset`, from the check's row count, if the coreset changed; a parallel agent's `Log:` and `Open work:` lines | the check exits 0, apart from a Revise round's open work (step 7). A failure the agent cannot fix halts the pass (`H9`) | 0 |
+| any | After every dispatch | main: `python3 tools/bib.py <topic>` if the coreset changed; if pool rows were added, `python3 tools/pool.py <topic>` while the pass is at step 3 or before, or has returned to it, and after a coverage round that proposes a cluster; otherwise `uv run tools/assign.py late <topic>` ("Late papers"), and on `RECLUSTER:` return to step 3; after Naming, `python3 tools/assign.py clusters <topic>`; then `python3 tools/check.py <topic>` | the agent's report | `Tokens`, one entry appended; the `Pool` line the fetch printed; the `Late papers` line, if `late` assigned any; `Coreset`, from the check's row count, if the coreset changed and step 5 has written the line; a parallel agent's `Log:` and `Open work:` lines | the check exits 0, apart from the open work of a return to step 3 ("Returning to step 3"). A failure the agent cannot fix halts the pass (`H9`) | 0 |
 | any | On a halt | main | a report or printout starting `STOP:` | `Halts`: the halt, with `pending`, then the user's decision in its place | the user has decided; see "When a pass ends" | est. under 5k |
 | any | On a requirement the user may waive | main and user | the failing requirement | `Waivers` | the user has decided; an agent never waives anything (`docs/gates.md`) | 0 |
 | any | Probe, on request | `survey-pass` "Probe" | the question; the coreset rows closest to it | Pool rows, as late papers; `Probes` | as the brief | not yet estimated |
@@ -66,21 +66,21 @@ the log's `Tokens` line.
 | 2 | Fetch pool data | main: `python3 tools/pool.py <topic>` | — | `pool.json`; the Pool's `year`, `citations` and `cites`; `Pool` | exit 0, and `tools/check.py` notes no unfetched paper | 0 |
 | 2 | Collect fringe candidates | main: `uv run tools/fringe.py collect <topic>` | — | `fringe.json`; the blind screening sheet `fringe-screen.md` | exit 0 | 0 |
 | 2 | Screen fringe candidates | `survey-pass` "Fringe screening" | `fringe-screen.md` | its `in scope` and `reason` columns, by `tools/fringe.py judge` | every row `yes` or `no`, with a reason; no `maybe` left | about 0.85k per candidate (measured: 123k for 146) |
-| 2 | Add fringe candidates | main: `python3 tools/assign.py add-fringe <topic>` | — | Pool rows; `Fringe` | exit 0; it refuses while any row is unjudged | 0 |
+| 2 | Add fringe candidates | main: `python3 tools/assign.py add-fringe <topic>` | — | Pool rows; `Fringe`; Open work: `Papers that could not enter the pool`, for the in-scope candidates it lists without an ID | exit 0; it refuses while any row is unjudged | 0 |
 | 2 | Fetch again | main: `python3 tools/pool.py <topic>` | — | as above; `Pool`, replacing the earlier one | as above | 0 |
 | 2 | Gate `G1` | main: `python3 tools/check.py <topic> --gate G1` | — | `Gates` | passes | 0 |
 | 3 | Cluster | main: `uv run tools/cluster.py <topic>` | — | `clusters.json`; a printout with the diagnostics, the notes and the `Clustering` line | exit 0. `STOP: H8`, or `no structure` (`H4`), halts the pass. Any other diagnostic is acted on in the next two rows ("When stability fails") | 0; about 30 s per 200 papers (measured) |
-| 3 | Targeted expansion, once per region: a `thin cluster`; the thinnest regions, on `no stable level`; an `expect` theme that Naming reports missing | main: `python3 tools/sheets.py <topic>`; then `survey-pass` "Expand", targeted, one at a time | the region's section of `naming-sheet.md`, or the missing theme; and why | Pool rows; rejections; `Expansion`, a `targeted` part naming the region by one of its papers; `Errored queries` | backward traversal from the region's most-cited papers and a relevance search on its theme, under the stopping rule ("Screening for scope") | est. 20–50k per region |
-| 3 | Fetch and recluster, after a targeted expansion | main: `python3 tools/pool.py <topic>`, then `uv run tools/cluster.py <topic>`; once the clusters have names, then `python3 tools/assign.py remap <topic>` | — | `Pool`; `clusters.json` | exit 0. Still `no stable level`: take the coarsest level and halt (`H5`). An expected cluster still missing halts (`H7`). A cluster still thin is kept, and the `Clustering rationale` says so | 0 |
+| 3 | Targeted expansion, once per region: a `thin cluster`; the thinnest regions, on `no stable level`; an `expect` theme that Naming reports missing; a cluster a coverage round proposed (step 7) | main: `python3 tools/sheets.py <topic>`; then `survey-pass` "Expand", targeted, one at a time | the region's section of `naming-sheet.md`, the missing theme, or the proposed cluster's theme and candidates; and why | Pool rows; rejections; `Expansion`, a `targeted` part naming the region by one of its papers; `Errored queries` | backward traversal from the region's most-cited papers and a relevance search on its theme, under the stopping rule ("Screening for scope") | est. 20–50k per region |
+| 3 | Fetch and recluster, after a targeted expansion or on `RECLUSTER:` | main: `python3 tools/pool.py <topic>`, then `uv run tools/cluster.py <topic>`; once the clusters have names, then `python3 tools/assign.py remap <topic>` | — | `Pool`; `clusters.json`; on a return from step 7, `Late papers` ("Returning to step 3") | exit 0. Still `no stable level`: take the coarsest level and halt (`H5`). An expected cluster still missing halts (`H7`). A cluster still thin is kept, and the `Clustering rationale` says so | 0 |
 | 3 | Carry names over, on a later pass | main: `python3 tools/assign.py remap <topic>` | — | the Clusters table's `computed` column | exit 0; it lists the clusters left to name | 0 |
 | 3 | Write the sheets | main: `python3 tools/sheets.py <topic>` | — | `naming-sheet.md`; `fringe-sheet.md` | exit 0 | 0 |
-| 3 | Name the clusters | `survey-pass` "Naming" | `naming-sheet.md`; the input; `tools/cluster.py`'s printout; on a later pass, `tools/assign.py remap`'s | Clusters rows, with `computed` ids, and each `high` cluster's central claim; `Clustering`, with names for the computed ids; `Clustering rationale`; `Clusters` | `tools/check.py` passes, so every computed cluster is named once. An `expect` theme with no cluster goes back to the targeted-expansion rows, once. `H6` is found here | est. 20–40k |
+| 3 | Name the clusters | `survey-pass` "Naming" | `naming-sheet.md`; the input; `tools/cluster.py`'s printout; the regions expanded, by paper ID, and whether each is still thin; on a later pass or a return, `tools/assign.py remap`'s printout | Clusters rows, with `computed` ids, and each `high` cluster's central claim; on a rerun, every unmatched cluster renamed or retired ("Late papers"); `Clustering`, with names for the computed ids; `Clustering rationale`; `Clusters` | every computed cluster is named once, and after `tools/assign.py clusters` the check passes. An `expect` theme with no cluster goes back to the targeted-expansion rows, once. `H6` is found here | est. 20–40k |
 | 3 | Write the clusters | main: `python3 tools/assign.py clusters <topic>` | — | the Pool's `cluster` column; Open work: `Clusters not yet reviewed by the user` | `tools/check.py` passes, with no cluster cell left to fill | 0 |
 | 3 | Rewrite the sheets | main: `python3 tools/sheets.py <topic>` | — | the sheets, now with names | exit 0 | 0 |
 | 3 | Build the viewer | main: `python3 tools/graph.py <topic>` | — | `graph.html` | exit 0 | 0 |
+| 3 | Cluster review, only on `H4`–`H8` or `H13` | main and user | the Clusters table; the `Clustering` line; the viewer | `Halts`; any manual override, in `Clustering` | the user has decided; see "Cluster review". The halt is recorded where it is found, and the rows up to the viewer still run, so that the user sees the named clusters; `G2` cannot pass until the user decides | est. under 10k |
 | 3 | Gate `G2` | main: `python3 tools/check.py <topic> --gate G2` | — | `Gates` | passes | 0 |
-| 3 | Cluster review, only on `H4`–`H8` or `H13` | main and user | the Clusters table; the `Clustering` line; the viewer | `Halts`; any manual override, in `Clustering` | the user has decided; see "Cluster review" | est. under 10k |
-| 4 | Set up the coreset blocks | main | the Clusters table; the dimensions, declared or proposed | one `###` block per cluster, in the Clusters table's order, each with the table's header row (`docs/formats.md`, "3. Coreset") | the blocks match the Clusters table | est. under 5k |
+| 4 | Set up the coreset blocks | main; on a later pass or a return from step 7, `survey-edit` for the existing rows | the Clusters table; the dimensions, declared or proposed | one `###` block per cluster, in the Clusters table's order, each with the table's header row (`docs/formats.md`, "3. Coreset"); existing rows moved to the block of the cluster their paper was computed into, and a retired cluster's block removed once empty | the blocks match the Clusters table, and no row sits in another cluster's block | est. under 5k |
 | 4 | Select per cluster: anchor, frontier, dissent | `survey-pass` "Selection", one per block of clusters, in parallel | each cluster's section of `naming-sheet.md`; `tools/check.py`'s lines for those clusters; the frontier candidates in `Orientation`; abstracts and dissent searches through Asta | Coreset rows, every cell drafted from the abstract, `source` `abstract`; `Log:` `Dissent searches`, and `Demotions` on a later pass; `Open work:` empty roles, and the new rows under `Rows needing verification` | after `python3 tools/bib.py <topic>`, `tools/check.py` passes | est. 6–12k per cluster, plus 20–50k per `high` cluster for dissent |
 | 4 | Bridges, only if `tools/check.py` notes a trading pair without one | `survey-pass` "Bridges", once | the Clusters table; the trading pairs `tools/check.py` notes; the coreset | `bridge:` rows; Open work: their `Rows needing verification`, and `Empty roles` for a pair left without a bridge | `tools/check.py` notes no trading pair without a bridge | not yet estimated |
 | 4 | Rewrite the sheets | main: `python3 tools/sheets.py <topic>` | — | `fringe-sheet.md`, with the coreset rows marked | exit 0 | 0 |
@@ -93,12 +93,9 @@ the log's `Tokens` line.
 | 5 | Gate `G4` | main: `python3 tools/check.py <topic> --gate G4` | — | `Gates` | passes | 0 |
 | 6 | Write the output | main | the Clusters and Coreset sections, never the pool, read by line offset (`grep -n '^## ' surveys/<topic>.md`); the evidence files of the rows each claim rests on | `outputs/<topic>.md` | `tools/check.py <topic>` passes, and every claim matches the rows it cites | est. 60–120k |
 | 7 | Coverage test | `survey-pass` "Coverage test" | the output; `tools/check.py`'s per-cluster counts; `fringe-sheet.md`; the candidates' abstracts, through Asta | `coverage-<R>.md`; Pool rows, by `tools/assign.py add`, for each candidate that changed a target or belongs to a proposed cluster; `Coverage test` | the sheet has a verdict for every sampled candidate, and the line names every candidate that changed a target | est. 30–50k per round |
-| 7 | Targeted expansion, for each proposed cluster | `survey-pass` "Expand", targeted | the region the coverage report proposed | Pool rows, as late papers; rejections; `Expansion`, a `targeted` part | as the Expand row, for the region | est. 20–50k per region |
-| 7 | Late papers | main: `uv run tools/assign.py late <topic>`; on `RECLUSTER:` (exit 3), or after a targeted expansion for a proposed cluster, `uv run tools/cluster.py <topic>`, then `python3 tools/assign.py remap <topic>` | — | the Pool's `cluster` column; `clusters.json`; `Pool`; `Late papers`; after a recluster for a proposed cluster, the round's `new clusters:`, as formed or not ("Late papers") | exit 0; after a recluster, `python3 tools/sheets.py <topic>`, then the next two rows; without one, straight to Revise | 0 |
-| 7 | Rename after a recluster | `survey-pass` "Naming", for the clusters `remap` did not match | as in step 3 | as in step 3; a retired cluster's Clusters row removed ("Late papers") | as in step 3 | est. 10–20k |
-| 7 | Move the coreset rows after a recluster | main: `python3 tools/assign.py clusters <topic>`; then `survey-edit`, if `tools/check.py` finds rows in the wrong block | `tools/check.py`'s failures | each row moved to the block of the cluster it was computed into; a block added for each new cluster, and a retired cluster's block removed once empty | `tools/check.py` reports no row in the wrong block | est. under 10k |
-| 7 | Revise | the step 4–6 rows, for the added papers, for each new or renamed cluster, and for each cluster that gained or lost a row in the move, its dissent rows included | as there | rows in roles, listed under `Rows needing verification` until verified; the output, revised | as there | as there |
-| 7 | End the round | main | the `Coverage test` line | another round; or, on `F1`, the user's review of the clusters, if given, in `Clusters`, then `Ended` | `F1`: no new cluster and at most one output change. Two rounds without convergence halt the pass (`H11`) | est. under 5k |
+| 7 | Late papers | main: `uv run tools/assign.py late <topic>`, unless the round proposed a cluster | — | the Pool's `cluster` column; `clusters.json`; `Pool`; `Late papers` | exit 0. On `RECLUSTER:` (exit 3), or when the round proposed a cluster, return to step 3 ("Returning to step 3") | 0 |
+| 7 | Revise | the step 4–6 rows: for the papers the round counted in K, in the roles that match their changes; after a return to step 3, also for every new, renamed or retired cluster and every cluster whose rows moved. It runs on a converging round too, when K is 1 | as there; Selection is handed each counted paper, with its change and its proposed role | rows in roles, listed under `Rows needing verification` until verified; the output, revised | as there | as there |
+| 7 | End the round | main | the `Coverage test` line | another round; or, on `F1`, the user's review of the clusters, if given, in `Clusters`, then `Ended` | every paper the round counted in K is an assigned coreset row. `F1`: no new cluster and at most one output change. Two rounds without convergence halt the pass (`H11`) | est. under 5k |
 | 7 | Gate `G5` | main: `python3 tools/check.py <topic> --gate G5` | — | `Gates` | passes; the pass is over | 0 |
 
 The expensive steps are verification, about half the total, and screening, which grows with the pool. As a rough
@@ -224,8 +221,8 @@ names people use for the themes. It skews recent and well-publicised, which is e
 
 ### Step 2: expand
 
-Traverse backward from the frontier candidates, and forward from the input's seeds, and run relevance searches on the
-themes that step 1 named. Screen for scope. Everything in scope enters the pool.
+Traverse backward from the frontier candidates, forward from the input's seeds and the frontier candidates, and run
+relevance searches on the themes that step 1 named. Screen for scope. Everything in scope enters the pool.
 
 Use Asta.
 
@@ -533,20 +530,20 @@ names over with `tools/assign.py remap` (see "Late papers").
 #### Late papers
 
 A late paper is one that reaches the pool after step 3: a coverage-test candidate that changed the output, a probe's
-find, a paper an output needs for a new claim, or a paper from a targeted expansion at step 7. (A targeted expansion in
-step 3 is clustered by step 3's rerun, so its papers are not late.) It has no cluster, and nobody may give it one by
-hand. Late papers are added to the Pool table like any other (`tools/assign.py add`), with an empty `cluster` cell;
-those rows are the queue. `tools/check.py` lists them.
+find, or a paper an output needs for a new claim. (Papers from a targeted expansion are not late: the recluster that
+follows it places them.) It has no cluster, and nobody may give it one by hand. Late papers are added to the Pool table
+like any other (`tools/assign.py add`), with an empty `cluster` cell; those rows are the queue. `tools/check.py` lists
+them.
 
-The queue is processed in batches, never paper by paper: once per coverage-test round, and before any re-run of step 4.
-A batch is one command, `uv run tools/assign.py late <topic>`. It fetches the papers' data, and assigns each to the
-cluster that its `k` nearest clustered papers favour, by the `combined` measure: each neighbour votes for its cluster
-with its similarity, and the largest total wins. A paper with no positive similarity under that measure is placed by
-text. Each paper is assigned against the clustering as it stood, never against other late papers, so the result does not
-depend on order. The script records every assignment and prints the log's `Late papers` line. Only then does a late
-paper take a role.
+The queue is processed in batches, never paper by paper: after each dispatch that adds pool rows after step 3, and
+always before a re-run of step 4. A batch is one command, `uv run tools/assign.py late <topic>`. It fetches the papers'
+data, and assigns each to the cluster that its `k` nearest clustered papers favour, by the `combined` measure: each
+neighbour votes for its cluster with its similarity, and the largest total wins. A paper with no positive similarity
+under that measure is placed by text. Each paper is assigned against the clustering as it stood, never against other
+late papers, so the result does not depend on order. The script records every assignment and prints the log's
+`Late papers` line. Only then does a late paper take a role.
 
-Recluster instead, with `tools/cluster.py`, in two cases:
+Recluster instead, with `tools/cluster.py`, in two cases. Both return the pass to step 3 ("Returning to step 3" below).
 
 - `Many late papers` — late papers since the last full clustering would exceed 10% of the pool. `tools/assign.py late`
   refuses and says so. On `reasoning-legacy`, reclustering after dropping a random 20% of the papers agrees with the
@@ -554,13 +551,9 @@ Recluster instead, with `tools/cluster.py`, in two cases:
   adding the fringe candidates there, 118 at the time (16 of them from a route since dropped), moved the clustering to
   ARI 0.70.
 - `A new cluster` — the coverage test judged that a candidate belongs to a cluster not in the Clusters table. That
-  judgement never creates a cluster. It triggers a targeted expansion of the region (the `More data` lever); the
-  candidate and the expansion's in-scope papers join the batch, and the batch is reclustered, even below 10%. If the
-  region is real, it forms a cluster: `tools/cluster.py`'s `changes:` line shows it as new, holding those papers. Then
-  the round's `Coverage test` line keeps it under `new clusters:`, and the round has not converged. If not, the
-  computation places the papers in existing clusters, and the data has overruled the judgement. The main session then
-  records the round's `new clusters:` as `none (proposed <which>, not formed)`, which does not count against
-  convergence.
+  judgement never creates a cluster. It triggers a targeted expansion of the region (the `More data` lever), and the
+  candidate and the expansion's papers are reclustered with the rest, even below 10%. If the region is real, it forms a
+  cluster. If not, the computation places the papers in existing clusters, and the data has overruled the judgement.
 
 After a recluster, carry the names over: `tools/cluster.py` matches the new clustering to the one the Clusters table
 names, by shared papers, and `tools/assign.py remap <topic>` moves each name to the cluster it matched. Until then,
@@ -571,15 +564,31 @@ matched keeps its name and the other is retired; any other unmatched cluster is 
 Clusters row, and its coreset block once the block's rows have moved to the blocks their papers were computed into. It
 removes no paper. Every rename and retirement is said in the `Clustering rationale`. A clustering needs no remap until
 the Clusters table has names: so not the first clustering of a first pass, but every rerun after naming, on any pass.
-The `changes:` line of `tools/cluster.py`'s printout lists the splits, merges, new and vanished clusters; paste it into
-`Late papers` after a recluster at step 7.
 
-After a recluster at step 7, coreset rows may sit in the wrong block, and a cluster may have gained a row, lost its
-anchor, or kept a dissent row whose quoted claim answers a different cluster's central claim. So Revise re-runs
-selection for every new or renamed cluster and every cluster whose rows changed, and a moved dissent row is kept only if
-it still contradicts its new cluster's central claim. Clusters that did not match, and new ones, are named again (step
-3), and step 4 is re-run for them. Expansions run before their batch is processed, so a round has at most one recluster,
-and two rounds without convergence halt the pass (`H11`).
+#### Returning to step 3
+
+A recluster after step 3 does not get rows of its own: the pass goes back to step 3, and runs the order of operations on
+from there for what changed. That reuses rows already written and checked, rather than a second set for the same work.
+
+1. For a proposed cluster, start at step 3's "Targeted expansion" row, with the coverage report's theme and candidates
+   as the region. On `RECLUSTER:`, start at "Fetch and recluster".
+2. Run the step 3 rows from there on: recluster and `remap`, write the sheets, name (renaming or retiring every cluster
+   `remap` did not match), write the clusters, build the viewer, and pass `G2`.
+3. Record the recluster in `Late papers`, by hand, in the second form of `docs/formats.md`, with the `changes:` line of
+   `tools/cluster.py`'s printout. For a proposed cluster, set the round's `new clusters:` from the same line: the
+   cluster, if it formed, which means the round has not converged; or `none (proposed <which>, not formed)`, which does
+   not count against convergence.
+4. Run step 4's "Set up the coreset blocks", which moves every coreset row to the block of the cluster its paper was now
+   computed into, then step 7's Revise.
+
+Until step 4 has run again, the plain check fails on what the return has yet to do: rows in another cluster's block, a
+`bridge:` naming a retired cluster, roles not yet filled in a new or changed cluster, a dissent search not yet run for
+it, rows not yet verified, and an `abstract` share over 20% until they are. That is the return's open work, not `H9`.
+Every other failure is `H9` as usual. The open work is done when `tools/check.py` passes again.
+
+A moved row keeps its role only if it still fills it: a moved dissent row must still contradict its new cluster's
+central claim, and a `bridge:` row must still join its block's cluster to another. A round has at most one return to
+step 3, since the expansion runs before the recluster.
 
 ## Stage 2: the coreset
 
@@ -603,8 +612,11 @@ roles exist, and why ranking alone is not enough, is in `docs/coresets.md` ("How
   dedicated search for each high-alignment cluster. Search the forward citations of the cluster's anchor and frontier
   papers, and run relevance queries phrased as challenges: "fails to", "does not", "revisiting", "limits of",
   "rethinking", etc. Quote, in `selected because`, the paper's claim that contradicts the cluster. Record each search in
-  the `Dissent searches` line, naming every dissent row it found. If a search finds no dissent, record that the slot is
-  empty and what was searched. An empty dissent slot is information about the cluster, not a failure.
+  the `Dissent searches` line, naming every dissent row it found. A dissent paper must be a pool paper computed into
+  that cluster. One found outside the pool is returned to the main session, which adds it, assigns it as a late paper,
+  and dispatches Selection again for its cluster; one computed into another cluster cannot be this cluster's dissent,
+  though it may make a `bridge`. If a search finds no dissent, record that the slot is empty and what was searched. An
+  empty dissent slot is information about the cluster, not a failure.
 - `bridge` — a paper that connects two clusters, for example by applying one cluster's method to another's question.
   Written `bridge:<other-cluster-id>`, in the block of the cluster the paper was computed into, which must be one of the
   two. It is optional, but bridges are where the Landscape's structure becomes visible. Where the clustering diagnostics
@@ -690,7 +702,8 @@ directly:
 Every candidate counted in K joins the coreset (`G5` checks it), in the role that matches what it changed: `dissent` for
 a contradiction or a broken assumption, `frontier` for a newer or stronger result, `bridge:<id>` for a connection
 between clusters, or `fringe` for an idea no other row has, within the quota. A cluster may take more rows than "Sizing"
-asks for this.
+asks for this. Where the matching role cannot be had, because the paper's cluster is not `high` and so states no central
+claim, or the `fringe` quota is full, the paper takes `frontier`, and its `selected because` says what it changed.
 
 What counts as a change. A candidate changes the output if it would add a claim to a target, remove one, or reverse one:
 a new axis, assumption, gap or answer; an assumption shown not to hold; a result that turns out to depend on a condition
@@ -698,14 +711,14 @@ the output does not state. It does not change the output if it would only add a 
 a number or a wording that leaves the claim standing, or change `Questions` or `Reading` alone, which are not targets.
 
 The pass finishes (`F1`) when a round produces no new cluster and at most one output change. Say so in the log's `Ended`
-line, with the numbers. Otherwise, add the papers that changed things to the pool, process them as a batch of late
-papers (see "Late papers"), give them their proper roles, revise the output, and sample again. Two rounds without
+line, with the numbers. Either way, the papers the round counted in K are processed as late papers ("Late papers"),
+given their roles, and the output is revised; on a round that did not converge, sample again. Two rounds without
 convergence halt the pass (`H11`). A proposed cluster goes through a targeted expansion and a recluster before the round
-is judged ("Late papers", `A new cluster`).
+is judged ("Returning to step 3").
 
-While a round's Revise is under way, the plain check fails on what Revise has yet to do: roles not yet filled in a new
-cluster, a dissent search not yet run for it, rows not yet verified, and an `abstract` share over 20% until they are.
-That is the round's open work, not `H9`. Every other failure is. Revise is done when `tools/check.py` passes again.
+While Revise is under way, the plain check fails on the counted papers' rows not yet verified, and on the open work of a
+return to step 3, if there was one ("Returning to step 3"). That is not `H9`. Revise is done when `tools/check.py`
+passes again.
 
 How strong this is. `F1` is a sampled test, so it bounds how much the coreset misses rather than proving it misses
 nothing. If a round of N sampled candidates finds K that change the output, the share of all unsampled candidates that

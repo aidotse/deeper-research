@@ -43,7 +43,8 @@ tractable for users. For a detailed look see `docs/coresets.md`.
 
 The following table represents an index prepared for agents. Read only the files your task needs for your role marked
 below, at the moment given below, and skip the rest. A `survey-pass` agent reads its own brief in `docs/dispatch.md`
-("Briefs"), and then only the sections that brief lists, not whole files.
+("Briefs"), and then only the sections that brief lists, not whole files: for it, the `when to read` column below does
+not apply.
 
 | file | for | when to read |
 | -- | -- | -- |

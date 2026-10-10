@@ -97,11 +97,14 @@ section is read as a dimension, and `tools/inputs.py` fails on one not in this f
 `tools/check.py` checks every coreset row's values against these, and the viewer offers a colour mode per dimension.
 
 If the input declares none, the main session proposes a set at step 0, in the Plan row, from the input: a name and at
-least two values per dimension, with `n/a` among them if some papers will have no value. It writes them in the log's
-`Dimensions` line, in the form given there ("1. Retrieval log"), and says so when it reports the plan to the user.
-Proposed dimensions are then treated exactly like declared ones: `tools/check.py` reads them from that line, checks the
-rows' values and columns against them, and `G4` requires evidence for them. Declaring dimensions in the input is still
-better: the user chooses them, and one added after verification must be re-derived for every row.
+least two values per dimension, with `n/a` among them if some papers will have no value, and after the values, in
+brackets, one clause on what the dimension separates and how to tell its values apart (no backticks or semicolons inside
+it, which the check reads as the line's structure). It writes them in the log's `Dimensions` line, in the form given
+there ("1. Retrieval log"), and says so when it reports the plan to the user. The pass does not wait for an answer: the
+user can stop it there, or change the dimensions in the input. Proposed dimensions are then treated exactly like
+declared ones: `tools/check.py` reads them from that line, checks the rows' values and columns against them, and `G4`
+requires evidence for them. Declaring dimensions in the input is still better: the user chooses them, and one added
+after verification must be re-derived for every row.
 
 ### `Clustering`
 
@@ -204,8 +207,8 @@ One entry per pass, in date order:
   steering in the input's `Clustering` section changed>
 - **Clusters:** N (H high, M medium, L low); halted for review: no | <id>; reviewed by user YYYY-MM-DD | not yet
   reviewed
-- **Dimensions:** declared in the input | proposed: `<name>` — values: `<a>`, `<b>`; `<name>` — values: `<a>`, `<b>`,
-  `<c>`; ...
+- **Dimensions:** declared in the input | proposed: `<name>` — values: `<a>`, `<b>` (<what it separates>); `<name>` —
+  values: `<a>`, `<b>`, `<c>` (<what it separates>); ...
 - **Dissent searches:** <cluster id>: <what was searched> -> found: <id>, ...; <cluster id>: <what was searched> ->
   none found; ...
 - **Coreset:** N rows
@@ -241,9 +244,11 @@ What some lines need, beyond their form:
   work's `Papers that could not enter the pool` instead.
 - `Expansion` — each traversal names the paper it started from, its direction, and in brackets how many candidates it
   gave to screen; each query is quoted verbatim, with its count. `tools/check.py` counts a frontier candidate as
-  traversed only in a part that opens with `backward`, `forward` or `both`, in the form `<id> (<n>)`. A targeted
-  expansion adds its own part. `stopped` says why expansion ended (`docs/process.md`, "Screening for scope"). If no
-  candidate was judged out of scope this pass, the line ends `; rejected: none`, in place of entries in `rejected.md`.
+  traversed only in a part that opens with `backward`, `forward` or `both`, in the form `<id> (<n>)`. The bracket holds
+  the count and nothing else, and the part must not contain the word "not": a note belongs in a part of its own. A
+  targeted expansion adds its own part. `stopped` says why expansion ended (`docs/process.md`, "Screening for scope").
+  If no candidate was judged out of scope this pass, the line ends `; rejected: none`, in place of entries in
+  `rejected.md`.
 - `Late papers` — `tools/assign.py late` prints the first form. After a recluster nothing prints it: the main session
   writes the second form, from `tools/cluster.py`'s `changes:` line.
 - `Fringe` — `left out` counts the in-scope candidates that have neither an arXiv ID nor a `CorpusId`, so could not be

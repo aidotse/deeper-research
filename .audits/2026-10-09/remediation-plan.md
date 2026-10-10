@@ -305,8 +305,8 @@ Status, 2026-10-10: done. What was done, per ID, with its judgement calls and ca
 What turns the run into a measurement rather than a demo:
 
 - `T4`: `tools/coverage.py`. It prints the coreset's coverage radius (max and p90), and draws the coverage-test sample
-  from the worst-covered pool papers, with the seed recorded. This also settles `P14` (defined in the disposition): the
-  coverage sample is hand-drawn until then.
+  from the worst-covered pool papers, with the seed recorded. Until then the coverage sample is hand-drawn, and
+  `docs/process.md` marks its bounds as indicative.
 - The tool half of `A3`: the sample above is written as a per-round sheet with a verdict column, as `fringe-screen.md`
   is.
 - `T3`: a blind re-verification of a random 10% of rows, at least five. A fresh agent sees only the paper ID and the
@@ -366,9 +366,9 @@ run shows.
 | `M19` | Phase 2e |
 | `C10`, `M20` | split across Phase 2c and 2d by part; `M20`'s hidden-route item after the run |
 | `W1`–`W4`, `S5`, `S7`, `S9`–`S12`, `S14`, `S15`, `A1`–`A8` | Phase 3; `S10` and `A7` only what remains after Phase 1 |
-| `T2`, `T3`, `T4`, `T6`, `R4`; tools for `A3`; `P14` | Phase 4 |
+| `T2`, `T3`, `T4`, `T6`, `R4`; tools for `A3` | Phase 4 |
 | `R1` | Phase 3 (the step-5 row), used in Phase 5 |
-| `P1`–`P13`, `P15`–`P20` (found by Phase 3's tabletop; defined in the disposition) | Phase 3 |
+| `P1`–`P14` (found by Phase 3's tabletops; defined in the disposition) | Phase 3 |
 | `R6` | Phase 5 |
 | `R5` | after the run, if needed |
 | `Z1` | the plan as a whole; `T7` after the run |
