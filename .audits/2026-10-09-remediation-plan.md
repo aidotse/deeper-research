@@ -262,6 +262,49 @@ Done when, for the whole phase: every finding above is fixed with a test where o
 `check.py reasoning` pass; and the scratch-topic simulations from the audit that showed each bug now fail or behave
 correctly.
 
+Status, 2026-10-10: done. `2a` and `2e` were done in the main session; `2b`, `2c` and `2d` by agents in worktrees, whose
+commits were reviewed and cherry-picked.
+
+- `2a`: every item above, plus `C6`, after `2d` landed: `add-fringe` uses the gate's test, `gates.judged`. The judgement
+  calls:
+  - `M1`: at least 6 words per part of a quote. Matching is on whole words, with line-break hyphenation both joined and
+    not, and the parts in order, each within 3000 characters of the last.
+  - `M2`: a `full-text` row's `method summary` must rest on a full-text quote. A verified dissent row's quoted claim
+    must be among its evidence quotes (new requirement `g4.dissent-evidence`).
+  - `S1`: the form is ``proposed: `<name>` — values: `<a>`, `<b>`; ...``, with at least two values each.
+    `g3.dimension-columns` now applies to declared dimensions too: no extra column, and none missing.
+  - `S6`: `; rejected: none` at the end of `Expansion`.
+  - `M4`: the `Coverage test` IDs are those that open an entry, so an ID inside "what it changed" is not counted.
+  - `C5`: the reverse marker check applies to the coreset layout only. The legacy output mentions the marker in prose
+    after its legend.
+  - `M6`: a pass ended at a halt with the user's decision needs only its declared gates, plus its closing lines.
+  - Checks: 70 of 70 faults, 35 of 35 behaviours.
+- `2b`: `*`, `+` and numbered bullets are accepted, since mdformat rewrites `*` and keeps numbers. Lazy continuation
+  lines are joined. A prose bullet in `Coreset Spec` still fails; prose goes in paragraphs or nested bullets.
+- `2c`:
+  - `M11`: the mixed fringe score is a rescaled mix of normal scores, ranked once within the cohort. Mixing raw distances
+    failed, because their scales differ by 10x. Zero-reference papers in the top 8 went from 5 to 1.
+  - `M12`: the cohort is the 30 papers nearest by date.
+  - `M14`: sub-cluster scores are computed on the part itself.
+  - `M20`: holdouts recompute the measure on the subset. Stability at the chosen level went from 0.789 to 0.799.
+  - `C10` and `T9`: defaults, seeds and versions are in `params`, and versions are pinned.
+  - The assignment and level are unchanged.
+- `2d`:
+  - `C9`: the PDF bibliography is cut. Tested on synthetic text only, since no local full text is PDF-derived.
+    `UNVERIFIED` on real pypdf output.
+  - `R2`: `fulltext.py show` prints an outline, matching passages and whole sections.
+  - `R3`: the `Pool` line, `check.py`'s printout, and a viewer colour mode with an overview count.
+  - `T5`: `reject` from stdin; `fringe.py judge`.
+  - `M15`, `M16`, `M17`, `A9`, `C10`, and the `M20` bib part. `maybe` on the screening sheet is a parking state, counted
+    as unjudged.
+  - `M17`: the backfill ran on `reasoning-legacy`: 195 of 195 records now have `arxiv`, and nothing else changed.
+- Left over:
+  - `recursive.py` still slices the rank normalisation, since only its docstring was in scope.
+  - `history.json` and `match-simulation.json` do not record seeds.
+  - `UNVERIFIED`: that the recommendations endpoint returns `externalIds`, which `collect` now asks for to exclude
+    rejected papers.
+  - The viewer's rendering is still checked with node only.
+
 ## Phase 3: spec coherence
 
 One pass over `docs/`, `CLAUDE.md` and `.claude/agents/`, describing the code as Phases 1 and 2 left it.
@@ -297,6 +340,41 @@ One pass over `docs/`, `CLAUDE.md` and `.claude/agents/`, describing the code as
   - `C10`: the doc side of the defaults.
 - The doc side of `S1` and `S2`.
 - `R1`: the step-5 checklist row has the main session batch-fetch full texts before dispatching verification.
+- The doc side of Phase 2, as its agents reported it:
+  - `docs/formats.md`:
+    - inputs: sections are `##` headings, each once; bullets may be `-`, `*`, `+` or numbered; a values list may end in
+      "or" or "and"; `granularity` above 0; at least one target left after the drops; prose in `Coreset Spec` as
+      paragraphs or nested bullets;
+    - log lines: the `Dimensions` form above; `; rejected: none` in `Expansion`; the `Expansion` traversal form
+      `backward from <id> (<n>), ...`; `Dissent searches` entries separated by `|`, with `found: <id>`; the `Pool` line
+      with its arXiv count;
+    - the screening sheet without `year`.
+  - `docs/gates.md`:
+    - the new and changed requirements: `G0` proposed dimensions; `G1` every candidate screened, with reasons of a few
+      words; `G3` dissent searches parsed; `G4` quote length and order, header ID, method from the full text, dissent
+      evidence, a missing full text failing `--gate`; `G5` the `Coverage test` N and K, `Tokens`, `Ended`;
+    - halted passes; a pending halt and the safety net;
+    - `C5`'s wording.
+  - `docs/verification.md`:
+    - quotes of at least 6 words per part;
+    - the section reader as the first way into a paper, pending `R4`;
+    - `[page N]` locations for PDF text.
+  - `docs/tooling.md`:
+    - the `add` hint; `reject` from stdin; `fringe.py judge` and `maybe`; `collect` skipping rejected papers;
+    - the `pool.py` backfill; the PDF cut; `fulltext.py show`; the viewer's arXiv mode;
+    - the defaults (k 10, c 10, reps 20, nulls 1, τ 0.75, cohort 30), the new `params` keys, exit 2 on usage errors,
+      and pinned versions;
+    - the Stop hook's scope.
+  - `docs/process.md`:
+    - the fringe score (the cohort, the rescaled mix, the reading "further than 95% of its cohort", at a resolution of
+      1/30);
+    - the holdout re-measured on its own;
+    - sub-cluster scores on the part itself;
+    - the `changes:` printout;
+    - seeds in `params`;
+    - screening with `fringe.py judge`; `maybe` resolved before `add-fringe`;
+    - the blindness claim, which now holds.
+  - `docs/dispatch.md` and `.claude/agents/survey-pass.md`: screening with `fringe.py judge`.
 
 Done when: a fresh tabletop run of a first pass, as in the audit, finds no stalls on the rows it found before. Run it as
 an agent, blind to this plan.
