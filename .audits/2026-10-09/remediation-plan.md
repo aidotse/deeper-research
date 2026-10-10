@@ -297,6 +297,9 @@ One pass over `docs/`, `CLAUDE.md` and `.claude/agents/`, describing the code as
 Done when: a fresh tabletop run of a first pass, as in the audit, finds no stalls on the rows it found before. Run it as
 an agent, blind to this plan.
 
+Status, 2026-10-10: done. What was done, per ID, with its judgement calls and caveats, is in
+`.audits/2026-10-09/disposition.md`, including what the tabletop found and how each finding was handled.
+
 ## Phase 4: instrument the run
 
 What turns the run into a measurement rather than a demo:

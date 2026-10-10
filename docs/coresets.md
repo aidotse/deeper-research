@@ -109,8 +109,10 @@ region.
 `Sufficiency is tested directly`, by the coverage test (`docs/process.md`, step 7). It samples pool papers not in the
 coreset, and for each asks whether it opens a new cluster or would change a claim in the output's targets. The coreset
 is sufficient when a round changes almost nothing. This is a sampled test, so sufficiency is established with the
-confidence a sample of 10–15 allows, not proven. The sample leans toward thinly covered clusters and high fringe scores,
-which is where a failure is most likely.
+confidence a sample of 10–15 allows, not proven. That confidence is modest. A round of 15 with one change is consistent,
+at 95% confidence, with up to 28% of unsampled pool papers changing the output; a round of 10 with one change, with up
+to 39% (`docs/process.md`, step 7, gives the table). The sample leans toward thinly covered clusters and high fringe
+scores, which is where a failure is most likely, so the true share is probably lower. Nothing measures it directly yet.
 
 `Minimality is not tested directly.` No step removes a row and checks whether the output changes. It is approximated
 instead by the role structure, which gives each row a distinct job, and by the sizing rules: about two to four rows per

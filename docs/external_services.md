@@ -18,15 +18,18 @@ the rule that a persistent error halts the pass, exist to turn those silent fail
 | arXiv | `tools/bib.py`, `tools/fulltext.py` | bibliography entries; full text for verification | HTTP, unauthenticated |
 | WebSearch and WebFetch | agents | orientation, the frontier, work that never reached arXiv, probes | built into Claude Code |
 
-Agents reach the Semantic Scholar corpus through Asta, and scripts reach it through the Graph API directly. Neither goes
-through web searches. The split is by volume: anything a model must read goes through Asta, and bulk data that no model
-should read, such as embeddings and reference lists, goes through a script.
+Agents reach the Semantic Scholar corpus through Asta (see below for how sure that is), and scripts reach it through the
+Graph API directly. Neither goes through web searches. The split is by volume: anything a model must read goes through
+Asta, and bulk data that no model should read, such as embeddings and reference lists, goes through a script.
 
 ## Asta
 
 Asta is the Allen Institute for AI's MCP server for scientific literature, at `https://asta-tools.allen.ai/mcp/v1`. Its
 tools appear to agents as `mcp__asta__<tool>`. It accepts Semantic Scholar paper IDs, so the IDs an agent sees and the
-IDs the scripts fetch agree. That Asta's paper tools run on the Semantic Scholar corpus itself is `UNVERIFIED`.
+IDs the scripts fetch agree. That Asta's paper tools run on the Semantic Scholar corpus itself is likely but not
+established. One check supports it: `get_paper` for `ARXIV:2408.03314` returned the Semantic Scholar `paperId`
+`8292083dd8f6ae898ea0ee54a6b97997d1a51c9d`, the same one the Graph API gave `tools/pool.py` (audit of 2026-10-09). One
+paper does not prove it for the whole corpus.
 
 ### Configuration
 
@@ -105,8 +108,8 @@ otherwise: what it returns in bulk would flood a model's context, and the script
 - `tools/fringe.py` uses the batch endpoint and the recommendations endpoint. Recommendations return only papers from
   about the last two months; see `docs/process.md` ("Fringe routes").
 
-Why the fringe routes use the Graph API and not Asta. Both reach the Semantic Scholar corpus, so the choice is not about
-which finds better papers. It is about what each route needs:
+Why the fringe routes use the Graph API and not Asta. Both reach the Semantic Scholar corpus, as far as is known (see
+"Asta"), so the choice is not about which finds better papers. It is about what each route needs:
 
 - `An endpoint Asta lacks` — the `new` route uses Semantic Scholar's recommendations, which Asta does not expose.
 - `Volume` — the `hidden` route ranks every paper the pool cites by how little it is cited for its age. On
@@ -115,8 +118,8 @@ which finds better papers. It is about what each route needs:
   shortlist, up to 60 papers per route (116 on `reasoning-legacy`), is worth a model's attention, and that is what the
   blind screening reads.
 - `Data Asta does not return` — the fringe score is computed from SPECTER2 embeddings, and also from full reference
-  lists when the chosen measure uses references. Asta's paper fields include no embeddings. Reference lists it can
-  return, but fetching them for every pool paper would put them all through an agent's context.
+  lists, which the `combined` measure uses. Asta's paper fields include no embeddings. Reference lists it can return,
+  but fetching them for every pool paper would put them all through an agent's context.
 - `Reproducibility` — a script applies the same rule on every run; an agent paging through results does not.
 
 Calls are unauthenticated. The unauthenticated endpoint shares one rate limit across all its users, so it answers 429
@@ -155,7 +158,7 @@ frontier, the field's vocabulary, OpenReview, lab blogs, system cards, release n
   that its `CorpusId`, with `search_paper_by_title` if the page gives neither. Ask for `externalIds`: the arXiv ID is
   there when Semantic Scholar knows it. A paper Semantic Scholar does not know cannot enter the pool yet.
 - WebSearch may corroborate a claim about a paper, but it is never the only source for one. Characterisation and
-  verification come from Asta.
+  verification come from the paper's fetched full text (`docs/verification.md`).
 - Record every orientation query in the retrieval log, verbatim.
 
 ## Credentials and privacy
@@ -170,8 +173,9 @@ frontier, the field's vocabulary, OpenReview, lab blogs, system cards, release n
 ## Preflight
 
 The preflight check runs at the start of every pass, before step 1. It is done by a `survey-pass` agent dispatched for
-it alone (`docs/dispatch.md`, "Briefs"), and its outcome is the first line of the pass's retrieval log. It costs a few
-calls and a few thousand tokens. What it buys is that no pass runs on a missing service without the user knowing.
+it alone (`docs/dispatch.md`, "Briefs"), and its outcome is the `Preflight` line of the pass's retrieval-log entry. It
+costs a few calls and a few thousand tokens. What it buys is that no pass runs on a missing service without the user
+knowing.
 
 Every check below must pass. If any fails, the pass halts (`H1` in `docs/process.md`, "When a pass ends"): the agent
 returns a `STOP:` report, and the main session tells the user. The one exception is a Graph API 429, which counts as
@@ -190,7 +194,7 @@ reachable.
 | Asta key set | `python3 tools/preflight.py`, which runs `tools/asta_config.py` |
 
 The main session runs `tools/preflight.py` before dispatching the preflight agent, and passes its printout on: it is the
-second half of the log's `Preflight` line. The agent makes the five tool calls.
+second half of the log's `Preflight` line. The agent makes the five tool calls, and writes the whole line.
 
 Why every failure halts:
 

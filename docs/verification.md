@@ -10,21 +10,35 @@ The standard is claim-level. The point is not to collect a quote per cell, but t
 
 ### What "verify" means
 
-Verify against the paper's full text. Fetch it with `uv run tools/fulltext.py <topic> <id>` (see `docs/tooling.md`). The
-script costs no tokens, and its text is the paper's own: arXiv's HTML rendering, the PDF where arXiv has no HTML, or,
-for a paper without an arXiv ID, the open-access PDF Semantic Scholar lists. Every quote a verified row rests on comes
-from this file, which is what lets `tools/check.py` confirm that each quote is verbatim.
+Verify against the paper's full text, in `graphs/<topic>/fulltext/<id>.txt`. The main session fetches it for every row
+before dispatching verification (`docs/process.md`, step 5); do not fetch papers yourself, since parallel fetches break
+arXiv's request spacing. The text is the paper's own: arXiv's HTML rendering, the PDF where arXiv has no HTML, or, for a
+paper without an arXiv ID, the open-access PDF Semantic Scholar lists. Every quote a verified row rests on comes from
+this file, which is what lets `tools/check.py` confirm that each quote is verbatim. If the file is missing, the paper
+could not be fetched, and the row is uncheckable ("Outcomes" below).
 
-A whole paper is 10–70k tokens, so do not read it end to end. Find the passages each claim turns on, and read only
-those. There are two ways to find them, and either or both may be used:
+A whole paper is 10–70k tokens, so never Read it end to end. Read it by section, with the section reader (`R` below
+stands for `uv run tools/fulltext.py show <topic> <id>`):
 
-- `Grep` — search the file for the terms the claim turns on. Words in PDF text are often hyphenated across line breaks,
-  so search for word stems.
-- `Snippet search` — call `mcp__asta__snippet_search` with `paper_ids=ARXIV:<id>`, or `paper_ids=CorpusId:<n>` for a
-  paper without an arXiv ID, to learn where the claim is discussed. Then find that passage in the full text with Grep.
+1. `R` alone prints the outline: every heading, with its size in tokens. Start here, to see where the method, the setup
+   and the results are.
+2. `R '<pattern>'` prints each passage matching a regular expression, under its section heading, with line numbers to
+   read on from. Use it for the terms a claim turns on: a number, a dataset, the method's name.
+3. `R --section <name>` prints whole sections by heading, such as `--section Method`. Read the sections where authors
+   state what limits their result even when no one asks: `Limitations`, `Discussion` and `Conclusion`. A pattern only
+   finds what you already suspect; these sections are where the caveats you did not suspect live.
 
-A snippet is a pointer, not evidence. Quote the full text, never the snippet: nothing can check a snippet afterwards, so
-a quote from one would be a claim presented as retrieved. Set `source` to `full-text`.
+Output is capped (`--max`, 6000 tokens by default). Grep on the file works too. In PDF text, words are often hyphenated
+across line breaks, so search for word stems, and the "sections" are its pages and the lines that look like headings.
+
+`Snippet search` can also help to find a passage: call `mcp__asta__snippet_search` with `paper_ids=ARXIV:<id>`, or
+`paper_ids=CorpusId:<n>` for a paper without an arXiv ID, to learn where the claim is discussed, then find that passage
+in the full text. A snippet is a pointer, not evidence. Quote the full text, never the snippet: nothing can check a
+snippet afterwards, so a quote from one would be a claim presented as retrieved. Set `source` to `full-text`.
+
+Which way into a paper works best, the section reader alone or a cheaper model mapping the paper first, has not been
+measured. Until it is, use the section reader as above, and read for what the draft row left out as carefully as for
+what it got wrong.
 
 Then check every cell:
 
@@ -35,7 +49,9 @@ Then check every cell:
 - every declared dimension — re-derived from the body text, **not** copied from the row's existing prose. Reading a
   classification out of an unverified summary and then marking it verified launders a guess into a fact.
 - `role` and `selected because` — still true in the light of the body text. A paper selected as dissent that turns out
-  to agree with its cluster is a selection error, not a characterisation detail.
+  to agree with its cluster is a selection error, not a characterisation detail. For a dissent row, find the claim
+  `selected because` quotes in the full text, and record it as evidence for `selected because`. If the full text words
+  it differently from the abstract, quote the full text's words in both places.
 
 ### Recording the evidence
 
@@ -50,17 +66,23 @@ trace back to its text cannot be reviewed or audited. One bullet per piece of ev
 - `result`, `evidence` — full-text, 4 Results — "<the sentence with the headline number> ... <its condition>"
 ```
 
-- `cells` — the cells the quote supports, each in backticks. Every verified row needs at least `method summary`,
-  `result`, and each declared dimension whose value is not `n/a`.
+- `cells` — the cells the quote supports, each in backticks. One quote may support several cells. Every cell whose value
+  is not `n/a` needs evidence: `method name`, `method summary`, `datasets / models`, `metric`, `result`, and each
+  dimension. A verified dissent row also needs its `selected because` claim.
 - `source` — `full-text`, or `abstract` for a number the authors state only in the abstract (see below), then, after a
   comma, where in the paper: the section heading or the `[page N]` marker of the full-text file.
-- `quote` — verbatim, in double quotes. Elide with `...`, never paraphrase. A sentence or two is enough; this is a
-  pointer for a reviewer, not a copy of the paper.
+- `quote` — verbatim, in double quotes. Elide with `...`, never paraphrase. Each part between elisions has at least 6
+  words, so that it shows where the claim comes from: "achieves 92.1% on GSM8K" is too short, so quote more of its
+  sentence. The parts must appear in the paper in the order given, each within about a page of the one before. A
+  sentence or two is enough; this is a pointer for a reviewer, not a copy of the paper.
+
+The file opens with `# Evidence: <id>`, the row's own ID. The `method summary` must rest on a full-text quote, since the
+abstract can carry a number but never the method.
 
 `tools/check.py` requires the file for every row not `abstract`-sourced, and finds every `full-text` quote in the
-fetched full text, ignoring punctuation and line breaks (`docs/gates.md`, `G4`). A quote it cannot find there is a
-paraphrase, which is a claim presented as retrieved. Evidence marked `snippet` fails. A correction replaces the evidence
-it corrects.
+fetched full text, ignoring case, punctuation and line breaks, with words hyphenated across a line break joined
+(`docs/gates.md`, `G4`). A quote it cannot find there is a paraphrase, which is a claim presented as retrieved. Evidence
+marked `snippet` fails. A correction replaces the evidence it corrects.
 
 Four rules decide the edge cases:
 
@@ -74,25 +96,32 @@ Four rules decide the edge cases:
   domain or a synthetic setting, the row says so.
 - **Asta returning nothing is evidence about the index, not about the paper.**
 
-**Outcomes.** Each row ends in exactly one of three states:
+### Outcomes
 
-- **Confirmed** — set `source` to `full-text`, with the evidence recorded.
-- **Corrected** — fix the cell in place, set `source`, and log the old and new text in the current pass's entry.
-  Corrections are never silent.
-- **Uncheckable** — no full text can be fetched: for an arXiv paper, neither HTML nor PDF; for any other, no open-access
-  PDF that `tools/fulltext.py` can fetch. Snippets alone do not verify a row. Leave `source` as `abstract` and say so in
-  the row. Such a row may stay in the coreset only if no verifiable paper can fill its role, and it is listed under
-  "Rows needing verification" in Open work. The output marks every claim resting on it `[abstract-only]`
-  (`docs/formats.md`). Re-check on a later pass, since open-access copies appear over time. This should be rare for
-  arXiv papers. It is common for papers without one; a `fringe` row of that kind will usually stay, because by
-  definition no other paper carries its idea. If more than 20% of rows end here, the pass halts (`H10` in
-  `docs/process.md`, "When a pass ends").
+Each row ends in exactly one of three states:
+
+- **Verified** — every cell checked against the full text, with the evidence recorded; set `source` to `full-text`. A
+  row drafted from the abstract is rewritten freely as it is verified: correcting a draft is what verification is for,
+  so it is not logged as a correction.
+- **Corrected** — a row that was already verified, in this pass or an earlier one, turns out wrong in a cell. Fix the
+  cell in place, replace the evidence it rested on, and log the old and new text under `Corrections to existing rows`.
+  Corrections of verified rows are never silent.
+- **Uncheckable** — no full text could be fetched: for an arXiv paper, neither HTML nor PDF; for any other, no
+  open-access PDF that `tools/fulltext.py` can fetch. Snippets alone do not verify a row. Leave `source` as `abstract`,
+  end its `selected because` with `(uncheckable: <why>)`, and list it under "Rows needing verification" in Open work,
+  with the reason. Do not look for a replacement yourself: report the row, and the main session dispatches Selection to
+  look for a verifiable paper in its role (`docs/process.md`, step 5). The row stays only if none is found, or if it is
+  a `fringe` row, which by definition no other paper can replace. The output marks every claim resting on it
+  `[abstract-only]` (`docs/formats.md`). Re-check on a later pass, since open-access copies appear over time. This
+  should be rare for arXiv papers, and is common for papers without one. If more than 20% of rows end here, the pass
+  halts (`H10` in `docs/process.md`, "When a pass ends").
 
 `source` ratchets upward. It is never lowered to express doubt; doubt belongs in the row's text and in the log.
 
 **Verifying the whole coreset** is this operation applied to every row of the coreset. It is safe to run at any time:
 verified rows are cheap to re-check and cannot be made worse, and the operation is resumable. Dispatch it in disjoint
-cluster blocks. Expect roughly 10k tokens per row.
+cluster blocks. Expect roughly 10k tokens per row. That figure comes from earlier passes that verified from snippets;
+reading from the full text has not yet been measured.
 
 ## Probes
 

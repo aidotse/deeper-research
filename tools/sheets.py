@@ -6,8 +6,10 @@ Usage: python3 tools/sheets.py <topic>
 Reads graphs/<topic>/clusters.json and pool.json and the survey, and writes two files alongside them:
 
   naming-sheet.md  per computed cluster: size, stability, its diagnostics and notes, its most-cited papers within the
-                   pool (in-degree), its most recent papers, and its sub-clusters with their most-cited papers. For
-                   step 3, naming. Each cluster shows its name once the Clusters table has one.
+                   pool (in-degree), its most recent papers, its papers from the last 12 months ranked by citations per
+                   month (the candidates for its frontier role), and its sub-clusters with their most-cited papers.
+                   For step 3, naming, and step 4, selection. Each cluster shows its name once the Clusters table has
+                   one.
   fringe-sheet.md  the highest fringe scores, with year, cluster, number of resolved references, and whether the paper
                    is already a coreset row. For step 4, fringe selection; read the abstracts through Asta.
 
@@ -15,6 +17,7 @@ Standard library only; nothing is fetched.
 """
 
 import json
+from datetime import date
 import sys
 from pathlib import Path
 
@@ -23,7 +26,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from check import row_id, sections, table_rows  # noqa: E402
 from graph import parse, topic_dir  # noqa: E402
 
-TOP, RECENT, SUB_TOP, FRINGE = 8, 3, 3, 25
+TOP, RECENT, RECENT_RATED, SUB_TOP, FRINGE = 8, 3, 5, 3, 25
 
 
 def main(argv):
@@ -61,6 +64,25 @@ def main(argv):
 
     def year(a):
         return cache.get(a, {}).get("year") or ""
+
+    def age_and_rate(a):
+        """(months since publication, citations per month), counted to the fetch date, when the citations were
+        counted; None without a date or a count. Citations per month is the frontier role's measure of impact
+        (docs/process.md, step 4)."""
+        rec = cache.get(a, {})
+        when = rec.get("date") or (f"{rec['year']}-07-01" if rec.get("year") else None)
+        if when is None or rec.get("citations") is None:
+            return None
+        try:
+            end = date.fromisoformat(rec["fetched"][:10]) if rec.get("fetched") else date.today()
+            months = (end - date.fromisoformat(when[:10])).days / 30.44
+        except ValueError:
+            return None
+        return months, rec["citations"] / max(1.0, months)
+
+    def impact(a):
+        ar = age_and_rate(a)
+        return "" if ar is None else f" — {cache[a]['citations']} citations, {ar[1]:.1f} per month"
 
     def label(c):
         return f"{c} ({names[c]})" if c in names else c
@@ -106,7 +128,12 @@ def main(argv):
             out.append(f"- {indeg[a]} — `{a}` — {title(a)} ({year(a)})")
         out += ["", "Most recent:", ""]
         for a in sorted(members, key=lambda a: str(cache.get(a, {}).get("date") or year(a)), reverse=True)[:RECENT]:
-            out.append(f"- `{a}` — {title(a)} ({cache.get(a, {}).get('date') or year(a)})")
+            out.append(f"- `{a}` — {title(a)} ({cache.get(a, {}).get('date') or year(a)}){impact(a)}")
+        # The frontier role's candidates: the last 12 months, by impact.
+        rated = [(ar[1], a) for a in members if (ar := age_and_rate(a)) and ar[0] <= 12]
+        out += ["", "Last 12 months, by citations per month:", ""]
+        out += [f"- `{a}` — {title(a)} ({cache.get(a, {}).get('date') or year(a)}){impact(a)}"
+                for _, a in sorted(rated, key=lambda x: (-x[0], x[1]))[:RECENT_RATED]] or ["- none"]
         for i, sub in enumerate(cl["subclusters"], 1):
             sst = f"{sub['stability']:.2f}" if sub["stability"] is not None else "none"
             out += ["", f"Sub-cluster {i}: {sub['size']} papers, stability {sst}", ""]

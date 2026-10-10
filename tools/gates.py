@@ -89,11 +89,14 @@ def log_entries(log_text):
 
 
 def halts(lines):
-    """{halt id: [decision, ...]} from the `Halts` line: entries `<id> — <what happened> — <decision>`."""
+    """{halt id: [decision, ...]} from the `Halts` line: entries `<id> — <what happened> — <decision>`, separated by
+    `;`. The decision is what follows the entry's last `—`, since what happened may itself contain one."""
     text = " ".join(lines.get("Halts", []))
     out = {}
-    for m in re.finditer(r"\b(H\d+)\s*—\s*(.*?)\s*—\s*(.*?)(?=;\s*H\d+\s*—|$)", text):
-        out.setdefault(m.group(1), []).append(m.group(3).strip())
+    for entry in re.split(r";\s*(?=H\d+\s*—)", text):
+        m = re.match(r"\s*(H\d+)\s*—\s*(.*)—\s*(.*?)\s*$", entry)
+        if m:
+            out.setdefault(m.group(1), []).append(m.group(3).strip())
     return out
 
 
@@ -255,9 +258,9 @@ def r_errored(c):
     if (m := need_lines(c, "Errored queries")):
         return m
     text = c.line("Errored queries")
-    if text.strip().lower().startswith("none"):
-        return None
     entries = re.findall(r"\"[^\"]*\"\s*\(([^()]*)\)", text)
+    if not entries and text.strip().lower().startswith("none"):
+        return None   # a `none` followed by entries is read by its entries
     if not entries:
         return "`Errored queries` is neither `none` nor in the form `\"<query>\" (...; retried at the end of the step: ok | failed)`"
     if any("retried at the end of the step:" not in e for e in entries):
@@ -596,6 +599,7 @@ def r_h10(c):
     return None
 
 
+CLAIM_CELLS = ["method name", "method summary", "datasets / models", "metric", "result"]   # each needs evidence
 EVIDENCE_LINE = re.compile(r"^((?:`[^`]+`\s*,?\s*)+)\s*—\s*(snippet|full-text|abstract)\b([^—]*)—\s*(.+)$", re.S)
 ELLIPSIS = re.compile(r"\s*(?:\.\.\.|…|\[\.\.\.\])\s*")
 
@@ -670,9 +674,8 @@ def found_in(quote, readings):
 
 
 def r_evidence(c):
-    """Every row verified against the full text keeps the quotes it rests on (docs/verification.md): at least `method
-    summary`, `result`, and each dimension not `n/a`. Its file is headed by its own ID, and its method rests on the full
-    text. A full-text quote must be in the fetched full text, at least QUOTE_WORDS words per part and its parts in
+    """Every row verified against the full text keeps the quotes it rests on (docs/verification.md): one for each
+    claim cell and each dimension not `n/a`. Its file is headed by its own ID, and its method rests on the full text. A full-text quote must be in the fetched full text, at least QUOTE_WORDS words per part and its parts in
     order; no quote may come from a snippet, which nothing can check afterwards."""
     header, rows = coreset_cells(c)
     dims = [k for k in header if k in c.dims]
@@ -694,7 +697,7 @@ def r_evidence(c):
         if any(e[1] == "snippet" for e in entries):
             snippets.append(r["_id"])
         covered = {cell for cells, *_ in entries if cells for cell in cells}
-        need = ["method summary", "result"] + [d for d in dims if r.get(d) not in ("n/a", "")]
+        need = [k for k in CLAIM_CELLS + dims if r.get(k, "").strip() not in ("n/a", "")]
         if [n for n in need if n not in covered]:
             missing.append(f"{r['_id']} ({', '.join(n for n in need if n not in covered)})")
         # The abstract may carry a number, never the method (docs/verification.md).
@@ -714,7 +717,8 @@ def r_evidence(c):
                 unfound.append(f"{r['_id']} ({', '.join(cells)})")
     problems = []
     if missing:
-        problems.append(f"verified rows without evidence for every claim (method summary, result, dimensions): {missing[:8]}")
+        problems.append(f"verified rows without evidence for every cell not `n/a` (the claim cells and the dimensions): "
+                        f"{missing[:8]}")
     if foreign:
         problems.append(f"evidence files not headed `# Evidence: <the row's ID>`: {foreign[:8]}")
     if malformed:

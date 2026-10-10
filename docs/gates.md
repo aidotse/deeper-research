@@ -31,8 +31,9 @@ require the trace even where they cannot assess it:
 `python3 tools/check.py <topic>` runs both.
 
 - **Integrity**: whatever exists must be well formed. A malformed row, a paper twice, a cluster name that is not a
-  computed cluster, a coreset paper missing from the bib, an uncited `[abstract-only]`. These apply at every moment, to
-  whatever is on disk. The full list is in `docs/tooling.md` ("Consistency check").
+  computed cluster, a coreset paper missing from the bib, an `abstract`-sourced citation without its `[abstract-only]`
+  marker, or a marker that follows no cited ID. These apply at every moment, to whatever is on disk. The full list is in
+  `docs/tooling.md` ("Consistency check").
 - **Gates**: what each step must have left behind. A missing log line, unscreened fringe candidates, a `high` cluster
   with no dissent search. These apply once the pass has reached the step, as below.
 
@@ -43,12 +44,12 @@ every earlier gate's.
 
 | gate | after step | before | what it confirms |
 | -- | -- | -- | -- |
-| `G0` ready | 0 | any retrieval | the pass's log entry exists with its `Dimensions` line; the preflight passed (`H1` otherwise); no template placeholder left in the entry or in Open work; no log line written twice |
-| `G1` pool complete | 2 | clustering | the frontier candidates are listed in `Orientation` and are in the pool, and `Expansion` names each as traversed; `Recency window`; every errored query was retried, and `H2` is recorded if one still failed; rejections were recorded this pass; every pool paper is fetched; the fringe routes were collected this pass, every candidate was judged with a reason, every `yes` is in the pool or in Open work; `Fringe` and `Pool` agree with the files |
-| `G2` clusters named | 3 | selection | the clustering is from this pass; every Clusters row is complete; every pool paper's cluster is written; `Clustering`, `Clustering rationale` and `Clusters` are present, use the Clusters table's ids, and agree with `clusters.json` and the table; `no structure` or a persisting `no stable level` is recorded as `H4` or `H5`; `review: before coreset` is recorded as `H13` |
-| `G3` coreset selected | 4 | verification, about half the cost of a pass | every role the cluster's alignment requires is filled, or recorded under Open work's `Empty roles`; every `high` cluster appears in `Dissent searches`; every dissent row quotes its contradiction; every pair of clusters that trade papers has a bridge, and every internally divided `high` cluster a second frontier or a bridge, or an `Empty roles` entry; five to ten `fringe` rows; no empty cell; no row for a paper without a cluster; provisional dimensions named in `Dimensions` |
-| `G4` verified | 5 | the output | every row verified against the full text has its evidence file, covering `method summary`, `result` and each dimension not `n/a`; no quote comes from a snippet; and every `full-text` quote is found in the fetched full text, ignoring punctuation and line breaks; every row still `abstract` is listed in Open work's `Rows needing verification`; more than 20% of them is recorded as `H10`; `Coreset` agrees with the table |
-| `G5` pass ended | 7 | `Ended` stands | the output exists, with every `Questions` and `Reading` entry citing a coreset paper; each `Coverage test` line is well formed; `finished (F1)` follows a converged round, two unconverged rounds are recorded as `H11`, and `halted (<id>)` matches `Halts`; every candidate that changed the output is an assigned coreset row; no late paper is left unassigned; `Tokens`, `Halts` and `Ended` are present |
+| `G0` ready | 0 | any retrieval | the pass's log entry exists; its `Dimensions` line says `declared in the input`, or, when the input declares none, proposes them, each with at least two values (`docs/formats.md`, "`Dimensions`"); the preflight passed (`H1` otherwise); no template placeholder left in the entry or in Open work; no log line written twice |
+| `G1` pool complete | 2 | clustering | the frontier candidates are listed in `Orientation` and are in the pool, and `Expansion` names each as traversed, in the form `backward from <id> (<n>)`; `Recency window`; every errored query was retried, and `H2` is recorded if one still failed; rejections were recorded this pass, or `Expansion` ends `; rejected: none`; every pool paper is fetched; the fringe routes were collected this pass; every candidate in `fringe.json` has a row on the screening sheet, judged `yes` or `no` with a reason of at least two words; every `yes` is in the pool or in Open work; `Fringe` and `Pool` agree with the files |
+| `G2` clusters named | 3 | selection | the clustering is from this pass; every Clusters row is complete; every pool paper's cluster is written; `Clustering`, `Clustering rationale` and `Clusters` are present and not empty, use the Clusters table's ids, and agree with `clusters.json` and the table; `no structure` or a persisting `no stable level` is recorded as `H4` or `H5`; `review: before coreset` is recorded as `H13` |
+| `G3` coreset selected | 4 | verification, about half the cost of a pass | every role the cluster's alignment requires is filled, or recorded under Open work's `Empty roles`; every `high` cluster has an entry in `Dissent searches`, and every paper an entry says it found is a `dissent` row of that cluster, or named in `Demotions`; every dissent row quotes its contradiction; every pair of clusters that trade papers has a bridge, and every internally divided `high` cluster a second frontier or a bridge, or an `Empty roles` entry; five to ten `fringe` rows; no empty cell; no row for a paper without a cluster; one column per dimension, declared or proposed, and no other extra column |
+| `G4` verified | 5 | the output | every row verified against the full text has its evidence file, headed by its own ID, with evidence for every cell that is not `n/a`; its `method summary` rests on a full-text quote; no quote comes from a snippet; every `full-text` quote has at least 6 words in each part between `...`, and is found in the fetched full text with its parts in order, ignoring case, punctuation and line breaks; a verified dissent row's quoted claim is among its evidence quotes; every row still `abstract` is listed in Open work's `Rows needing verification`; more than 20% of them is recorded as `H10`; `Coreset` agrees with the table |
+| `G5` pass ended | 7 | `Ended` stands | the output exists, with every `Questions` and `Reading` entry citing a coreset paper; each `Coverage test` line is well formed, with at least 10 sampled candidates, as many IDs named as K, and `new clusters:`; `finished (F1)` follows a converged round, two unconverged rounds are recorded as `H11`, and `halted (<id>)` matches `Halts`; `Ended` reads `finished (F1)` or `halted (<id>)`; every candidate that changed the output is an assigned coreset row; no late paper is left unassigned; `Tokens` is a list of `<dispatch>: <tokens>`; `Tokens`, `Halts` and `Ended` are present and not empty |
 
 Each requirement has an ID, such as `g3.fringe-quota`, which the check prints when it fails. The code is
 `tools/gates.py`, one function per requirement.
@@ -61,9 +62,10 @@ The order of operations in `docs/process.md` has a row for each gate. There the 
 python3 tools/check.py <topic> --gate G2
 ```
 
-It fails unless every requirement of `G0` to `G2` holds. When it passes, it says so, and the main session adds the gate
-to the log's `Gates` line: `- **Gates:** G0 2026-10-09, G1 2026-10-09, G2 2026-10-10`. Do not start the next step before
-the gate passes. A failure the responsible agent cannot fix halts the pass (`H9`).
+It fails unless every requirement of `G0` to `G2` holds, and nothing else fails either: the integrity checks and the
+history checks count too. Only then does it say that the gate passed, and the main session adds the gate to the log's
+`Gates` line: `- **Gates:** G0 2026-10-09, G1 2026-10-09, G2 2026-10-10`. Do not start the next step before the gate
+passes. A failure the responsible agent cannot fix halts the pass (`H9`).
 
 Between gates, the plain `python3 tools/check.py <topic>`, run after every dispatch (`docs/dispatch.md`), checks the
 gates the pass has already reached. It works that out from two sources:
@@ -72,6 +74,14 @@ gates the pass has already reached. It works that out from two sources:
 - evidence in the files that a later step has started, as a safety net in case the `Gates` line was not kept: a
   `Clustering` line means step 3 ran, so `G1` must hold; a `Dissent searches` line, or Coreset rows on a first pass,
   means step 4 ran, so `G2` must hold; and so on to `Ended`, which requires `G5`.
+
+The check requires the higher of the two. The safety net is why papers added after a gate must be fetched before the
+check runs: a pool paper added at step 7 fails `G1`'s `g1.fetched` until `tools/assign.py late` has fetched it and its
+`Pool` line is pasted (`docs/process.md`, the "After every dispatch" row).
+
+One requirement depends on a file that is not in git: a `full-text` quote can be found only in a fetched full text. If
+the file is missing, as on a fresh clone, the plain check notes the quotes it could not check, and `--gate G4` or later
+fails until `tools/fulltext.py` fetches it again. A gate is never passed on quotes nobody checked.
 
 ## What has been done, and what remains
 
@@ -88,7 +98,12 @@ says where the pass stands in the process.
 
 A halt (`docs/process.md`, "When a pass ends") is recorded in the log's `Halts` line as
 `<id> — <what happened> — <the user's decision, YYYY-MM-DD>`. While the user has not decided, the decision is `pending`.
-A pending halt holds every gate after the last one passed: `--gate` fails until the user decides.
+A pending halt holds every gate after the last one passed: `--gate` fails until the user decides. The plain check still
+checks every gate the files show the pass has reached, so the work already done stays checked while the pass waits.
+
+A pass the user decides to end at a halt is closed with `Ended: halted (<id>)`, its `Tokens` and its `Halts`. It then
+needs only the gates it declared in its `Gates` line, plus those closing lines, so a legitimately halted topic still
+passes the check. A halt still `pending` gets no such relief.
 
 Some requirements can be legitimately unmet, such as a topic whose coreset has only four ideas worth a `fringe` row. The
 user may then waive the requirement. The main session records it in the log's `Waivers` line, as
@@ -114,4 +129,5 @@ It notes, without failing, an input changed since the last commit: only the user
 
 The checks show that each judgement was recorded. Whether the judgements are right is measured differently: by an
 independent agent re-judging a small random sample, without seeing the original verdicts, and recording the agreement
-rate. This is a proposal, not yet part of a pass; see `docs/roadmap.md`.
+rate. Nothing in a pass does this yet, so a passing gate says nothing about how often the judgements behind it are
+wrong.

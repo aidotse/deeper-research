@@ -42,19 +42,20 @@ tractable for users. For a detailed look see `docs/coresets.md`.
 ## Docs index / where to read next
 
 The following table represents an index prepared for agents. Read only the files your task needs for your role marked
-below, at the moment given below, and skip the rest.
+below, at the moment given below, and skip the rest. A `survey-pass` agent reads its own brief in `docs/dispatch.md`
+("Briefs"), and then only the sections that brief lists, not whole files.
 
 | file | for | when to read |
 | -- | -- | -- |
 | `docs/roadmap.md` | main session | at session start; update it before the session ends |
-| `docs/dispatch.md` | main session | before planning a pass or dispatching any subagent |
-| `docs/coresets.md` | main session, `survey-pass` | when a design question turns on what the coreset is for, or before changing a rule about selection, coverage or sizing |
-| `docs/process.md` | main session, `survey-pass` | before planning a pass (especially its "Order of operations"), before any retrieval, and before judging clusters, roles or coreset size |
-| `docs/formats.md` | all | before writing to any `inputs/`, `surveys/`, `outputs/` or `bib/` file |
-| `docs/verification.md` | `survey-pass` | before verifying a row or running a probe |
+| `docs/dispatch.md` | main session; `survey-pass` | main session: before planning a pass or dispatching any subagent. `survey-pass`: its own brief, at the start of its job |
+| `docs/coresets.md` | main session | when a design question turns on what the coreset is for, or before changing a rule about selection, coverage or sizing |
+| `docs/process.md` | main session; `survey-pass`, the sections its brief lists | before planning a pass (especially its "Order of operations"), before any retrieval, and before judging clusters, roles or coreset size |
+| `docs/formats.md` | all; `survey-pass`, the sections its brief lists | before writing to any `inputs/`, `surveys/`, `outputs/` or `bib/` file |
+| `docs/verification.md` | `survey-pass`, the sections its brief lists | before verifying a row or running a probe |
 | `docs/gates.md` | main session, human reviewers | before planning a pass, and when reviewing one |
-| `docs/tooling.md` | all | before running anything in `tools/` |
-| `docs/external_services.md` | all | before the first call to Asta, WebSearch or any outside service, and at the preflight check |
+| `docs/tooling.md` | all; `survey-pass`, the sections its brief lists | before running anything in `tools/` |
+| `docs/external_services.md` | all; `survey-pass`, the sections its brief lists | before the first call to Asta, WebSearch or any outside service, and at the preflight check |
 | `docs/responses.md` | all | never separately: it is imported below |
 | `docs/experiments.md` | human reviewers only | not instructions; skip it |
 | `docs/vs_deep_research.md` | human reviewers only | not instructions; skip it |

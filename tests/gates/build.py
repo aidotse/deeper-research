@@ -166,9 +166,9 @@ def build():
             "# 4 Results\n\nOn GSM8K the method " + ("im-\nproves" if hyphen else "improves") + " accuracy by two points "
             "over the baseline at equal compute, and the gain holds across all model sizes we tested.\n"
             + (f"\n# 5 Analysis\n\nUnlike earlier work, {claim[p]}.\n" if p in claim else ""))
-        body = ('- `method summary`, `evidence`, `measures`, `elicitation`, `pressure` — full-text, 3 Method — "We propose '
+        body = ('- `method name`, `method summary`, `evidence`, `measures`, `elicitation`, `pressure` — full-text, 3 Method — "We propose '
                 'a method that does a thing, and we assume a fixed compute budget"\n'
-                '- `result` — full-text, 4 Results — "the method improves accuracy by two points ... the gain holds '
+                '- `result`, `datasets / models`, `metric` — full-text, 4 Results — "the method improves accuracy by two points ... the gain holds '
                 'across all model sizes"\n'
                 + (f'- `selected because` — full-text, 5 Analysis — "{claim[p]}"\n' if p in claim else ""))
         (ev / f"{name}.md").write_text(f"# Evidence: {p}\n\n" + body)

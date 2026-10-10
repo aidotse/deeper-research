@@ -19,24 +19,23 @@ the old survey as `Context`.
 
 `CLAUDE.md` lets a verified row be reused without re-verification, since verification belongs to the row, not to the
 survey it came from. But the `G4` gate (`g4.evidence`, `docs/gates.md`) requires every verified row to have an evidence
-file with verbatim quotes, and the 195 rows of the legacy `reasoning` survey have none: their evidence was never kept.
-As written, every reused row would fail `G4`. Options: re-verify reused rows (about 10k tokens each); accept an evidence
-file that records the reuse (the survey and date it was verified in, evidence not kept), listed in a note and sampled
-first by the `G4` judgement audit, if adopted (recommended); or waive the requirement per row.
+file with verbatim quotes from the fetched full text, and the 195 rows of `reasoning-legacy` have none: their evidence
+was never kept, and 168 of them were verified from snippets, which `G4` no longer accepts. As written, every reused row
+would fail `G4`. Scheduled for after the first run (audit of 2026-10-09, `S13`). Options: re-verify reused rows (about
+10k tokens each); accept an evidence file that records the reuse (the survey and date it was verified in, evidence not
+kept), listed in a note and sampled first by the `G4` judgement audit, if adopted (recommended); or waive the
+requirement per row.
 
 ## The fresh coreset run
 
 The first real pass, run end to end on `reasoning`, as a measured simulation of the whole method: what goes to plan and
-what does not. It depends on the two decisions above and on the pool-recall proposal below.
+what does not. The remediation of the audit of 2026-10-09 schedules it, after a smoke pass on a small topic
+(`.audits/2026-10-09/remediation-plan.md`, Phase 5). The legacy survey is now `reasoning-legacy`, and
+`inputs/reasoning.md` is the input for the rerun.
 
-- `Rename` the old topic everywhere to `reasoning-exhaustive`: `inputs/`, `surveys/`, `outputs/`, `bib/` and
-  `graphs/reasoning/` (its pool, clustering, fringe sheet and full texts). Left in place, `graphs/reasoning/` would feed
-  the old fringe judgements and clustering into the new pass. `tests/gates/` finds the renamed source by itself.
-- `Input` — a new `inputs/reasoning.md` that lists `surveys/reasoning-exhaustive.md` as `Context`, with
-  `review: before coreset` in its `Clustering` section, since this is the first real run.
-- `Measure` — pool size against coreset size, per cluster and in total; tokens per step against the estimates in the
-  order of operations (`docs/process.md`); every gate failure and halt, and what resolved it; and, if adopted, the
-  judgement audits' agreement rates and the recall estimate.
+- `Measure` — pool size against coreset size, per cluster and in total; tokens per dispatch against the estimates in the
+  order of operations (`docs/process.md`); every gate failure and halt, and what resolved it; every place the main
+  session or an agent improvised, each a spec bug; and the judgement-audit agreement rates, where built.
 
 ## Small fixes
 
@@ -52,10 +51,10 @@ references. A search of arXiv's own listings during orientation would find it; c
 ### Matching clusters across passes
 
 So that cluster ids and names persist across passes, and splits, merges and vanished clusters are logged. Partly built
-(2026-10-08): `tools/cluster.py` matches every new clustering to the previous one with `match()`, and
-`tools/assign.py remap` carries names over to matched clusters; tested on a swapped-id fixture. What remains: the
-diagnosis for when most clusters fail to match (below), a log format for the remap result beyond the `Late papers` line,
-and the seeded-clustering option. The design so far (2026-10-05):
+(2026-10-08): `tools/cluster.py` matches every new clustering to the previous one with `match()`, prints the changes on
+one `changes:` line, and `tools/assign.py remap` carries names over to matched clusters; tested on a swapped-id fixture.
+What remains: the diagnosis for when most clusters fail to match (below; the spec has an interim rule, in
+`docs/process.md`, "Matching clusters across passes"), and the seeded-clustering option. The design so far (2026-10-05):
 
 - `No guarantee` — a later pass can produce a different clustering: the level can change, new papers change the
   similarity scale, the graph and the resolution, and the field can genuinely restructure. Matching is possible because
@@ -95,9 +94,9 @@ and 9 months ago, clustered by the full method (measure, then level) and matched
 
 ### Token accounting
 
-The `Tokens` log line is defined (`docs/formats.md`): per dispatch, from the usage reported when it returns. It has
-never been filled. Start with the fresh coreset run, and replace the estimates in the order of operations
-(`docs/process.md`) with measured figures.
+The `Tokens` log line is appended after every dispatch (`docs/process.md`, the "After every dispatch" row), but has
+never been filled. After the fresh coreset run, replace the estimates in the order of operations with measured figures,
+including what reading the spec sections costs each dispatch.
 
 ## Proposals to discuss
 
@@ -115,10 +114,12 @@ agreement rate goes into a new log line, `Audits`:
 It measures the error rate of each kind of judgement rather than proving any single call right, as the coverage test
 does for the coreset as a whole. Estimated 50–100k tokens per pass, under 10% of one. Below a first-guess agreement (say
 80%), the gate would flag the disagreements for the main session, and halt if they concentrate in one kind of judgement.
-Prerequisite, now done: the traces the audits sample (rejections recorded by `tools/assign.py reject`, dissent rows
-quoting their contradiction). Also done: each verified row's evidence, kept in `graphs/<topic>/evidence/` (2026-10-09),
-so that the cheapest audit, whether a quote supports its cell, needs no new search. Pilot it on the fresh coreset run,
-and adopt it into `docs/gates.md` once the agreement rates of a real pass are known.
+A first piece is scheduled: a blind re-verification of a random 10% of rows on the first run (audit of 2026-10-09, `T3`,
+in Phase 4 of its remediation). Prerequisite, now done: the traces the audits sample (rejections recorded by
+`tools/assign.py reject`, dissent rows quoting their contradiction). Also done: each verified row's evidence, kept in
+`graphs/<topic>/evidence/` (2026-10-09), so that the cheapest audit, whether a quote supports its cell, needs no new
+search. Pilot it on the fresh coreset run, and adopt it into `docs/gates.md` once the agreement rates of a real pass are
+known.
 
 ### Pool recall
 
@@ -247,13 +248,13 @@ leaf; no whole-split `τ` gate); and `confirmed` and `partial-confirmed`, which 
   a stricter rule than the original, which halved the scores of the parts.
 - `Post hoc, not a rule`: a part threshold of 0.75 (equal to `τ`) instead of 0.6 in the shakedown would have kept
   exactly latent reasoning and agents, with chain-of-thought prompting as the remainder: 7 clusters.
-- `Reproduce` — `uv run tools/recursive.py reasoning --rules strict,partial,confirmed,partial-confirmed`, about five
-  minutes on 16 cores; `graphs/reasoning/recursive.json` holds this run (`reasoning-exhaustive` after the rename). The
-  script's docstring defines every rule. Disturbed data throughout: 3 time-holdout cutoffs × 3 seeds, plus 20 resamples
-  of 80% (29 reruns). Two diagnostics were run ad hoc and not kept; rebuild them if needed: (1) for each from-scratch
-  rerun, which clusters split and how much of the parent stays together (showed the parent intact, the split rarely
-  made); (2) each part's from-scratch score, separated by whether round 1 came back at 6 clusters (ruled out round-1
-  count as the main cause, and found the unscaled-minimum artefact).
+- `Reproduce` — `uv run tools/recursive.py reasoning-legacy --rules strict,partial,confirmed,partial-confirmed`, about
+  five minutes on 16 cores; `graphs/reasoning-legacy/recursive.json` holds this run. The script's docstring defines
+  every rule. Disturbed data throughout: 3 time-holdout cutoffs × 3 seeds, plus 20 resamples of 80% (29 reruns). Two
+  diagnostics were run ad hoc and not kept; rebuild them if needed: (1) for each from-scratch rerun, which clusters
+  split and how much of the parent stays together (showed the parent intact, the split rarely made); (2) each part's
+  from-scratch score, separated by whether round 1 came back at 6 clusters (ruled out round-1 count as the main cause,
+  and found the unscaled-minimum artefact).
 
 ### Smaller ideas
 
@@ -267,11 +268,14 @@ leaf; no whole-split `τ` gate); and `confirmed` and `partial-confirmed`, which 
 
 ## To revisit on a real pool
 
-The first guesses: `τ` = 0.75; `k` = 10; `c` = 10; the diagnostic thresholds (0.15 excess over random, 0.9 for "broad",
-0.6 for "unstable", 10 papers for "thin", 20% for "trading"); the fringe quota; in `tools/cluster.py`, 0.6 for a stable
-sub-cluster (`SUBCLUSTER_SCORE`), 10 references for the thin-reference share (`THIN_REFS`) and 30% for the smallest time
-holdout (`MIN_HOLDOUT_SHARE`); 20% `abstract`-sourced rows for halt `H10`; and 10% late additions before a recluster
-(`docs/process.md`, "Late papers").
+The first guesses: `τ` = 0.75; `k` = 10; `c` = 10; the fringe score's age cohort of 30 papers; the diagnostic thresholds
+(0.15 excess over random, 0.9 for "broad", 0.6 for "unstable", 10 papers for "thin", 20% for "trading"); the fringe
+quota; in `tools/cluster.py`, 0.6 for a stable sub-cluster (`SUBCLUSTER_SCORE`), 10 references for the thin-reference
+share (`THIN_REFS`) and 30% for the smallest time holdout (`MIN_HOLDOUT_SHARE`); 20% `abstract`-sourced rows for halt
+`H10`; and 10% late additions before a recluster (`docs/process.md`, "Late papers"); the stopping rules for retrieval
+(two queries without a new frontier candidate; fewer than 5 papers added per 50 screened, `docs/process.md`, "Screening
+for scope"); at least 6 words per quoted part (`QUOTE_WORDS` in `tools/gates.py`); and at least 10 candidates per
+coverage-test round.
 
 Their basis so far is one curated corpus, `reasoning`, not a real pool: `combined` wins clearly (grid-mean stability
 0.722 ± 0.004, against `refs` 0.671 and `text` 0.646). Level: 6 clusters at 0.79; 8 clusters drops to 0.67. `τ` 0.70

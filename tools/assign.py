@@ -29,7 +29,7 @@ clusters    Writes each pool paper's computed cluster (graphs/<topic>/clusters.j
             recluster and remap. Membership is never written by hand.
 late        Processes the late papers as one batch (docs/process.md, "Late papers"): pool papers added after the last
             full clustering. Fetches their data (tools/pool.py), assigns each to the cluster its k nearest clustered
-            papers favour under the chosen measure, each voting with its similarity (by text, for a paper with no
+            papers favour under the `combined` measure, each voting with its similarity (by text, for a paper with no
             positive similarity under that measure), records the assignment in clusters.json, writes the Pool column,
             and prints the log's `Late papers` line. Each paper is assigned against the clustering as it
             stood, never against other late papers, so the result does not depend on order. If late papers would

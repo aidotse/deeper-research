@@ -26,6 +26,7 @@ Update it as each phase lands. An ID not yet handled is listed only under "Pendi
 | 2c | `cda762a` | `tools/cluster.py`, `tools/match.py` |
 | 2d | `f99ec2c` | `tools/fulltext.py`, `tools/graph.py` |
 | 2 | `c43ba0c` | the arXiv backfill of `reasoning-legacy`'s pool |
+| 3 | "Remediation phase 3" | the spec pass over `docs/`, `CLAUDE.md` and the agents; `S10`'s gate change; `A2`'s sheet column |
 
 ## Watch in the first run
 
@@ -101,6 +102,26 @@ These are judgement calls whose effect only real data will show. When auditing t
 - `T5`, `maybe` on the screening sheet: a parking state the spec does not mention. It counts as unjudged, so
   `add-fringe` and `G1` refuse while any remain.
 
+- `W3`, the per-brief reading lists. Each brief in `docs/dispatch.md` now lists the sections its agent reads, and
+  `docs/coresets.md` left agent reading. Whether the lists are enough is untested in a real run: an agent that keeps
+  following pointers out of its sections, or improvises for want of one, is a list to fix. Spec reading is now counted
+  in `Tokens`, since each dispatch's usage includes it.
+
+- `A1`, the stopping rules. Orientation stops after two queries with no new frontier candidate; expansion, beyond its
+  required work, once a batch of about 50 screened candidates adds fewer than 5 papers. Both numbers are first guesses.
+  Too early a stop shows as a thin pool and `thin cluster` diagnostics; too late, as screening cost.
+
+- `S10`, evidence for every cell not `n/a`. `G4` now requires evidence for `method name`, `datasets / models` and
+  `metric` too. One quote may cover several cells, so the cost should be small, but it adds to verification tokens per
+  row, which `R6` measures.
+
+- `A3`, the coverage sheet. Until Phase 4's tool writes it, the Coverage agent writes `coverage-<R>.md` itself, and no
+  gate checks it. Check that the first run's sheets have a row for every sampled candidate.
+
+- `S11`, the user's cluster review. It is now taken before `Ended`, when the output is shown; a review after `Ended`
+  goes into the next pass's entry. If users routinely review later, the `Clusters` line of a finished pass will always
+  read "not yet reviewed".
+
 - `R2`, the section reader (`fulltext.py show`): its PDF heading detection is a guess. Letter-prefixed headings such as
   "B Additional results" are not detected. Whether verification uses it at all is for `R4` to decide.
 
@@ -130,7 +151,9 @@ These are judgement calls whose effect only real data will show. When auditing t
   - The `RECLUSTER` message gives the count and the exact share.
   - `cluster.py`'s match printout lists splits, merges, new and vanished clusters on one `changes:` line. Tested on
     synthetic cases only: `reasoning-legacy` has no named clusters to match.
-  - The defaults are written to `params.defaults`. The doc side is Phase 3.
+  - The defaults are written to `params.defaults`. Doc side, Phase 3: `docs/tooling.md` gives every default and says
+    they are first guesses, not "the spec's"; the `params` keys, the pinned versions, exit 2 and the `changes:` line are
+    documented.
 
 ## M — method bugs
 
@@ -222,25 +245,119 @@ These are judgement calls whose effect only real data will show. When auditing t
 
 ## S — spec inconsistencies and gaps
 
-- `S1` — fixed in code, `d600a69`. Without declared dimensions, `check.py` reads the proposed ones from the current
+- `S1` — fixed, `d600a69` and Phase 3. Without declared dimensions, `check.py` reads the proposed ones from the current
   entry's `Dimensions` line, and checks values, columns and evidence against them, as for declared ones. Each needs at
   least two values. `g3.dimension-columns` now also applies to declared dimensions: no extra column, and none missing.
-  Verified: faults for a malformed and a one-value proposal, and behaviour case 6j. The doc side is Phase 3.
-- `S2` — partial. The `check.py` messages name `pool.py` or `assign.py late` and say to paste the `Pool` line
-  (`d600a69`). The procedure is Phase 3.
+  Verified: faults for a malformed and a one-value proposal, and behaviour case 6j. Doc side: the main session proposes
+  them at the Plan row and reports them with the plan (`docs/formats.md`, "`Dimensions`"); the log form is in the
+  template; `G0` and `G3` in `docs/gates.md` say what is checked. The proposal does not wait for the user's approval:
+  they see it in the plan report, and can stop the pass there.
+- `S2` — fixed, `d600a69` and Phase 3. The `check.py` messages name `pool.py` or `assign.py late` and say to paste the
+  `Pool` line. The procedure is a standing row of the order of operations, "After every dispatch": append `Tokens`,
+  fetch any added pool rows (`pool.py` until step 3 is done, `late` after it), paste `Pool`, then check. Selection and
+  the other row-adding agents list their new rows under `Rows needing verification`, so a Revise round no longer trips
+  `g4.abstract-listed`. One wrinkle remains: during step 3's targeted-expansion loop, this pass's `clusters.json`
+  exists, so `check.py` suggests `late`, while the procedure says `pool.py` (the rerun clusters the papers). Both
+  satisfy the gate; the row says which to run.
 - `S3` — moot with `Z7`.
-- `S4` — partial. The code already accepted `new clusters: none (proposed <x>, not formed)` as converged, and behaviour
-  case 6i now pins it. The step-7 rows are Phase 3.
+- `S4` — fixed, `d600a69` and Phase 3. The code already accepted `new clusters: none (proposed <x>, not formed)` as
+  converged, and behaviour case 6i pins it. Step 7 now has a targeted-expansion row for each proposed cluster, and the
+  Late papers row reclusters after it even below 10%. The main session records the outcome from the `changes:` line:
+  formed, or `none (proposed <x>, not formed)`.
 - `S6` — fixed, `d600a69`. `; rejected: none` at the end of `Expansion` replaces `rejected.md`. Verified: behaviour case
   6h.
-- `S10` — mostly resolved by `Z2`. The rest is Phase 3.
-- `S15` — partial, `4d8e9a2`. A known section at the wrong heading level gets its own message. A prose bullet in
-  `Coreset Spec` still fails: a top-level bullet in neither form is more likely a mistyped target than prose, so prose
-  belongs in paragraphs or nested bullets. The skeleton input is Phase 3.
+- `S5` — fixed, Phase 3. `docs/process.md`, step 7, gives the one-sided 95% bounds (recomputed: 26/39%, 22/34% and
+  18/28% for N = 10, 12, 15 at K = 0/1), and asks for the last round's bound in `Ended`. `docs/coresets.md` says the
+  same in brief. The claim that the targeted sample makes the bounds pessimistic is marked as reasoned, not measured.
+  The scripted sample and a sequential rule are not done: the first is Phase 4 (`T4`), the second was not adopted.
+- `S7` — fixed, Phase 3. One rule: the finest level whose stability reaches `τ`, even past a dip. The docstrings in
+  `tools/cluster.py` said the same two things as the doc and were aligned.
+- `S9` — fixed, Phase 3. The "survive losing 20%" line now gives the resampling ARI at the chosen level, 0.76, read from
+  `clusters.json`. The late-assignment figure is the audit's out-of-sample 13 of 15. The fringe-addition figure, ARI
+  0.70, keeps its number with the caveat that 16 of the 118 papers came from a route since dropped: re-measuring needs
+  `fringe.py analyse`, an experiment that rewrites files, and the number only illustrates a point.
+- `S10` — fixed, Phase 3, partly in code. Beyond `Z2`:
+  - Evidence for every cell not `n/a`, enforced: `r_evidence` now requires `method name`, `datasets / models` and
+    `metric` as well. The audit asked only for the statement; stating a rule the gate did not check would have been a
+    new `C`-class mismatch. Fixture and a new fault updated: 71 of 71 faults.
+  - Verifying a draft is not a correction: outcomes are now Verified, Corrected (an already-verified row only) and
+    Uncheckable.
+  - The replacement search goes to Selection, dispatched by the main session in a new step-5 row; `fringe` rows are not
+    replaced.
+  - "Publication grade" is still defined by its standard, not by observable criteria. Left as is: the evidence rules are
+    the observable part.
+- `S11` — fixed, Phase 3. The `writes` column of the order of operations is declared the only authority, and
+  `docs/formats.md` and `docs/dispatch.md` defer to it. Changes:
+  - standing rows marked `any`: "After every dispatch" (`Tokens` appended, `Log:` and `Open work:` lines written), "On a
+    halt" (`Halts`), "On a requirement the user may waive" (`Waivers`), and "Probe" (`Probes`, which had no row);
+  - the Plan row writes `Halts` and `Waivers` as `none`;
+  - `Log:` and `Open work:` mark what a parallel agent returns rather than writes;
+  - `Preflight`: the agent writes the whole line;
+  - `Errored queries`: Orient writes it, `none` if none, and later dispatches add to it;
+  - Open work's `Clusters not yet reviewed`: the "Write the clusters" row;
+  - the user's review: taken before `Ended`, or recorded in the next pass's entry;
+  - the coreset blocks: `docs/dispatch.md` now lists them among the main session's writes.
+- `S12` — fixed, Phase 3: a halted parallel agent returns its items under `Open work:` (`docs/process.md`, "When a pass
+  ends"; `.claude/agents/survey-pass.md`).
+- `S14` — fixed, Phase 3:
+  - `Preflight` is "the `Preflight` line", not "the first line";
+  - the coverage-test format in step 7 has `round R:` and `new clusters:`;
+  - `reasoning-exhaustive` was already gone from `docs/tooling.md` (Phase 0); the roadmap's mentions are updated;
+  - the legacy output's legend no longer blames Asta's index: the rows were never verified, and their full texts have
+    since been fetched;
+  - the Asta-corpus claim is stated once, as likely, with the one `paperId` check, and the two places that asserted it
+    are hedged;
+  - `H4` halts at the grid's coarsest level, 3 clusters, and treating the pool as one is the user's call;
+  - `left out X` in the `Fringe` line is defined: in-scope candidates without any ID.
+- `S15` — fixed, `4d8e9a2` and Phase 3. A known section at the wrong heading level gets its own message. A prose bullet
+  in `Coreset Spec` still fails: a top-level bullet in neither form is more likely a mistyped target than prose, so
+  prose belongs in paragraphs or nested bullets. `docs/formats.md` now opens the input section with a skeleton input
+  (verified to parse, filled in, on a scratch topic) and a list of every rule the parser applies. Each input section is
+  its own heading, which also serves `W4`.
+
+## W — how the docs are wired
+
+- `W1` — fixed, Phase 3. The `CLAUDE.md` index gives `docs/dispatch.md` to `survey-pass` too, for its own brief.
+- `W2` — fixed, Phase 3. The three pointers into the roadmap are gone:
+  - "most clusters fail to match" has an interim rule: name the unmatched clusters afresh, say so in the rationale, and
+    raise it at the cluster review;
+  - `docs/gates.md` says that nothing measures the judgements' accuracy yet;
+  - the third, in `docs/formats.md`, went in Phase 1 (`532e697`).
+- `W3` — step 1 done, Phase 3. Each brief in `docs/dispatch.md` has a `Read` list of spec sections, checked by script:
+  all 65 names resolve to headings. Every agent also reads "When a pass ends". `.claude/agents/survey-pass.md` says to
+  read those sections only, and how to find one by Grep. `docs/coresets.md` is now for the main session only, and the
+  rationale in `docs/process.md` ("Clustering method") is on no agent's list except the parts naming and fringe
+  selection need. Step 2, trimming further once spec reading is measured, is after the run. Watch: see above.
+- `W4` — fixed, Phase 3. "Recording it" and the other labels of "Clustering method", "Sizing", "Outcomes", each input
+  section, and "The coverage sheet" are headings now.
 
 ## A — the docs as instructions for agents
 
-- `A7` — the half about the provisional clustering is moot with `Z7`. The rest is Phase 3.
+- `A1` — fixed, Phase 3. `docs/process.md`, "Screening for scope": in, out, and borderline-is-in, each tied to the
+  `Topic`, with a one-line reason that names the topic. Stopping rules for orientation and expansion, recorded in
+  `Expansion`'s new `stopped:` part. Traversal depth is one step from the frontier candidates. Watch: see above.
+- `A2` — fixed, Phase 3, with a small code change. A frontier paper is recent (within the recency window, else among the
+  cluster's newest) and strongest: an `Orientation` frontier candidate first, then citations per month since
+  publication. `tools/sheets.py` now prints that number beside each cluster's most recent papers, counted to the fetch
+  date. Naming writes each `high` cluster's central claim as the second sentence of its `definition`. A new column was
+  considered and rejected, since it would change the Clusters table's checks for no gain. Dissent is defined against
+  that sentence, with two named non-cases.
+- `A3` — rubric half fixed, Phase 3. What counts as a change (a claim added, removed or reversed; not an added citation
+  or a refinement), the evidence level (abstracts, snippets for doubt), and the service for the fresh recency query
+  (WebSearch, as in step 1) are stated. Every sampled candidate is recorded in `coverage-<R>.md`, written for now by the
+  Coverage agent; the tool that draws the sample and writes the sheet is Phase 4.
+- `A4` — fixed, Phase 3. Step 3 has explicit rows for a targeted expansion, once per region, and for fetching with
+  `pool.py` and reclustering. A rerun after naming is followed by `remap`, on any pass. `H7` is reached only after the
+  targeted expansion Naming triggers. Papers from step 3's expansions are not late papers.
+- `A5` — fixed, Phase 3. `Orientation` carries `themes:` and `seeds from the input:`, before `frontier candidates:`,
+  since `check.py` reads candidates to the end of the line.
+- `A6` — fixed, Phase 3. Orient writes `Errored queries` and Open work; a frontier candidate that cannot enter the pool
+  goes to Open work rather than the list; the input's seeds have their slot, and Expand traverses forward from them.
+- `A7` — fixed. The provisional-clustering half went with `Z7`. Phase 3: the Plan row's done-when now runs
+  `check.py --status` before the new entry is written, since the entry fails `g0.preflight` until Preflight writes.
+- `A8` — fixed in the docs, Phase 3. Step 6 reads the Clusters and Coreset sections by line offset, and checks each
+  claim against its rows and evidence files, which are local reads; a doubtful row goes back to Verification. The
+  section printer (`T6`) and the faithfulness check (`T2`) are Phase 4.
 - `A9` — fixed, `46d9dfd` and `f99ec2c`. Missing surveys, sections, `pool.json`, `fringe.json` and sheets now give a
   message that says what to run first. An unreadable PDF counts as not fetched.
 
@@ -256,7 +373,8 @@ These are judgement calls whose effect only real data will show. When auditing t
     case now asserts exit 0. A deliberately broken baseline returns 1, and a simulated crash leaves no files behind.
   - Counts: 48 faults and 20 behaviours after Phase 0, 49 and 21 after Phase 1 (one new each, for `snippet` evidence and
     a `snippet` source in the coreset layout).
-  - Phase 2 grew the suites from 49 faults and 21 behaviours to 70 and 35.
+  - Phase 2 grew the suites from 49 faults and 21 behaviours to 70 and 35. Phase 3 added two faults (`S10`, and
+    `r_errored` below) and one behaviour (the halt dash): 72 and 36.
   - Still untested, from the audit's list: `g1.errored` without a retry outcome, the stale date in `g1.rejected`,
     `g2.diagnosis-halts` for `H5`, `g5.converged` for `H11`, history's pool removal and input-changed note, and a
     dedicated test per integrity check.
@@ -292,6 +410,10 @@ These are judgement calls whose effect only real data will show. When auditing t
 
 ## R — items raised after the audit
 
+- `R1` — done, Phase 3. Step 5 has a row before verification: the main session runs
+  `uv run tools/fulltext.py <topic> --abstract` once, and verification agents do not fetch. The Verification brief hands
+  over the papers the batch could not fetch.
+
 - `R2` — done, `f99ec2c`:
   `uv run tools/fulltext.py show <topic> <id> [<pattern>] [--section <name>]... [--max <tokens>]`. It prints verbatim
   lines, so its passages are quotable. Whether verification adopts it is for `R4`.
@@ -312,11 +434,46 @@ These are judgement calls whose effect only real data will show. When auditing t
 - `R5` — parked (user, 2026-10-10). Supporting papers without arXiv is likely overengineering for now; a snippet backup
   would be a nice reserve. Build it only if `R3` shows a topic where such papers are a real share of the coreset.
 
+## Phase 3's tabletop
+
+The done-when was a fresh tabletop of a first pass, by an agent blind to `.audits/`, the roadmap and git history,
+playing the main session and each brief from the docs alone. It ran on 2026-10-10 (about 220k tokens) and found none of
+the stalls the audit's tabletop had found. It found 20 new ones, mostly on paths Phase 3 had just written. Each was
+handled before the commit:
+
+- Two code bugs, both failing open, fixed with tests:
+  - `halts()` took the decision from the first `—` after the ID, so `H2 — query "x" — 429 — pending` was not pending,
+    and `--gate` passed. The decision is now what follows the entry's last `—`. Behaviour case 2b.
+  - `r_errored` skipped the line whenever it began `none`, even with entries after it. Entries are now read first. Fault
+    `g1.errored` (second).
+- A step-7 recluster left coreset rows in the wrong blocks, with no row to move them, and "retire" undefined. Step 7 now
+  has rows to rename (Naming) and to move rows (`survey-edit`), retiring is defined in "Late papers", and Revise
+  re-selects for every cluster whose rows changed. Confirmed by the tabletop agent on a scratch fixture before the fix,
+  not re-run after it.
+- After a rerun, Naming's done-when could not be met until `assign.py clusters` ran, and Revise tripped `G3` and `G4`
+  for work it had yet to do. The "After every dispatch" row now runs `assign.py clusters` after Naming, and a Revise
+  round's own open work is stated not to be `H9`. That is a rule for the main session, not a code exemption: the plain
+  check still fails during Revise.
+- The step-3 targeted expansion ran blind: the sheets are now written first, the region is handed over as its section of
+  `naming-sheet.md` and named by one of its papers (computed ids are renumbered every run), and it has a regional
+  done-when.
+- Frontier: "frontier candidate" is defined; "recent" is the last 12 months, and `tools/sheets.py` now lists each
+  cluster's papers from that window ranked by citations per month (the three newest papers, shown before, were all at
+  zero). Forward traversal no longer starts from anchors that do not exist yet.
+- Smaller: where an uncheckable row says so (`selected because`); the replacement search prefers papers with an arXiv
+  ID; the proposed-cluster round fetches with `pool.py` and defers `late`; a recluster's `Late papers` line is written
+  by hand, in a stated form; a coverage candidate counted in K takes a role matching its change, a `new cluster` verdict
+  is not counted in K, and an unknown paper is redrawn; `H4` halts at the level chosen, not at 3; the `Dissent searches`
+  separators and arrow are stated; `n/a` for an empty `method name` and among proposed values; a bridge's block; `Gates`
+  may take `G5` after `Ended`.
+- Not fixed, by design: the coverage sample is still drawn by the agent, so the stated bounds are marked indicative. The
+  scripted draw is `T4`, Phase 4.
+
+The fixes themselves were not tabletopped again.
+
 ## Pending
 
-- Phase 3: `W1`–`W4`, `S2` (the procedure), `S4` (the rows), `S5`, `S7`, `S9`, `S10`, `S11`, `S12`, `S14`, `S15` (the
-  skeleton), `A1`–`A8`, the doc side of `S1` and `C10`, `R1`, and the doc changes listed in the plan's Phase 3.
-- Phase 4: `T2`, `T3`, `T4`, `T6`, `R4`.
+- Phase 4: `T2`, `T3`, `T4`, `T6`, `R4`, and the tool half of `A3`.
 - Phase 5: `R6`, and `Z1` in practice.
 - After the run: `Z6`, `C7`, `M7`, `M8`, `S8`, `S13`, `T7`, `W3` step 2, `M20`'s hidden route, `R5`, and the rest of
   `T8`.

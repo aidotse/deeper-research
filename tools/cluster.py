@@ -13,7 +13,7 @@ per-paper neighbour ranks and mixed per pair with weight w = n / (n + c) on refe
 reference lists. For each level of a grid of cluster counts, it clusters the pool with Leiden and measures stability by
 time holdout and resampling. A holdout rerun recomputes the similarity on the older papers alone, rank normalisation
 included, as the pool would have been months ago. The chosen level is the finest whose stability is at least --tau,
-0.75 by default: the last level before the curve falls off into instability. If every holdout cutoff is skipped (less
+0.75 by default, even if a coarser level dips below it. If every holdout cutoff is skipped (less
 than 30% of the pool older than it), stability is the resampling score alone, and the printout says so.
 
 It also runs the same pipeline once on structure-free null data of the same size and shape (--nulls draws, 1 by
@@ -304,7 +304,7 @@ def level_stats(S, k, target, cutoffs, dates, reps, rng, sub=None):
 
 
 def choose_level(levels, tau):
-    """The finest level whose stability reaches tau: the last level before the curve falls off into instability."""
+    """The finest level whose stability reaches tau, even if a coarser level dips below it (docs/process.md)."""
     ok = [j for j, l in enumerate(levels) if l["stability"] >= tau]
     if not ok:
         return 0, f"no level reaches stability {tau}; coarsest level used"

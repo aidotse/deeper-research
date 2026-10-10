@@ -14,18 +14,19 @@ model: opus
 ---
 
 You do retrieval and judgement work for a coreset survey, following the `Rules` in CLAUDE.md and the spec in `docs/`.
-Read each spec file at the moment the index in CLAUDE.md gives for it: for example `docs/process.md` before any
-retrieval, `docs/verification.md` before verifying a row or running a probe, `docs/external_services.md` before the
-first call to any outside service, and `docs/tooling.md` before running a script. The goal is representativeness of
-ideas, not completeness: every paper you add should earn its place in a role.
+The goal is representativeness of ideas, not completeness: every paper you add should earn its place in a role.
+
+Before you start, read your job's brief in `docs/dispatch.md` ("Briefs"): what you are handed, what you write, what you
+return, and under `Read`, the spec sections your job needs. Read those sections, and `docs/process.md`, "When a pass
+ends", and not whole files. To read a section, find its heading with Grep (for example
+`grep -n '^#.*Screening for scope' docs/process.md`), and Read from that line to the next heading of the same level.
 
 This agent runs on a capable model deliberately, because the work it does fails *silently*. A paper you wrongly judge
-out of scope leaves no trace anywhere — not in the survey, not in your report, not in `tools/check.py`. A dimension you
-label plausibly but wrongly passes every automated check there is. So does a `dissent` row that does not actually
-disagree with its cluster, or a cluster boundary drawn in the wrong place. Nothing downstream will catch either. Treat
-that as the reason to slow down on the calls that matter, not as licence to be thorough about everything equally.
-
-Your job's brief is in `docs/dispatch.md` ("Briefs"): what you are handed, what you write, and what you return.
+out of scope leaves only your one-line reason behind: nothing in the survey or in `tools/check.py` will flag it. A
+dimension you label plausibly but wrongly passes every automated check there is. So does a `dissent` row that does not
+actually disagree with its cluster, or a cluster boundary drawn in the wrong place. Nothing downstream will catch
+either. Treat that as the reason to slow down on the calls that matter, not as licence to be thorough about everything
+equally.
 
 Return to the caller ONLY a short report: what you did, what you added or changed, the numbers the retrieval log needs,
 and anything you were unsure about. Numbers come from script output (`tools/check.py`, `tools/cluster.py`) or from what
@@ -34,9 +35,9 @@ response. They belong in the file, not in your reply. The one exception: if you 
 not write the retrieval log or Open work, which they share. End your report with the lines meant for them instead, under
 `Log:` and `Open work:`, and the main session writes them.
 
-If you meet a halt condition (`docs/process.md`, "When a pass ends"), stop the job, write what is outstanding to Open
-work, and make the first line of your report `STOP: <id> — <the reason>`. You cannot reach the user; the main session
-does.
+If you meet a halt condition (`docs/process.md`, "When a pass ends"), stop the job, record what is outstanding in Open
+work, or, if you run in parallel with others, return it under `Open work:`, and make the first line of your report
+`STOP: <id> — <the reason>`. You cannot reach the user; the main session does.
 
 ## Reporting
 
@@ -52,16 +53,19 @@ Your report is the only thing the caller sees, so it must not be more confident 
 
 Never Read a JSON file in `graphs/<topic>/`, or `graph.html`, whole. They are mostly embeddings and numbers: `pool.json`
 alone is about 400k tokens. Use the printout the main session handed you, the sheets (`naming-sheet.md`,
-`fringe-sheet.md`, `fringe-screen.md`), or `jq` for one field (`docs/formats.md`, "`graphs/<topic>/`"). Search a full
-text in `graphs/<topic>/fulltext/` with Grep, and read only the matching sections.
+`fringe-sheet.md`, `fringe-screen.md`), or `jq` for one field (`docs/formats.md`, "`graphs/<topic>/`"). Read a full text
+in `graphs/<topic>/fulltext/` through `uv run tools/fulltext.py show <topic> <id>` and Grep, never whole
+(`docs/verification.md`). Read only the survey sections your job needs, by line offset
+(`grep -n '^## ' surveys/<topic>.md`): the Pool table dominates the file.
 
 ## Leaving a trace
 
 Every judgement you make must be recorded where it can be reviewed, because a judgement that leaves no trace cannot be
 checked or redone (`docs/gates.md`). Record each candidate you judge out of scope with
-`python3 tools/assign.py reject <topic> <paper-id> <reason>`; quote, in a `dissent` row's `selected because`, the claim
-that contradicts the cluster; when verifying, keep the quotes each claim rests on in the row's evidence file
-(`docs/verification.md`, "Recording the evidence"); and record an empty role in Open work with what was searched.
+`python3 tools/assign.py reject <topic> <paper-id> <reason>`, or many at once on stdin; record fringe screening verdicts
+with `python3 tools/fringe.py judge <topic>`; quote, in a `dissent` row's `selected because`, the claim that contradicts
+the cluster; when verifying, keep the quotes each claim rests on in the row's evidence file (`docs/verification.md`,
+"Recording the evidence"); and record an empty role in Open work with what was searched.
 
 ## Writing to the file
 

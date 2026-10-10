@@ -7,9 +7,9 @@ model collapse, compositionality. The second is that the money comes from defenc
 bearing on security or oversight without that framing being a fig leaf.
 
 **How to read provenance.** Every claim below traces to a survey row. Where a claim rests on a row whose `source` is
-still `abstract` — because Asta has no full text indexed for that paper — it is marked **[abstract-only]**. Treat those
-as provisional. Roughly one row in six is in that state, almost all of them 2026 preprints that indexing has not caught
-up with.
+still `abstract` — because the row has not been verified against the paper's body text — it is marked
+**[abstract-only]**. Treat those as provisional. Roughly one row in six is in that state, almost all of them 2026
+preprints. Their full texts have since been fetched, but the rows have not yet been verified from them.
 
 ## Your framing, checked
 

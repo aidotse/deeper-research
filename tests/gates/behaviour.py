@@ -37,6 +37,11 @@ f = build(); sub(S, "- **Halts:** none", "- **Halts:** H5 — no stable level af
 code, out = run("--gate", "G5")
 check("pending halt: --gate fails with the halt named", code == 1 and "cannot pass while a halt is pending" in out, out)
 
+# 2b a pending halt whose description contains a dash is still pending: the decision follows the entry's last dash
+f = build(); sub(S, "- **Halts:** none", '- **Halts:** H2 — query "prm survey" — 429 after 3 retries — pending')
+code, out = run("--gate", "G5")
+check("pending halt with a dash in what happened: --gate still fails", code == 1 and "cannot pass while a halt is pending" in out, out)
+
 # 3 inference mid-pass: strip everything after step 2 (no clusters rows, no coreset, no output, no later lines)
 f = build()
 t = S.read_text()
