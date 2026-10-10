@@ -304,6 +304,11 @@ disposition's "Watch in the first run" unfixed, and Phase 4 proceeds.
 
 ## Phase 4: instrument the run
 
+First, a fix left over from Phase 3 (TODO 1): on a return to step 3, `--gate G2` and `G3` cannot pass until Revise is
+done, since a `Coverage test` line makes `check.py` require every gate to `G4`. Add one sentence to `docs/process.md`,
+"Returning to step 3": on a return, skip re-gating until Revise is done. The finding is in the disposition, "What the
+Phase 3 tabletops left open".
+
 What turns the run into a measurement rather than a demo:
 
 - `T4`: `tools/coverage.py`. It prints the coreset's coverage radius (max and p90), and draws the coverage-test sample
