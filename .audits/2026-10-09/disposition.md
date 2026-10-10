@@ -28,7 +28,8 @@ playing the main session and each brief from the docs alone. Two ran on 2026-10-
 met none of the stalls the audit's own tabletop had found, and found 20 new ones; all were fixed in `558e816`. The
 second, run on the fixed docs with the same prompt, found none of those 20 as first described. Its 14 findings are
 below: 7 left by incomplete fixes or caused by them (marked `after a fix`), and 7 new. This list keeps only the current
-issues; the first run's are in git history (`920b823`).
+issues; the first run's are in git history (`920b823`). A third run, the last, did not converge, and its findings were
+not fixed: they are under "Watch in the first run", "Third tabletop, not fixed".
 
 Tags: `blocker` (cannot proceed, or certainly fails a gate), `guess` (must improvise, so two agents would differ),
 `minor` (wording or findability).
@@ -203,6 +204,49 @@ These are judgement calls whose effect only real data will show. When auditing t
   and step 4's block set-up, and leans on one exemption ("the return's open work") until the check passes again. Neither
   tabletop exercised this version. If the first run reaches it, check that the main session could tell that open work
   from a real failure.
+
+- `Third tabletop, not fixed`. Phase 3 ran a third blind tabletop on 2026-10-10, after `c3720e6`, as the final round. It
+  did not converge: 17 findings, 1 `blocker`, 8 `guess`, 8 `minor`. Fewer were on paths the earlier fixes touched, and
+  more on rarer branches and finer detail. As agreed with the user beforehand, they were not fixed; they are listed
+  here, each with the tabletop's suggested fix, for the first run to confirm or dismiss. The agent broke one blindness
+  rule once, a `git status` to confirm its cleanup; it read no history.
+
+  - `blocker`: on a return to step 3, `--gate G2` cannot pass. A `Coverage test` line makes `check.py` require
+    `G0`–`G4`, and `--gate` passes only when nothing fails, so the return's open work fails it; Revise's `G3` likewise,
+    and `g4.h10` while new rows await verification. Confirmed on the fixture. Fix: on a return, skip re-gating until
+    Revise is done, or let `--gate G<n>` require only up to `<n>`. This one is a single sentence in "Returning to step
+    3".
+  - `guess`: `H6` at naming. An unratable cluster cannot get a valid row, yet the rows up to the viewer must run, and
+    nothing says who applies the user's rating later. Fix: a provisional rating, marked in `alignment reason`, and a
+    Naming re-dispatch for the decision.
+  - `guess`: Selection's Revise hand-over. Its `Read` list lacks step 7's role paragraph (extra rows allowed, the
+    `frontier` fallback), so it may demote a row to make room; and the Coverage brief does not return a proposed role.
+    Fix: add the paragraph to the list; have Coverage propose the role.
+  - `guess`: Bridges has no search method or candidate list. Fix: `sheets.py` lists the papers each trading pair
+    exchanges, as the starting point.
+  - `guess`: replacing an uncheckable row can loop, since the old row is demoted before the replacement is fetched. Fix:
+    demote only once the replacement verifies; one attempt per role.
+  - `guess`: rejecting a candidate with no ID. `assign.py reject` needs one, and the Coverage brief does not say where
+    an out-of-scope fresh-query candidate is recorded. Fix: record rejections only for candidates with an ID; name the
+    coverage case.
+  - `guess`: a targeted expansion's scope: "most-cited papers" has no number, `no stable level` names no regions, and
+    new thin clusters after the rerun could each claim an expansion. Fix: the region's top 3 by in-degree; new thin
+    clusters after the rerun are kept, not expanded.
+  - `guess`: a dissent paper returned for the pool has no pending form in `Dissent searches`. Fix:
+    `-> returned for the pool: <id>`, rewritten on the re-dispatch.
+  - `guess`: telling whether a region is "still thin" needs `jq` on `clusters.json`'s `assignment`, which is
+    undocumented. Fix: print each region paper's cluster, or document the call.
+  - `minor`: the main session rewrites the Coverage agent's `new clusters:`, but no `writes` cell gives it that line;
+    and an unformed proposal has no provisional form.
+  - `minor`: `Late papers` may need both forms in one pass, and a second line fails `g0.labels`. Fix: append with `|`.
+  - `minor`: re-passing `G2`–`G4` after a return has no `Gates` form. Fix: append with the new date.
+  - `minor`: the Bridges and Fringe-selection briefs do not say to draft every cell from the abstract, as Selection's
+    does.
+  - `minor`: "Fetch pool data" and "Late papers" rerun what "After every dispatch" just ran; say so.
+  - `minor`: `g1.orientation` needs at least one frontier candidate; a quiet topic has no rule. Fix: allow `none`.
+  - `minor`, `UNVERIFIED`: parallel agents `Edit` one survey file, and a read-modify-write race could lose an edit that
+    shows only at `--gate G3`. Fix: re-read the whole Coreset section, or serialise writes.
+  - `minor`: whether the main session waits for the user's cluster review before `Ended` is not stated.
 
 - `R2`, the section reader (`fulltext.py show`): its PDF heading detection is a guess. Letter-prefixed headings such as
   "B Additional results" are not detected. Whether verification uses it at all is for `R4` to decide.

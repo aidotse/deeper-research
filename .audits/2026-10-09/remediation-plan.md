@@ -298,7 +298,9 @@ Done when: a fresh tabletop run of a first pass, as in the audit, finds no stall
 an agent, blind to this plan.
 
 Status, 2026-10-10: done. What was done, per ID, with its judgement calls and caveats, is in
-`.audits/2026-10-09/disposition.md`, including what the tabletop found and how each finding was handled.
+`.audits/2026-10-09/disposition.md`, including what the tabletops found and how each finding was handled. Three
+tabletops ran (20, 14 and 17 findings). The third did not converge; by agreement, its findings moved to the
+disposition's "Watch in the first run" unfixed, and Phase 4 proceeds.
 
 ## Phase 4: instrument the run
 
