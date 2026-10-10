@@ -220,14 +220,19 @@ def add_fringe(topic):
                      "candidates screened")
     data = json.loads((d / "fringe.json").read_text())
     cands = data["candidates"]
-    screened = {}
+    rows = {}
     for h, c, _, _ in table_rows((d / "fringe-screen.md").read_text()):
-        if h and h[0] == "s2" and "in scope" in h and len(c) >= len(h):
-            screened[c[0]] = c[h.index("in scope")].strip().lower()
-    # Anything but `yes` or `no`, blank or `maybe`, is unjudged, as the gate counts it (G1, fringe-screened).
-    blank = [s for s, v in screened.items() if not (v.startswith("yes") or v.startswith("no"))]
+        if h and h[0] == "s2" and "in scope" in h and "reason" in h and len(c) == len(h):
+            rows[c[0]] = (c[h.index("in scope")].strip().lower(), c[h.index("reason")].strip())
+    screened = {s: v for s, (v, _) in rows.items()}
+    # The gate's own test (G1, fringe-screened): `yes` or `no` with a reason; blank or `maybe` is unjudged.
+    from gates import judged
+    blank = [s for s, (v, r) in rows.items() if not judged(v, r)]
     if blank:
-        sys.exit(f"{len(blank)} candidate(s) in fringe-screen.md have no `yes` or `no` judgement yet")
+        sys.exit(f"{len(blank)} candidate(s) in fringe-screen.md have no `yes` or `no` judgement with a reason yet")
+    absent = [s for s in cands if s not in rows]
+    if absent:
+        sys.exit(f"{len(absent)} candidate(s) in fringe.json have no row in fringe-screen.md: {absent[:3]}")
     unknown = [s for s in screened if s not in cands]
     if unknown:
         sys.exit(f"{len(unknown)} row(s) of fringe-screen.md are not in fringe.json: {unknown[:3]}; rerun "
