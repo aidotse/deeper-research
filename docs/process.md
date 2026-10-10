@@ -53,7 +53,7 @@ the log's `Tokens` line.
 
 | step | operation | run by | reads | writes | done when | tokens |
 | -- | -- | -- | -- | -- | -- | -- |
-| any | After every dispatch | main: `python3 tools/bib.py <topic>` if the coreset changed; if pool rows were added, `python3 tools/pool.py <topic>` while the pass is at step 3 or before, or has returned to it, and after a coverage round that proposes a cluster; otherwise `uv run tools/assign.py late <topic>` ("Late papers"), and on `RECLUSTER:` return to step 3; after Naming, `python3 tools/assign.py clusters <topic>`; then `python3 tools/check.py <topic>` | the agent's report | `Tokens`, one entry appended; the `Pool` line the fetch printed; the `Late papers` line, if `late` assigned any; `Coreset`, from the check's row count, if the coreset changed and step 5 has written the line; a parallel agent's `Log:` and `Open work:` lines | the check exits 0, apart from the open work of a return to step 3 ("Returning to step 3"). A failure the agent cannot fix halts the pass (`H9`) | 0 |
+| any | After every dispatch | main: `python3 tools/bib.py <topic>` if the coreset changed; if pool rows were added, `python3 tools/pool.py <topic>` while the pass is at step 3 or before, or has returned to it, and after a coverage round that proposes a cluster; otherwise `uv run tools/assign.py late <topic>` ("Late papers"), and on `RECLUSTER:` return to step 3; after Naming, `python3 tools/assign.py clusters <topic>`; then `python3 tools/check.py <topic>` | the agent's report | `Tokens`, one entry appended; the `Pool` line the fetch printed; the `Late papers` line, if `late` assigned any; `Coreset`, from the check's row count, if the coreset changed and step 5 has written the line; a parallel agent's `Log:` and `Open work:` lines | the check exits 0, apart from the open work of a return to step 3 ("Returning to step 3") or of Revise (step 7). A failure the agent cannot fix halts the pass (`H9`) | 0 |
 | any | On a halt | main | a report or printout starting `STOP:` | `Halts`: the halt, with `pending`, then the user's decision in its place | the user has decided; see "When a pass ends" | est. under 5k |
 | any | On a requirement the user may waive | main and user | the failing requirement | `Waivers` | the user has decided; an agent never waives anything (`docs/gates.md`) | 0 |
 | any | Probe, on request | `survey-pass` "Probe" | the question; the coreset rows closest to it | Pool rows, as late papers; `Probes` | as the brief | not yet estimated |
@@ -93,13 +93,13 @@ the log's `Tokens` line.
 | 5 | Gate `G4` | main: `python3 tools/check.py <topic> --gate G4` | — | `Gates` | passes | 0 |
 | 6 | Write the output | main | the Clusters and Coreset sections, never the pool, printed by `python3 tools/check.py <topic> --print Clusters` and `--print Coreset`; the evidence files of the rows each claim rests on | `outputs/<topic>.md` | `tools/check.py <topic>` passes, and every claim matches the rows it cites | est. 60–120k |
 | 7 | Draw the coverage sample | main: `uv run tools/coverage.py draw <topic> <R>`, R being the round's number | — | `coverage-<R>.md`: ten pool papers drawn from the worst covered, with the seed and the coreset's radius | exit 0 | 0 |
-| 7 | Coverage test | `survey-pass` "Coverage test" | the output; `coverage-<R>.md`; a fresh recency query; the candidates' abstracts, through Asta | the sheet's verdicts and its recency-query rows, by `tools/coverage.py judge`; Pool rows, by `tools/assign.py add`, for each candidate that changed a target or belongs to a proposed cluster; `Coverage test`, as `tools/coverage.py line` prints it | `tools/coverage.py line` prints the line, which it does only once every candidate has a verdict | est. 30–50k per round |
-| 7 | Late papers | main: `uv run tools/assign.py late <topic>`, unless the round proposed a cluster | — | the Pool's `cluster` column; `clusters.json`; `Pool`; `Late papers` | exit 0. On `RECLUSTER:` (exit 3), or when the round proposed a cluster, return to step 3 ("Returning to step 3") | 0 |
-| 7 | Revise | the step 4–6 rows, without their gate rows: for the papers the round counted in K, in the roles that match their changes; after a return to step 3, also for every new, renamed or retired cluster and every cluster whose rows moved. It runs on a converging round too, when K is 1 | as there; Selection is handed each counted paper, with its change and its proposed role | rows in roles, listed under `Rows needing verification` until verified; the output, revised | as there | as there |
+| 7 | Coverage test | `survey-pass` "Coverage test" | the output; `coverage-<R>.md`; a fresh recency query over the pass's `Recency window`, extended to the day of the round; the candidates' abstracts, through Asta | the sheet's verdicts and its recency-query rows, by `tools/coverage.py judge`; the recency query, by `tools/coverage.py query`, whatever it found; Pool rows, by `tools/assign.py add`, for each recency candidate that changed a target or belongs to a proposed cluster; `Coverage test`, pasted as `tools/coverage.py line` prints it | `tools/coverage.py line` prints the line, which it does only once every candidate has a verdict and the recency query is recorded | est. 30–50k per round |
+| 7 | Late papers | main: the `uv run tools/assign.py late <topic>` that "After every dispatch" runs after the Coverage test is this row; it is not run again. Not run when the round proposed a cluster | — | the Pool's `cluster` column; `clusters.json`; `Pool`; `Late papers` | exit 0. On `RECLUSTER:` (exit 3), or when the round proposed a cluster, return to step 3 ("Returning to step 3") | 0 |
+| 7 | Revise | `survey-pass` "Selection" for the clusters of the papers the round counted, then step 5's rows from the fetch on, then step 6, all without their gate rows. Verification takes the new rows, and any row still `abstract` whose full text the fetch now finds. Bridges and Fringe selection do not rerun. After a return to step 3, the step 4–6 rows also run for every new, renamed or retired cluster and every cluster whose rows moved. It runs on a converging round too, when K is 1 | as there; Selection is handed each counted paper, with its change and its role (below) | rows in roles, verified; the output, revised | `tools/check.py` passes again: it fails until every counted paper is a coreset row verified from the full text, or marked uncheckable | as there |
 | 7 | Draw the judgement audits, once a round has converged and its Revise is done | main: `python3 tools/audit.py reverify <topic>`, then `python3 tools/audit.py trace <topic>` | — | `reverify.md`; `faithfulness.md` | exit 0 | 0 |
 | 7 | Re-verify the sample | `survey-pass` "Re-verification", a fresh agent | the sampled paper IDs; the column definitions; the full texts | the cells of `reverify.md`, by `tools/audit.py fill` | every cell filled | est. 10k per row |
 | 7 | Judge the audits | main: `python3 tools/audit.py compare <topic>`; then `survey-pass` "Judgement audit" | `reverify-compare.md`; `faithfulness.md` | their verdicts, by `tools/audit.py judge`; `Judgement audit`, as `tools/audit.py line` prints it | `tools/audit.py line` prints the line, which it does only once every row has a verdict | est. 20–40k |
-| 7 | End the round | main | the `Coverage test` line | another round; or, on `F1`, the user's review of the clusters, if given, in `Clusters`, then `Ended` | every paper the round counted in K is an assigned coreset row. `F1`: no new cluster and at most one output change. Two rounds without convergence halt the pass (`H11`) | est. under 5k |
+| 7 | End the round | main | the `Coverage test` line | on a round that did not converge, another round: back to "Draw the coverage sample" with the next R, skipping the audit rows; on `F1`, the user's review of the clusters, if given, in `Clusters` (the pass does not wait for it: see "Cluster review"), then `Ended`, in its form (`docs/formats.md`) | `F1`: no new cluster and at most one output change. Two rounds without convergence halt the pass (`H11`) | est. under 5k |
 | 7 | Gate `G5` | main: `python3 tools/check.py <topic> --gate G5` | — | `Gates` | passes; the pass is over | 0 |
 
 The expensive steps are verification, more than half the total, and screening, which grows with the pool. As a rough
@@ -515,11 +515,12 @@ information, and the action depends on the pattern:
 
 By default the pass does not halt here; the user reviews the clusters with the finished output. At the end of the pass,
 before writing `Ended`, the main session shows the user the output, the Clusters table and the viewer, and records the
-review in the `Clusters` line. A review given after `Ended` goes into the next pass's entry instead, since an ended
-entry is never rewritten. This is affordable because verification belongs to a row, not to a cluster: a later change to
-the clustering costs re-selection and the verification of new rows only (see "Changing the clusters after a pass"). Halt
-before selecting the coreset only on one of the clustering conditions in "When a pass ends", `H4`–`H8`, or when the
-input asks for it (`H13`). Otherwise proceed to step 4.
+review in the `Clusters` line. The pass does not wait for it: without a review, `Clusters` keeps `not yet reviewed`. A
+review given after `Ended` goes into the next pass's entry instead, since an ended entry is never rewritten. This is
+affordable because verification belongs to a row, not to a cluster: a later change to the clustering costs re-selection
+and the verification of new rows only (see "Changing the clusters after a pass"). Halt before selecting the coreset only
+on one of the clustering conditions in "When a pass ends", `H4`–`H8`, or when the input asks for it (`H13`). Otherwise
+proceed to step 4.
 
 Apart from `H13`, these are signs that the topic was misread or the pool is degenerate. Found here, such a problem costs
 a fraction of what it costs after verification. The main session shows the user the Clusters table and the viewer, and
@@ -695,9 +696,10 @@ directly:
    clustering uses. Those are the papers the coreset is likeliest to leave out. The script writes them to the round's
    sheet, `graphs/<topic>/coverage-<R>.md`, with the coreset's radius: how far the worst-covered pool paper is from its
    nearest row. The agent then adds up to five candidates from a fresh recency query, run as in step 1 (WebSearch,
-   limited to the recency window), since new work is what the pool cannot yet hold; on a quiet topic it may find none. A
-   candidate with no paper ID cannot join the pool or the coreset, so take the next result in its place, and note it in
-   Open work's `Papers that could not enter the pool`.
+   limited to the pass's `Recency window`, extended to the day of the round), since new work is what the pool cannot yet
+   hold. Record the query with `tools/coverage.py query`, whatever it found, so that a round without recency candidates
+   shows the query ran; on a quiet topic it may find none. A candidate with no paper ID cannot join the pool or the
+   coreset, so take the next result in its place, and note it in Open work's `Papers that could not enter the pool`.
 2. For each candidate, read its abstract through Asta, and snippets where the abstract leaves the verdict open. Ask two
    questions. Does it belong to a cluster not yet in the Clusters table? Would it change a claim in one of the coreset's
    targets — a landscape axis, an assumption, a gap, or an answer to a question the input's `Coreset Spec` declares?
@@ -707,15 +709,19 @@ directly:
    (`docs/formats.md`, "The coverage sheet"). Then `python3 tools/coverage.py line <topic> <R>` prints the round's
    `Coverage test` line for the pass's entry in the retrieval log:
    `round R: K of N sampled candidates changed the output`, counted from the sheet. It names each candidate that did,
-   with the target and the reason, which should state the claim, such as a new gap or a revised assumption. A candidate
-   judged only to open a new cluster is not in K: the line names it in a placeholder under `new clusters:`, settled
-   after the recluster ("Returning to step 3").
+   with the target and the reason. Paste it as printed, since `G5` compares it with the sheet; so give `judge` reasons
+   that state the claim changed, such as a new gap or a revised assumption. If a verdict changes later, say because
+   verification shows the reason overstated, judge it again and paste the line again. A candidate judged only to open a
+   new cluster is not in K: the line names it in a placeholder under `new clusters:`, settled after the recluster
+   ("Returning to step 3").
 
-Every candidate counted in K joins the coreset (`G5` checks it), in the role that matches what it changed: `dissent` for
-a contradiction or a broken assumption, `frontier` for a newer or stronger result, `bridge:<id>` for a connection
-between clusters, or `fringe` for an idea no other row has, within the quota. A cluster may take more rows than "Sizing"
-asks for this. Where the matching role cannot be had, because the paper's cluster is not `high` and so states no central
-claim, or the `fringe` quota is full, the paper takes `frontier`, and its `selected because` says what it changed.
+Every candidate counted in K joins the coreset, verified, in Revise. Its role follows what it changed: `dissent` if it
+contradicts its cluster's central claim or breaks an assumption the claim rests on, which covers a gap that is a
+tension; `bridge:<id>` if what it changed is a connection between clusters; `fringe` if it carries an idea no other row
+has, within the quota; otherwise `frontier`. A paper whose role cannot be had, because its cluster is not `high` and so
+states no central claim, or the `fringe` quota is full, takes `frontier` too. Its `selected because` says what it
+changed. A cluster may take more rows than "Sizing" asks for this. A `dissent` row found this way needs no
+`Dissent searches` entry: its trace is the `Coverage test` line.
 
 What counts as a change. A candidate changes the output if it would add a claim to a target, remove one, or reverse one:
 a new axis, assumption, gap or answer; an assumption shown not to hold; a result that turns out to depend on a condition
@@ -723,15 +729,16 @@ the output does not state. It does not change the output if it would only add a 
 a number or a wording that leaves the claim standing, or change `Questions` or `Reading` alone, which are not targets.
 
 The pass finishes (`F1`) when a round produces no new cluster and at most one output change. Say so in the log's `Ended`
-line, with the numbers. Either way, the papers the round counted in K are processed as late papers ("Late papers"),
-given their roles, and the output is revised; on a round that did not converge, sample again. Two rounds without
-convergence halt the pass (`H11`). A proposed cluster goes through a targeted expansion and a recluster before the round
-is judged ("Returning to step 3").
+line, in the form `docs/formats.md` gives. Either way, the papers the round counted in K are processed as late papers
+("Late papers"), given their roles, and the output is revised; on a round that did not converge, sample again. Two
+rounds without convergence halt the pass (`H11`). A proposed cluster goes through a targeted expansion and a recluster
+before the round is judged ("Returning to step 3").
 
-While Revise is under way, the plain check fails on the counted papers' rows not yet verified, and on the open work of a
-return to step 3, if there was one ("Returning to step 3"). That is not `H9`. Revise is done when `tools/check.py`
-passes again. Its gate rows are skipped, for the same reason as on a return: the `Coverage test` line already makes the
-plain check require `G3` and `G4`.
+From a coverage round on, the plain check fails until every paper the round counted is a coreset row, verified from the
+full text or marked uncheckable (`g4.counted-rows`), and on the open work of a return to step 3, if there was one
+("Returning to step 3"). That is Revise's open work, not `H9`. Revise is done when `tools/check.py` passes again. Its
+gate rows are skipped, for the same reason as on a return: the `Coverage test` line already makes the plain check
+require `G3` and `G4`.
 
 How strong this is. `F1` is a sampled test, so it bounds how much the coreset misses rather than proving it misses
 nothing. If K of the ten drawn candidates change the output, the share of the worst-covered quarter that would change it
@@ -757,7 +764,8 @@ line, which `G5` requires, so that every finished pass reports it.
   It is given the paper IDs, the column definitions and the `Dimensions` line, and never sees the survey's rows or their
   evidence. `tools/audit.py compare` then sets each of its cells beside the survey's.
 - `Faithfulness` measures the output. `tools/audit.py trace` draws 15 of the output's sentences that cite a coreset
-  paper, and sets each beside the cited rows' cells and evidence quotes.
+  paper, or all of them if there are fewer, leaving out `Questions` and `Reading`, which recommend rather than claim,
+  and sets each beside the cited rows' cells and evidence quotes.
 
 A second agent, which wrote neither the rows nor the output, judges both sheets. Per cell of the re-verification:
 

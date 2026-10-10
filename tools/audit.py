@@ -18,7 +18,8 @@ graphs/<topic>/reverify-compare.md: per paper and cell, the survey's text beside
 `agrees` and `reason` cells. It refuses while a cell of reverify.md is empty: `n/a` is written out.
 
 Faithfulness measures the output. `trace` splits the output after its legend into sentences, keeps those that cite a
-coreset paper, draws --n (15) of them at random, and writes graphs/<topic>/faithfulness.md: each sentence with its
+coreset paper outside `Questions` and `Reading` (which recommend rather than claim), draws --n (15) of them at random,
+or all if there are fewer, and writes graphs/<topic>/faithfulness.md: each sentence with its
 section, line and cited IDs, empty `verdict` and `reason` cells, and after the table each cited row's cells and its
 evidence quotes, once per paper.
 
@@ -48,6 +49,7 @@ SHARE, LEAST = 0.10, 5      # re-verify this share of the verified rows, and at 
 N_TRACE = 15                # output sentences drawn for the faithfulness sample
 CLAIMS = ["method name", "method summary", "datasets / models", "metric", "result"]
 AGREES = ("agree", "partly", "differ")
+SKIP = {"Questions", "Reading"}   # output sections that recommend reading rather than claim something of a paper
 SUPPORT = ("supported", "partly", "unsupported")
 ABBREV = re.compile(r"(?:\b(?:al|e\.g|i\.e|cf|vs|Fig|Sec|Eq|Tab|approx|resp)|\b[A-Z])\.$")
 
@@ -252,7 +254,8 @@ def trace(topic, n, seed):
     if not out_path.exists():
         sys.exit(f"no outputs/{topic}.md; write the output first (docs/process.md, step 6)")
     rows, cols = coreset(topic)
-    cand = [(s, ln, t, ids) for s, ln, t in sentences(out_path.read_text()) if (ids := [i for i in cited(t) if i in rows])]
+    cand = [(s, ln, t, ids) for s, ln, t in sentences(out_path.read_text())
+            if s not in SKIP and (ids := [i for i in cited(t) if i in rows])]
     if not cand:
         sys.exit(f"outputs/{topic}.md has no sentence citing a coreset paper")
     k = min(n, len(cand))

@@ -259,17 +259,22 @@ What some lines need, beyond their form:
 - `Errored queries` — `none` until a query errors; the first entry replaces the `none`.
 - `Dissent searches` — one entry per searched cluster, separated by `;` or `|`, so neither may appear inside "what was
   searched", and the arrow is `->`, not `→`; an entry the check cannot read counts as missing. Every ID after `found:`
-  must be a `dissent` row of that cluster, or be named in `Demotions`.
-- `Coverage test` — one line per round, printed from the round's sheet. "What it changed" names the target and the
-  claim, such as "Gaps: <the new gap>" or "Assumptions: <which one>, revised". Only the IDs that open an entry are
-  counted, and there must be K of them: the sheet's `changes` rows. A proposed cluster that the recluster did not form
-  is recorded as `none (proposed <which>, not formed)`.
+  must be a `dissent` row of that cluster, or be named in `Demotions`. A `dissent` row a coverage round added has no
+  entry here; its trace is the `Coverage test` line.
+- `Coverage test` — one line per round, printed from the round's sheet and pasted as printed: `tools/check.py` compares
+  it with the sheet, up to `new clusters:`. "What it changed" names the target and the claim, such as "Gaps:
+  <the new gap>" or "Assumptions: <which one>, revised". Only the IDs that open an entry are counted, and there must be
+  K of them: the sheet's `changes` rows. A proposed cluster that the recluster did not form is recorded as
+  `none (proposed <which>, not formed)`.
 - `Judgement audit` — printed from the three audit sheets (`docs/process.md`, "Auditing the judgements"), and pasted as
   printed: `tools/check.py` recomputes it.
 - `Tokens` — one entry per dispatch, appended when it returns, from the usage it reports: the brief's name and its
   scope, without commas or colons, then the tokens, without thousands separators, for example
   `Preflight: 4k, Orient: 81k, Selection c1+c2: 64200`.
 - `Halts` and `Waivers` are written as `none` when the entry is created, so that a pass that met neither says so.
+- `Ended` — `finished (F1)` or `halted (<id>)`, then the measured numbers: the last round's K of N and its bound, the
+  radius (max and p90) that round's sheet records, the number of rounds, and the coreset's rows, for example
+  `finished (F1); round 2: 0 of 12, bound 26%; radius 0.45, p90 0.22; 2 rounds; 54 rows`.
 
 ### 2. Clusters
 
@@ -468,7 +473,8 @@ A full text is read through `tools/fulltext.py show` and Grep, at the sections a
 One file per coverage-test round, `graphs/<topic>/coverage-<R>.md`, with one row per sampled candidate, the ones that
 changed nothing included. `tools/coverage.py draw` writes it, with a header giving the date, the seed, the set drawn
 from and the coreset's radius; the agent fills `verdict` and `reason`, and adds the recency query's candidates, with
-`tools/coverage.py judge`, never by editing the file:
+`tools/coverage.py judge`, and records the recency query in the header with `tools/coverage.py query`, never by editing
+the file:
 
 | column | contents |
 | -- | -- |

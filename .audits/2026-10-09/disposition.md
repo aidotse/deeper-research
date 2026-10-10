@@ -88,8 +88,9 @@ played each brief itself. Every script ran, and full texts were fetched from arX
 Asta) was imagined. It was steered through two coverage rounds, the first not converging, with a recency candidate and a
 Revise. It reached `F1` and `--gate G5` passed. About 200k tokens, on 2026-10-10. It found no `blocker`, 12 `guess` and
 9 `minor`; its full report, with the run log, is `.audits/2026-10-09/phase4-simulation.md`. Three recur from the third
-tabletop of Phase 3, left unfixed then by agreement (marked `recurs`). None is fixed yet: whether to fix and simulate
-again, or leave them to the first run, is the user's call. Tags as above.
+tabletop of Phase 3, left unfixed then by agreement (marked `recurs`). All were fixed without simulating again (user,
+2026-10-10): the tool bugs and one-line gaps as suggested, and Revise simplified rather than patched; Phase 5's smoke
+pass is their test. Tags as above.
 
 - `P15` — `guess`. Revise is "done when `tools/check.py` passes again", but the plain check passed right after round 1,
   before any counted paper was a coreset row; only `G5` checks that. Suggested: once a `Coverage test` line exists, the
@@ -146,7 +147,7 @@ again, or leave them to the first run, is the user's call. Tags as above.
 | 1 | `532e697` | `Z2`–`Z5`, `Z7`–`Z9`, `M13`; moot with them: `M9`, `M10`, `T1`, `S3`, half of `A7`, the history half of `M20` |
 | 2 | `d600a69`, `4d8e9a2`, `46d9dfd`, `4dc8dff`, `cda762a`, `f99ec2c`, `c43ba0c` | `C1`–`C6`, `C8`, `C9`, `M1`–`M6`, `M11`, `M12`, `M14`–`M19`, `S6`, `A9`, `T5`, `T9`, `R2`, `R3`; the code side of `C10`, `M20`, `S1`, `S2`, `S4`, `S15`; `T8` in part |
 | 3 | `558e816`, and "Remediation phase 3: a second tabletop" | `W1`–`W4`, `S5`, `S7`, `S9`–`S12`, `S14`, `A1`–`A8`, `R1`, `P1`–`P14`; the doc side of `C10`, `S1`, `S2`, `S4`, `S15`; the code side of `S10` and `A2`; `T8` in part |
-| 4 | "Remediation phase 4: instrument the run" | TODO 1 (the third tabletop's blocker); `T2`, `T3`, `T4`, `T6`, `R4`, the tool half of `A3`; `T8` in part; `P15`–`P35` found, open |
+| 4 | `bec71d7`, and "Remediation phase 4: the simulation's fixes" | TODO 1 (the third tabletop's blocker); `T2`, `T3`, `T4`, `T6`, `R4`, the tool half of `A3`; `T8` in part; `P15`–`P35` |
 | 5 | pending | `R6`, and `Z1` in practice |
 | after the run | pending | `Z6`, `C7`, `M7`, `M8`, `S8`, `S13`, `T7`, `W3` step 2, `M20`'s hidden route, `R5`, the rest of `T8` |
 
@@ -163,7 +164,8 @@ again, or leave them to the first run, is the user's call. Tags as above.
 | 2d | `f99ec2c` | `tools/fulltext.py`, `tools/graph.py` |
 | 2 | `c43ba0c` | the arXiv backfill of `reasoning-legacy`'s pool |
 | 3 | `558e816`, and "Remediation phase 3: a second tabletop" | the spec pass over `docs/`, `CLAUDE.md` and the agents; `S10`'s gate change; `A2`'s sheet column; the first tabletop's fixes |
-| 4 | "Remediation phase 4: instrument the run" | `tools/coverage.py`, `tools/audit.py`, `check.py --print`, two `G5` requirements; the `R4` experiment and its records; the simulation's findings |
+| 4 | `bec71d7` | `tools/coverage.py`, `tools/audit.py`, `check.py --print`, two `G5` requirements; the `R4` experiment and its records; the simulation's findings |
+| 4 | "Remediation phase 4: the simulation's fixes" | `P15`–`P35`: Revise simplified; three new requirements, one moved |
 
 ## Watch in the first run
 
@@ -690,38 +692,100 @@ rows are gone, and the step-3 and step-4 rows serve both cases (user's decision,
 
 - `P1` — fixed, as first suggested: `Coreset` is refreshed after a dispatch only once step 5's row has written it.
   `inferred()` was left as it is.
+
 - `P2` — fixed, as suggested: Revise runs on a converging round too, and "End the round" requires every counted paper to
   be an assigned coreset row.
+
 - `P3` — fixed, as suggested. Selection returns out-of-pool dissent papers under `For the pool:`; the main session adds
   and assigns them, and dispatches Selection again. A paper computed into another cluster may make a `bridge`, not this
   cluster's dissent.
+
 - `P4` — fixed, as suggested: the Cluster review row sits before `G2`, and says the rows up to the viewer run while the
   halt is pending.
+
 - `P5` — fixed, as suggested, in the Naming row and brief.
+
 - `P6` — fixed by the return to step 3: while the pass has returned to step 3, "After every dispatch" fetches with
   `pool.py`, as before step 3. `late` runs only in the Late papers row, and when it does, "After every dispatch" writes
   its `Late papers` line. A recluster's line is written by hand, in the stated form.
+
 - `P7` — fixed by the return to step 3: rows are moved by step 4's "Set up the coreset blocks", now also a `survey-edit`
   job on a return, and one exemption, "the return's open work", lists rows in another block and `bridge:` cells naming a
   retired cluster. Retargeting a bridge is left to Selection, since it is a judgement.
+
 - `P8` — fixed. A counted paper whose matching role cannot be had (its cluster states no central claim, or the `fringe`
   quota is full) takes `frontier`, and says what it changed. Selection's Revise hand-over gives each counted paper, its
   change and its proposed role.
+
 - `P9` — fixed, as suggested. The proposed form carries a bracketed clause after the values, which the parser already
   ignores; checked. Selection, Bridges, Fringe selection and Verification are handed the `Dimensions` line.
+
 - `P10` — fixed, as suggested.
+
 - `P11` — fixed in the docs: the bracket holds the count only, and a note goes in a part of its own. The pattern was not
   relaxed.
+
 - `P12` — fixed: forward from the seeds and the frontier candidates, in the prose and the bullet.
+
 - `P13` — fixed, as suggested.
+
 - `P14` — fixed: the plan report does not block; the user can stop the pass, or change the dimensions in the input.
-- `P15`–`P35` — open, found by Phase 4's simulation (defined above). Not fixed, pending the user's decision: fix them
-  and simulate again, or leave them to the first run, as Phase 3's third tabletop was. Three (`P24`, `P29`, `P30`) are
-  the third tabletop's findings recurring.
+  Phase 4's simulation, fixed in the commit after `bec71d7` (user, 2026-10-10: fix the tool bugs and one-line gaps,
+  simplify Revise, no third simulation; Phase 5's smoke pass is the test). Faults 79 → 84, behaviours 44 → 48.
+
+- `P15` — fixed, as suggested: `g4.counted-rows` (moved from `g5.changed-in-coreset`) fails from a coverage round on
+  until every counted paper is a coreset row verified from the full text or marked `(uncheckable: ...)`. So the plain
+  check fails during Revise, and passing it again is Revise's end; "After every dispatch" exempts that open work.
+
+- `P16` — fixed, as suggested, in the "End the round" row.
+
+- `P17` — fixed, as suggested: the pass's `Recency window`, extended to the day of the round.
+
+- `P18` — fixed: `coverage.py query` records the query, its window and its result count in the sheet's header, and
+  `line` refuses until it is there.
+
+- `P19` — fixed by simplifying the mapping: `dissent` for a contradiction of the cluster's claim (a tension included),
+  `bridge` for a connection, `fringe` within the quota, otherwise `frontier`.
+
+- `P20` — fixed: such a row needs no `Dissent searches` entry; the `Coverage test` line is its trace.
+
+- `P21` — fixed, as suggested: `judge` reports a replaced verdict, the spec says to re-judge and re-paste, and
+  `g5.coverage-sheets` compares the pasted line with `coverage.py line`'s, up to `new clusters:`. Departure: the reason
+  can no longer be reworded in the log; it is written to state the claim when judged.
+
+- `P22` — fixed by simplifying Revise: Selection for the counted papers' clusters, then step 5 from the fetch, then step
+  6; Bridges and Fringe selection do not rerun.
+
+- `P23` — fixed: Verification in Revise also takes any row still `abstract` whose full text the fetch now finds.
+
+- `P24` — fixed: the pass does not wait for the cluster review; without one, `Clusters` keeps `not yet reviewed`.
+
+- `P25` — fixed, as suggested: `trace` leaves out `Questions` and `Reading`.
+
+- `P26` — fixed: `Ended`'s form is in `docs/formats.md`.
+
+- `P27` — fixed, as suggested.
+
+- `P28` — fixed: a recency candidate carries its title as a fourth field. The paper's existence is not checked.
+
+- `P29` — fixed, as suggested.
+
+- `P30` — fixed, as suggested.
+
+- `P31` — fixed, as suggested: `g2.central-claim` (one fault).
+
+- `P32` — fixed, for every gate.
+
+- `P33` — fixed.
+
+- `P34` — fixed, as suggested: `g0.halts-waivers` (one fault). The fixture now writes `Waivers: none`.
+
+- `P35` — fixed: "15, or all if fewer".
 
 ## Pending
 
-- Phase 4's simulation findings, `P15`–`P35`: fix and simulate again, or leave to the first run (the user's call).
+- Phase 5: the smoke pass and the `reasoning` rerun; their findings go in this file as `P` items, defined at the top
+  with tags and suggested fixes, and their measurements in the entries they measure (`R6`, `T2`, `T3`, `T4`, `R4`).
 - Phase 5: `R6`, and `Z1` in practice.
 - After the run: `Z6`, `C7`, `M7`, `M8`, `S8`, `S13`, `T7`, `W3` step 2, `M20`'s hidden route, `R5`, and the rest of
   `T8`.

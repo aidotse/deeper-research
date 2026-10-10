@@ -89,7 +89,8 @@ def build():
             lines.append(f"| [{titles[p].replace('|', '/')}]({link(p)}) | arXiv 2025-01 | {role} | {why} | M | does a thing | "
                          f"GSM8K | accuracy | +2 | " + " | ".join(dims.values()) + f" | {s} |")
         blocks.append("\n".join(lines))
-    cl_rows = "\n".join(f"| {n} | Cluster {n} | papers about {n} | {align[c]} | bears on the input | {c} |"
+    claim = lambda c: " It holds that longer reasoning helps." if align[c] == "high" else ""
+    cl_rows = "\n".join(f"| {n} | Cluster {n} | Papers about {n}.{claim(c)} | {align[c]} | bears on the input | {c} |"
                         for c, n in names.items())
     pool_rows = "\n".join(f"| [{titles[p].replace('|', '/')}]({link(p)}) | {pool['papers'][p].get('year') or ''} | {names[a[p]]} | 1 |  |"
                           for p in sorted(a))
@@ -123,13 +124,14 @@ def build():
 - **Coreset:** {len(all_rows)} rows
 - **Demotions:** none
 - **Late papers:** none
-- **Coverage test:** round 1: 1 of 12 sampled candidates changed the output ({changed}: gap: a new gap); new
-  clusters: none
+- **Coverage test:** round 1: 1 of 12 sampled candidates changed the output ({changed}: Gaps: it adds a gap the
+  output lacks); new clusters: none
 - **Judgement audit:** JUDGEMENT_AUDIT
 - **Probes:** none
 - **Corrections to existing rows:** none
 - **Tokens:** step 1: 80k
 - **Halts:** none
+- **Waivers:** none
 - **Ended:** finished (F1); 1 of 12
 
 ## Clusters
@@ -210,7 +212,8 @@ A tension ({cite[2]}).
     cov += [dict(paper=f"[{titles[p].replace('|', '/')}]({link(p)})", **{"drawn as": "worst-covered", "distance": "0.200",
                  "nearest row": all_rows[0], "verdict": "no change", "reason": "its nearest row already makes the claim"})
             for p in others]
-    coverage.write_sheet(dst / "coverage-1.md", T, 1, f"Drawn {DATE} by `tools/coverage.py draw`, seed 1.", cov)
+    coverage.write_sheet(dst / "coverage-1.md", T, 1, f"Drawn {DATE} by `tools/coverage.py draw`, seed 1.\n\n"
+                         f'Recency query: "reasoning models" ({DATE}): 0 result(s).', cov)
     # The judgement audits, run through tools/audit.py as the order of operations runs them.
     def call(fn, *args, stdin=""):
         with contextlib.redirect_stdout(io.StringIO()):

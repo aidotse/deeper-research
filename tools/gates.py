@@ -13,7 +13,8 @@ A gate is a point in the order of operations (docs/process.md) after which a set
                        bridges and the fringe quota, no empty cell
   G4 verified          after step 5: every verified row's evidence recorded under its own ID, its full-text quotes
                        found verbatim and in order, a dissent row's quoted claim among them; every row still `abstract`
-                       listed as needing verification, H10 if over 20%
+                       listed as needing verification, H10 if over 20%; once a coverage round has run, every paper it
+                       counted a verified (or uncheckable) coreset row
   G5 pass ended        after step 7: the output and its sections, a converged coverage test or a recorded halt, each
                        round's sheet backing its line, no late paper left, the judgement audits, the closing log lines
 
@@ -402,6 +403,14 @@ def r_named(c):
     cols = ["id", "name", "definition", "alignment", "alignment reason", "computed"]
     bad = sorted({r.get("id", "?") for r in c.cluster_rows for k in cols if not r.get(k) or PLACEHOLDER.search(r.get(k, ""))})
     return f"Clusters rows with an empty or placeholder cell: {bad}" if bad else None
+
+
+def r_central_claim(c):
+    """Each `high` cluster's definition states its central claim in a second sentence, which dissent is judged against."""
+    short = sorted(r.get("id", "?") for r in c.cluster_rows if r.get("alignment") == "high"
+                   and len([s for s in re.split(r"(?<=[.!?])\s+", r.get("definition", "").strip()) if s]) < 2)
+    return (f"`high` clusters whose definition has no second sentence stating the central claim: {short}"
+            if short else None)
 
 
 def r_written(c):
@@ -825,8 +834,10 @@ def r_coverage(c):
 
 def r_coverage_sheets(c):
     """Each round's sheet, written by tools/coverage.py, backs its `Coverage test` line: every candidate judged, N its
-    rows, the IDs the line counts in K its `changes` rows, and a proposed cluster not reported as `none`."""
-    from coverage import counted, sheet
+    rows, the IDs the line counts in K its `changes` rows, a proposed cluster not reported as `none`, and the line as
+    `coverage.py line` prints it, up to `new clusters:`."""
+    from coverage import counted, render, sheet
+    texts = c.L.get("Coverage test", [])
     problems = []
     for r in (x for x in rounds(c) if x):
         path = ROOT / "graphs" / c.topic / f"coverage-{r['r']}.md"
@@ -846,6 +857,14 @@ def r_coverage_sheets(c):
         if new and r["new"].strip().lower() == "none":
             problems.append(f"round {r['r']}'s sheet proposes a new cluster ({', '.join(x['id'] for x in new)}), but "
                             "the line says `new clusters: none`")
+        printed, why, _ = render(read(path), r["r"])
+        pasted = next((x for x in texts if re.match(rf"\s*round {r['r']}:", x)), "")
+        head = lambda s: " ".join(s.split("; new clusters:")[0].split())
+        if printed is None:
+            problems.append(f"round {r['r']}'s sheet: {why}")
+        elif head(pasted) != head(printed):
+            problems.append(f"round {r['r']}'s `Coverage test` line differs from its sheet; paste it again from "
+                            f"`python3 tools/coverage.py line {c.topic} {r['r']}`")
     return "; ".join(problems) or None
 
 
@@ -880,11 +899,21 @@ def r_converged(c):
     return None
 
 
-def r_changed_in_coreset(c):
+def r_counted_rows(c):
+    """Every paper a coverage round counted in K is an assigned coreset row, verified from the full text or marked
+    uncheckable: until then, Revise is not done (docs/process.md, step 7)."""
     ids = {i for r in rounds(c) if r for i in r["ids"]}
+    rows = {row_id(l): dict(zip(h, cs)) for h, cs, _, l in c.rows}
     out = sorted(i for i in ids if i not in c.coreset_ids or not c.pool_cluster.get(i))
-    return (f"coverage-test candidates that changed the output but are not assigned coreset rows: {out}; add them, "
-            f"process them as late papers, and give them roles") if out else None
+    unverified = sorted(i for i in ids if i in rows and rows[i].get("source") != "full-text"
+                        and "(uncheckable:" not in rows[i].get("selected because", ""))
+    problems = []
+    if out:
+        problems.append(f"papers a coverage round counted are not yet assigned coreset rows: {out}; Revise gives them "
+                        "roles")
+    if unverified:
+        problems.append(f"papers a coverage round counted are rows not yet verified: {unverified}; Revise verifies them")
+    return "; ".join(problems) or None
 
 
 def r_late_empty(c):
@@ -904,22 +933,24 @@ def r_end_lines(c):
 
 REQUIREMENTS = {
     0: [("g0.entry", r_entry), ("g0.placeholders", r_placeholders), ("g0.labels", r_labels),
-        ("g0.dimensions", r_dimensions), ("g0.preflight", r_preflight)],
+        ("g0.dimensions", r_dimensions), ("g0.preflight", r_preflight),
+        ("g0.halts-waivers", lambda c: need_lines(c, "Halts", "Waivers"))],
     1: [("g1.orientation", r_orientation), ("g1.expansion", r_expansion), ("g1.errored", r_errored),
         ("g1.rejected", r_rejected), ("g1.fetched", r_fetched), ("g1.fringe-collected", r_fringe_collected),
         ("g1.fringe-screened", r_fringe_screened), ("g1.fringe-added", r_fringe_added), ("g1.fringe-line", r_fringe_line),
         ("g1.pool-line", r_pool_line)],
-    2: [("g2.clustered", r_clustered), ("g2.named", r_named), ("g2.written", r_written),
+    2: [("g2.clustered", r_clustered), ("g2.named", r_named), ("g2.central-claim", r_central_claim), ("g2.written", r_written),
         ("g2.lines", r_cluster_lines), ("g2.clustering-line", r_clustering_matches), ("g2.clusters-line", r_clusters_line),
         ("g2.diagnosis-halts", r_diagnosis_halts), ("g2.review", r_review)],
     3: [("g3.roles", r_roles), ("g3.dissent-searched", r_dissent_searched), ("g3.dissent-quoted", r_dissent_quoted),
         ("g3.bridges", r_bridges), ("g3.divided", r_divided), ("g3.fringe-quota", r_fringe_quota), ("g3.cells", r_cells),
         ("g3.assigned", r_assigned), ("g3.dimension-columns", r_dimension_columns)],
     4: [("g4.evidence", r_evidence), ("g4.dissent-evidence", r_dissent_evidence), ("g4.abstract-listed", r_abstract_listed),
-        ("g4.h10", r_h10), ("g4.coreset-line", r_coreset_line)],
+        ("g4.h10", r_h10), ("g4.coreset-line", r_coreset_line),
+        ("g4.counted-rows", r_counted_rows)],
     5: [("g5.output", r_output), ("g5.cite-entries", r_cite_entries), ("g5.coverage", r_coverage),
         ("g5.coverage-sheets", r_coverage_sheets), ("g5.converged", r_converged),
-        ("g5.changed-in-coreset", r_changed_in_coreset), ("g5.late-empty", r_late_empty),
+        ("g5.late-empty", r_late_empty),
         ("g5.judgement-audit", r_judgement_audit), ("g5.end-lines", r_end_lines)],
 }
 

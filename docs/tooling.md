@@ -285,10 +285,14 @@ such distance.
   pool papers drawn at random, with the seed recorded, from the worst-covered quarter of those outside the coreset and
   not sampled in an earlier round. It refuses to redraw a round.
 - `python3 tools/coverage.py judge <topic> <R>` reads `<id><TAB><verdict><TAB><reason>` lines on stdin: `no change`,
-  `changes <target>` or `new cluster`, the target being one of the input's. With `--recency`, each line adds a candidate
-  from the recency query as a row of its own. A bad line refuses the whole batch.
+  `changes <target>` or `new cluster`, the target being one of the input's. A verdict given again replaces the earlier
+  one, and the printout says so. With `--recency`, each line adds a candidate from the recency query as a row of its
+  own, and carries the paper's title as a fourth field. A bad line refuses the whole batch.
+- `python3 tools/coverage.py query <topic> <R> "<query>" "<window>" <n>` records the round's recency query and its
+  number of results in the sheet's header; run again, it replaces it.
 - `python3 tools/coverage.py line <topic> <R>` prints the round's `Coverage test` line, counted from the sheet, and the
-  bound on what the round missed. It refuses while a candidate has no verdict.
+  bound on what the round missed. It refuses while a candidate has no verdict or the recency query is not recorded.
+  `tools/check.py` compares the pasted line with it, for `G5`.
 
 On the gate fixture's 195 papers and 19 rows, `radius --loo` takes about 4 seconds. `tools/check.py` reads the sheets
 for `G5`.
@@ -303,8 +307,9 @@ only.
 - `fill <topic>` reads `<id><TAB><column><TAB><text>` lines on stdin into those cells. The re-verifying agent uses it.
 - `compare <topic>` writes `reverify-compare.md`: each cell beside the survey's, to judge. It refuses while a cell of
   `reverify.md` is empty.
-- `trace <topic> [--n 15] [--seed 1]` draws output sentences that cite a coreset paper, and writes `faithfulness.md`:
-  each sentence, then each cited row's cells and evidence quotes.
+- `trace <topic> [--n 15] [--seed 1]` draws 15 output sentences, or all if there are fewer, that cite a coreset paper
+  outside `Questions` and `Reading`, and writes `faithfulness.md`: each sentence, then each cited row's cells and
+  evidence quotes.
 - `judge <topic> reverify|faithfulness` reads verdicts on stdin:
   `<id><TAB><column><TAB>agree|partly|differ<TAB><reason>` or `S<n><TAB>supported|partly|unsupported<TAB><reason>`.
 - `line <topic>` prints the `Judgement audit` line, once every row of both sheets has a verdict. `tools/check.py`

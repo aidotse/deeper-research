@@ -629,7 +629,8 @@ def main(argv):
         notes += g_notes
         # Only now is every failure known: integrity, gates and history alike.
         if gate and not failures:
-            notes.append(f"{gate} passed: add `{gate} <today>` to the log's `Gates` line")
+            notes.append(f"{gate} passed" + ("" if int(gate[1]) in ctx.declared
+                                              else f": add `{gate} <today>` to the log's `Gates` line"))
     elif gate or status:
         failures.append("gates apply only to surveys in the coreset layout")
 

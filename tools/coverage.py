@@ -8,6 +8,7 @@ Usage:
   uv run tools/coverage.py radius <topic> [--loo]
   uv run tools/coverage.py draw <topic> <R> [--n 10] [--seed <R>]
   python3 tools/coverage.py judge <topic> <R> [--recency] < lines   (one `<id><TAB><verdict><TAB><reason>` per line)
+  python3 tools/coverage.py query <topic> <R> "<the query>" "<the window>" <number of results>
   python3 tools/coverage.py line <topic> <R>
 
 A pool paper's distance from the coreset is 1 minus its similarity to the nearest coreset row, under the clustering's
@@ -26,12 +27,17 @@ gives the paper, how it was drawn, its distance, its nearest coreset row, and em
 header records the date, the seed, the eligible set and the radius. It refuses to overwrite an existing sheet.
 
 `judge` writes verdicts into the sheet from stdin. A verdict is `no change`, `changes <target>` (a target of the input's
-`Coreset Spec`, as tools/inputs.py reads them), or `new cluster`; the reason is one sentence. With --recency, each line
-instead adds a candidate from the fresh recency query, as a row drawn as `recency query`; its ID must be a paper ID
-(docs/formats.md, "Paper IDs"). It refuses the whole batch on any bad line.
+`Coreset Spec`, as tools/inputs.py reads them), or `new cluster`; the reason is one sentence, stating the claim it
+changes. A verdict given again replaces the earlier one, and says so. With --recency, each line instead adds a candidate
+from the fresh recency query, as a row drawn as `recency query`, and carries the paper's title as a fourth field; its ID
+must be a paper ID (docs/formats.md, "Paper IDs"). It refuses the whole batch on any bad line.
 
-`line` prints the round's `Coverage test` line from the sheet, ready to paste: K and N counted by script, each counted
-candidate with its target and reason. It refuses while a row has no verdict. When a row is judged `new cluster`, the
+`query` records the round's fresh recency query in the sheet's header, whether or not it found anything: the query as
+run, its window, and how many results it returned. Run it again to replace it.
+
+`line` prints the round's `Coverage test` line from the sheet, to paste as printed: K and N counted by script, each
+counted candidate with its target and reason. It refuses while a row has no verdict, or the recency query is not
+recorded. tools/gates.py (`g5.coverage-sheets`) compares the pasted line with what `line` prints, up to `new clusters:`. When a row is judged `new cluster`, the
 line ends with a placeholder for the proposed cluster's name, which the main session replaces once the recluster has
 shown whether it formed (docs/process.md, "Returning to step 3"). It also prints the round's one-sided 95% upper bound
 (Clopper-Pearson) on the share of the worst-covered quarter that would change the output, from the drawn rows alone.
@@ -243,16 +249,17 @@ def judge(topic, r, recency):
     path, text = read_sheet(topic, r)
     rows = sheet(text)
     by_id = {row["id"]: row for row in rows}
-    names = None
     given, problems = {}, []
     for k, line in enumerate(sys.stdin, 1):
         if not line.strip():
             continue
-        parts = line.rstrip("\n").split("\t", 2)
-        if len(parts) < 3:
-            problems.append(f"line {k}: expected `<id><TAB><verdict><TAB><reason>`")
+        parts = line.rstrip("\n").split("\t", 3 if recency else 2)
+        if len(parts) < (4 if recency else 3):
+            problems.append(f"line {k}: expected `<id><TAB><verdict><TAB><reason>`"
+                            + ("`<TAB><title>`" if recency else ""))
             continue
         pid, v, reason = parts[0].strip(), cell(parts[1]).lower(), cell(parts[2])
+        title = cell(parts[3]) if recency else None
         m = VERDICT.match(v)
         if recency and not ID.match(pid):
             problems.append(f"line {k}: {pid!r} is not a paper ID (docs/formats.md, \"Paper IDs\"); a candidate "
@@ -268,22 +275,26 @@ def judge(topic, r, recency):
             problems.append(f"line {k}: {m.group(2)!r} is not a target; the targets are {', '.join(targets)}")
         elif not reason or len(reason.split()) < 3:
             problems.append(f"line {k}: {pid} needs a reason of one sentence")
-        elif given.get(pid, (v, reason)) != (v, reason):
+        elif recency and not cell(parts[3]):
+            problems.append(f"line {k}: {pid} needs its title as a fourth field")
+        elif given.get(pid, (v, reason))[:2] != (v, reason):
             problems.append(f"line {k}: {pid} is judged twice, differently")
         else:
             if m.group(2):
                 v = "changes " + next(t for t in targets if t.lower() == m.group(2).lower())
-            given[pid] = (v, reason)
+            given[pid] = (v, reason, title)
     if problems:
         sys.exit("\n".join(problems) + f"\nnothing written: {len(problems)} line(s) wrong")
     if not given:
         sys.exit("no `<id><TAB><verdict><TAB><reason>` lines on stdin; nothing written")
-    for pid, (v, reason) in given.items():
+    replaced = []
+    for pid, (v, reason, title) in given.items():
         if recency:
-            names = names if names is not None else titles(topic)
-            rows.append({"paper": f"[{cell(names.get(pid, pid))}]({link(pid)})", "drawn as": "recency query",
+            rows.append({"paper": f"[{title}]({link(pid)})", "drawn as": "recency query",
                          "distance": "", "nearest row": "", "id": pid})
             by_id[pid] = rows[-1]
+        elif by_id[pid].get("verdict") and (by_id[pid]["verdict"], by_id[pid].get("reason")) != (v, reason):
+            replaced.append(f"{pid} ({by_id[pid]['verdict']} -> {v})")
         by_id[pid]["verdict"], by_id[pid]["reason"] = v, reason
     head = text.split("\n| paper |")[0].rstrip("\n")
     header = "\n".join(head.splitlines()[2:]).strip()
@@ -291,32 +302,61 @@ def judge(topic, r, recency):
     left = [row["id"] for row in rows if not row.get("verdict")]
     print(f"{path.relative_to(ROOT)}: {len(given)} verdict(s) written" + (" (recency-query rows added)" if recency else "")
           + f"; {len(rows)} row(s), {len(left)} still unjudged" + (f": {', '.join(left)}" if left else ""))
+    if replaced:
+        print(f"replaced an earlier verdict: {', '.join(replaced)}; paste the round's line again from "
+              f"`python3 tools/coverage.py line {topic} {r}`")
     return 0
+
+
+RECENCY = re.compile(r"^Recency query: .+$", re.M)
+
+
+def query(topic, r, q, window, n):
+    path, text = read_sheet(topic, r)
+    head, sep, rest = text.partition("\n| paper |")
+    entry = f'Recency query: "{cell(q)}" ({cell(window)}): {n} result(s).'
+    head = RECENCY.sub(entry, head) if RECENCY.search(head) else head.rstrip("\n") + "\n\n" + entry + "\n"
+    path.write_text(head + sep + rest)
+    print(f"{path.relative_to(ROOT)}: {entry}")
+    return 0
+
+
+def render(text, r):
+    """(the `Coverage test` line, the bound sentence, the proposed IDs) of a sheet's text, or (None, why, None)."""
+    rows = sheet(text)
+    left = [row["id"] for row in rows if not row.get("verdict")]
+    if left:
+        return None, f"{len(left)} row(s) without a verdict: {', '.join(left)}", None
+    if not RECENCY.search(text.split("\n| paper |")[0]):
+        return None, "the recency query is not recorded; run `python3 tools/coverage.py query` first", None
+    changed, new = counted(rows)
+    parts = ", ".join(f"{row['id']}: {row['verdict'][8:]}: {row['reason'].replace(';', ',').rstrip('. ')}"
+                      for row in changed)
+    proposed = ", ".join(row["id"] for row in new)
+    text_ = (f"round {r}: {len(changed)} of {len(rows)} sampled candidates changed the output"
+             + (f" ({parts})" if parts else "")
+             + "; new clusters: " + (f"<the proposed cluster, from {proposed}>" if new else "none"))
+    drawn = [row for row in rows if row.get("drawn as") == "worst-covered"]
+    k = sum(1 for row in drawn if row in changed)
+    bound = (f"bound: {k} of the {len(drawn)} drawn candidates changed the output, so at 95% confidence at most "
+             f"{100 * upper_bound(k, len(drawn)):.0f}% of the worst-covered papers would (one-sided Clopper-Pearson)")
+    return text_, bound, proposed
 
 
 def line(topic, r):
     path, text = read_sheet(topic, r)
-    rows = sheet(text)
-    left = [row["id"] for row in rows if not row.get("verdict")]
-    if left:
-        sys.exit(f"{path.relative_to(ROOT)}: {len(left)} row(s) without a verdict: {', '.join(left)}")
-    changed, new = counted(rows)
-    parts = ", ".join(f"{row['id']}: {row['verdict'][8:]}: {row['reason'].replace(';', ',')}" for row in changed)
-    proposed = ", ".join(row["id"] for row in new)
-    print(f"- **Coverage test:** round {r}: {len(changed)} of {len(rows)} sampled candidates changed the output"
-          + (f" ({parts})" if parts else "")
-          + "; new clusters: " + (f"<the proposed cluster, from {proposed}>" if new else "none"))
-    drawn = [row for row in rows if row.get("drawn as") == "worst-covered"]
-    k = sum(1 for row in drawn if row in changed)
-    print(f"\nbound: {k} of the {len(drawn)} drawn candidates changed the output, so at 95% confidence at most "
-          f"{100 * upper_bound(k, len(drawn)):.0f}% of the worst-covered papers would (one-sided Clopper-Pearson)")
-    if new:
+    value, bound, proposed = render(text, r)
+    if value is None:
+        sys.exit(f"{path.relative_to(ROOT)}: {bound}")
+    print(f"- **Coverage test:** {value}")
+    print(f"\n{bound}")
+    if proposed:
         print(f"proposed cluster: {proposed}; replace the placeholder once the recluster shows whether it formed")
     return 0
 
 
 def main(argv):
-    cmds = {"radius": 2, "draw": 3, "judge": 3, "line": 3}
+    cmds = {"radius": 2, "draw": 3, "judge": 3, "line": 3, "query": 6}
     if not argv or argv[0] not in cmds or len([a for a in argv if not a.startswith("--")]) < cmds[argv[0]]:
         print(__doc__.strip())
         return 2
@@ -345,6 +385,11 @@ def main(argv):
             print(__doc__.strip())
             return 2
         return judge(topic, r, "--recency" in rest)
+    if cmd == "query":
+        if len(rest) != 3 or not rest[2].isdigit():
+            usage("query takes the query, the window and the number of results, e.g. "
+                  f"`query {topic} {r} \"reasoning monitors\" \"2026-04-09 to 2026-10-10\" 14`")
+        return query(topic, r, rest[0], rest[1], int(rest[2]))
     if rest:
         usage(f"unknown option(s) {rest}")
     return line(topic, r)

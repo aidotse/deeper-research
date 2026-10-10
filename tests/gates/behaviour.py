@@ -26,7 +26,7 @@ gone_id = chk.row_id(gone)
 O.write_text(O.read_text().replace(gone_id, chk.row_id(first_row("anchor"))))   # the output cites the dropped row
 bib = ROOT / f"bib/{T}.bib"
 bib.write_text("".join(e for e in re.split(r"(?=@misc\{)", bib.read_text()) if f"{{{gone_id.split(':')[-1]}}}" not in e))
-sub(S, "- **Halts:** none", "- **Waivers:** g3.fringe-quota — only four distinct ideas — user agreed, 2026-10-09\n- **Halts:** none")
+sub(S, "- **Waivers:** none", "- **Waivers:** g3.fringe-quota — only four distinct ideas — user agreed, 2026-10-09")
 sub(S, "Coreset:** 19 rows", "Coreset:** 18 rows")
 code, out = run("--gate", "G5")
 check("waived requirement does not fail, is reported, and the gate passes",
@@ -46,7 +46,8 @@ check("pending halt with a dash in what happened: --gate still fails", code == 1
 f = build()
 t = S.read_text()
 for lab in ["Clustering", "Clustering rationale", "Clusters", "Dissent searches", "Coreset",
-            "Demotions", "Late papers", "Coverage test", "Probes", "Corrections to existing rows", "Tokens", "Halts", "Ended"]:
+            "Demotions", "Late papers", "Coverage test", "Judgement audit", "Probes", "Corrections to existing rows", "Tokens",
+            "Ended"]:   # Halts and Waivers stay: they are written at step 0
     t = re.sub(rf"^- \*\*{re.escape(lab)}:\*\*.*\n(?:  .*\n)*", "", t, flags=re.M)
 t = re.sub(r"(## Clusters\n\n)(?:\|.*\n)+", r"\1", t); t = re.sub(r"(## Coreset\n\n)(?:.*\n)*?(?=## Pool)", r"\1", t)
 t = re.sub(r"(\| [^\n]*\]\([^)]*\) \| [^|]* \| )[a-z]+( \|)", r"\1\2", t)
@@ -172,7 +173,7 @@ code, out = run("--gate", "G5")
 check("`rejected: none` in `Expansion` satisfies g1.rejected", code == 0, out)
 
 # 6i a proposed cluster the recluster overruled does not block convergence
-f = build(); sub(S, "new\n  clusters: none", "new\n  clusters: none (proposed agent memory, not formed)")
+f = build(); sub(S, "lacks); new clusters: none", "lacks); new clusters: none (proposed agent memory, not formed)")
 code, out = run("--gate", "G5")
 check("an overruled cluster proposal still converges", code == 0, out)
 
@@ -243,15 +244,26 @@ check("draw writes ten candidates, none from round 1 or the coreset",
 again = subprocess.run(["uv", "run", "-q", "tools/coverage.py", "draw", T, "2"], cwd=ROOT, capture_output=True, text=True)
 check("draw refuses to redraw a round", again.returncode == 1 and "drawn once" in again.stderr, again.stderr)
 r = uv("judge", T, "2", stdin="".join(f"{p}\tno change\tits nearest row already says it\n" for p in drawn))
-line = subprocess.run(["python3", "tools/coverage.py", "line", T, "2"], cwd=ROOT, capture_output=True, text=True).stdout
+cov = lambda *a, stdin=None: subprocess.run(["python3", "tools/coverage.py", *a], cwd=ROOT, capture_output=True,
+                                            text=True, input=stdin)
+r = cov("line", T, "2")
+check("line refuses until the recency query is recorded", r.returncode == 1 and "recency query" in r.stderr, r.stderr)
+cov("query", T, "2", "reasoning models", "2026-04-09 to 2026-10-10", "0")
+line = cov("line", T, "2").stdout
 check("line counts the sheet", "round 2: 0 of 10 sampled candidates changed the output; new clusters: none" in line
       and "at most 26%" in line, line)
-sub(S, "  clusters: none\n", "  clusters: none\n" + line.splitlines()[0] + "\n")
+sub(S, "lacks); new clusters: none\n", "lacks); new clusters: none\n" + line.splitlines()[0] + "\n")
 code, out = run("--gate", "G5")
 check("a round pasted from its sheet passes G5", code == 0, out)
 r = subprocess.run(["python3", "tools/coverage.py", "judge", T, "2"], cwd=ROOT, capture_output=True, text=True,
                    input="2401.00001\tchanges Landscape\tnot on the sheet at all\n")
 check("judge refuses a paper not on the sheet, writing nothing", r.returncode == 1 and "nothing written" in r.stderr,
       r.stderr)
+r = cov("judge", T, "2", stdin=f"{drawn[0]}\tchanges Gaps\tit opens a gap on monitoring the output lacks\n")
+check("judge says when it replaces a verdict", r.returncode == 0 and "replaced an earlier verdict" in r.stdout, r.stdout)
+code, out = run("--gate", "G5")
+check("G5 fails until the pasted line matches the sheet again", code == 1 and "differs from its sheet" in out, out[-600:])
+r = cov("judge", T, "2", "--recency", stdin="2609.31121\tno change\tit restates what the output says\n")
+check("a recency candidate needs its title", r.returncode == 1 and "title" in r.stderr, r.stderr)
 print(f"\n{sum(res)} of {len(res)} behaviours as expected")
 sys.exit(0 if all(res) else 1)

@@ -331,7 +331,8 @@ method.
 Status, 2026-10-10: done. TODO 1, `T2`, `T3`, `T4`, `T6`, the tool half of `A3` and `R4` are in, per ID in
 `.audits/2026-10-09/disposition.md`. `R4` decided the reading method: the section reader alone, plus a step for
 appendices; no locator. A blind simulation of step 7 to `G5` on the gate fixture finished the pass and found 21 issues
-(`P15`–`P35`, none blocking), recorded in the disposition and not yet fixed.
+(`P15`–`P35`, none blocking), recorded in the disposition. By the user's decision they were fixed without simulating
+again, Revise being simplified rather than patched; Phase 5's smoke pass is their test.
 
 ## Phase 5: the runs
 
@@ -344,6 +345,17 @@ appendices; no locator. A blind simulation of step 7 to `G5` on the gate fixture
    rate, the `T2` faithfulness sample, and the coverage radius with each coverage round.
 
 In both runs, measure verification tokens per row (`R6`), and run the batch fetch before verification (`R1`).
+
+Record what the runs find in `.audits/2026-10-09/disposition.md`, as for Phases 3 and 4: every spec bug, improvisation,
+tool failure or surprise as a `P` item defined at the top, with its tag and suggested fix; and every measurement (`R6`,
+the `T3` agreement rate, the `T2` faithfulness rate, the coverage radius per round) in the entry of the ID it measures,
+with what it implies for the estimates in the spec.
+
+Replicating `R4` (proposed, 2026-10-10). `R4`'s recall figures rest on a reference reading of 8 papers. In the rerun,
+the main session reads the full texts of about 8 more coreset rows, chosen at random and on a different topic's papers,
+records its findings before opening their evidence files, and scores the Verification agents' rows against them, as in
+`graphs/reasoning-legacy/r4/compare.md`. This tests the production method (with its new appendix step) rather than the
+experiment's arm `A`, and doubles the reference sample. About 250k tokens of the main session's reading.
 
 ## After the run
 
@@ -381,7 +393,7 @@ run shows.
 | `T2`, `T3`, `T4`, `T6`, `R4`; tools for `A3` | Phase 4 |
 | `R1` | Phase 3 (the step-5 row), used in Phase 5 |
 | `P1`–`P14` (found by Phase 3's tabletops; defined in the disposition) | Phase 3 |
-| `P15`–`P35` (found by Phase 4's simulation; defined in the disposition) | open: fix and simulate again, or the first run |
+| `P15`–`P35` (found by Phase 4's simulation; defined in the disposition) | Phase 4 |
 | `R6` | Phase 5 |
 | `R5` | after the run, if needed |
 | `Z1` | the plan as a whole; `T7` after the run |

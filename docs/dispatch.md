@@ -144,9 +144,9 @@ Read the survey itself one section at a time, with `python3 tools/check.py <topi
   its parts of `Dissent searches` and `Demotions`, and under `Open work:`, its empty roles and its new rows, for
   `Rows needing verification`; and, under `For the pool:`, dissent papers it found outside the pool, which the main
   session adds and assigns before dispatching Selection again for their cluster.
-  - Read: `docs/process.md`, "Step 4: select" and "Sizing", and on a later pass "Rules for re-runs"; `docs/formats.md`,
-    "3. Coreset", "1. Retrieval log" and "5. Open work"; `docs/external_services.md`, "Tools, and when to use each" and
-    "Rate limits and errors".
+  - Read: `docs/process.md`, "Step 4: select" and "Sizing", on a later pass "Rules for re-runs", and in Revise "Step 7:
+    the coverage test"; `docs/formats.md`, "3. Coreset", "1. Retrieval log" and "5. Open work";
+    `docs/external_services.md`, "Tools, and when to use each" and "Rate limits and errors".
 - **Bridges** (step 4), once, after selection, and only if `tools/check.py` notes a pair of clusters that trade papers
   without a bridge. Hand over: those pairs; the log's `Dimensions` line. Writes: `bridge:` rows; Open work: their
   `Rows needing verification`, and an `Empty roles` entry for a pair left without a bridge. Returns: pairs left without
@@ -160,20 +160,22 @@ Read the survey itself one section at a time, with `python3 tools/check.py <topi
   - Read: `docs/process.md`, "Step 4: select" and "The fringe score"; `docs/formats.md`, "3. Coreset" and "5. Open
     work"; `docs/external_services.md`, "Tools, and when to use each".
 - **Verification** (step 5), one agent per block of clusters, in parallel. Hand over: the block's cluster ids, and which
-  rows: all, or only those still `abstract`; the papers the batch fetch could not fetch; the log's `Dimensions` line.
-  The agent follows `docs/verification.md`, reading the fetched full texts through `tools/fulltext.py show`; it does not
-  fetch. Writes: the rows' cells and `source`, and each row's evidence file. Returns, under `Log:`, its
-  `Corrections to existing rows`, and under `Open work:`, its rows still needing verification, with why; and the
-  uncheckable rows, for the main session to offer their roles to Selection.
+  rows: all, or only those still `abstract` (in step 7's Revise, the new rows and any row still `abstract` whose full
+  text the fetch now finds); the papers the batch fetch could not fetch; the log's `Dimensions` line. The agent follows
+  `docs/verification.md`, reading the fetched full texts through `tools/fulltext.py show`; it does not fetch. Writes:
+  the rows' cells and `source`, and each row's evidence file. Returns, under `Log:`, its `Corrections to existing rows`,
+  and under `Open work:`, its rows still needing verification, with why; and the uncheckable rows, for the main session
+  to offer their roles to Selection.
   - Read: `docs/verification.md`, "Verification"; `docs/tooling.md`, "Full text"; `docs/formats.md`, "3. Coreset", "1.
     Retrieval log" and "5. Open work"; `docs/external_services.md`, "Tools, and when to use each".
 - **Coverage test** (step 7), once per round. Hand over: the round's number; the path of `coverage-<R>.md`, which
-  `tools/coverage.py draw` has written; the recency window for the fresh query. The agent adds up to five candidates
-  from the recency query, judges every candidate against the output, records the verdicts with
-  `tools/coverage.py judge`, and adds every candidate that changed a target, or belongs to a proposed cluster, with
-  `tools/assign.py add`. Writes: the sheet's verdicts and recency rows; Pool rows; `Coverage test`, as
-  `tools/coverage.py line` prints it. Returns: each proposed new cluster, with its region, for a targeted expansion; the
-  bound the line's printout gives.
+  `tools/coverage.py draw` has written; the pass's `Recency window`, which the fresh query extends to today. The agent
+  runs the recency query and records it with `tools/coverage.py query`, whatever it found; adds up to five of its
+  candidates with `tools/coverage.py judge --recency`, each with its title; judges every candidate against the output
+  with `tools/coverage.py judge`; and adds every recency candidate that changed a target, or belongs to a proposed
+  cluster, with `tools/assign.py add` (drawn candidates are pool papers already). Writes: the sheet's verdicts, recency
+  rows and query; Pool rows; `Coverage test`, pasted as `tools/coverage.py line` prints it. Returns: each proposed new
+  cluster, with its region, for a targeted expansion; the bound the line's printout gives.
   - Read: `docs/process.md`, "Step 7: the coverage test", "Screening for scope" and "Late papers"; `docs/formats.md`,
     "`Coreset Spec`", "1. Retrieval log" and "The coverage sheet"; `docs/external_services.md`, "WebSearch and
     WebFetch", "Tools, and when to use each" and "Rate limits and errors"; `docs/tooling.md`, "Pool table" and
