@@ -86,11 +86,11 @@ place them.
   the full text by `check.py`, so a hallucinated location fails the gate. It is not safe for recall, which is what the
   experiment measures.
 
-  One constraint to settle first: whether a `survey-pass` agent can dispatch a locator subagent itself. If it cannot
-  (`UNVERIFIED`: Claude Code subagents are believed unable to spawn subagents), `B` runs as either:
-
-  - a locator dispatched by the main session per paper, before verification; or
-  - a script that calls a cheap model headlessly.
+  It runs outside the pass loop, so the dispatch rules of a pass do not bind it, and agent nesting does not matter
+  (user, 2026-10-10). The main session orchestrates: it dispatches cheap-model locator agents (arm `B`) and strong
+  agents (arms `A` and `B`) on the papers, does the reference reading of arm `C` on the subsample itself, and compares.
+  To keep the reference honest, do arm `C` before reading the outputs of `A` and `B`, and record its findings first. If
+  the locator is adopted, how a pass would call it is settled afterwards.
 
   The cost of `B` also needs current per-model pricing, which this plan does not assume.
 
