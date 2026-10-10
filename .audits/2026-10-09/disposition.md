@@ -1,7 +1,7 @@
 # Disposition of the audit of 2026-10-09
 
-What happened to each finding of `.audits/2026-10-09-docs-full-spec.md`, by ID. The plan,
-`.audits/2026-10-09-remediation-plan.md`, says what is done in what order. This file says what was actually done, and it
+What happened to each finding of `.audits/2026-10-09/docs-full-spec.md`, by ID. The plan,
+`.audits/2026-10-09/remediation-plan.md`, says what is done in what order. This file says what was actually done, and it
 is the place to look when auditing a run.
 
 Each entry gives:

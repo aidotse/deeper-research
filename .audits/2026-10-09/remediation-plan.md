@@ -1,8 +1,8 @@
 # Remediation plan for the audit of 2026-10-09
 
-This plan is for the findings in `.audits/2026-10-09-docs-full-spec.md`. The IDs (`C1`, `M4`, …) are that audit's, and
+This plan is for the findings in `.audits/2026-10-09/docs-full-spec.md`. The IDs (`C1`, `M4`, …) are that audit's, and
 each issue's evidence, rationale and remediation are there. This file says only what is done, in what order, and why in
-that order. What was actually done, per ID, is in `.audits/2026-10-09-disposition.md`.
+that order. What was actually done, per ID, is in `.audits/2026-10-09/disposition.md`.
 
 ## Principles
 
@@ -116,7 +116,7 @@ place them.
   `check.py reasoning-legacy` exits 0.
 
 Status, 2026-10-09: done. What was done, per ID, with its judgement calls and caveats, is in
-`.audits/2026-10-09-disposition.md`.
+`.audits/2026-10-09/disposition.md`.
 
 ## Phase 1: simplify
 
@@ -147,7 +147,7 @@ Done when: the test suites pass; `check.py reasoning` still exits 0 on the legac
 scratch copy of `reasoning` still chooses about 6 clusters.
 
 Status, 2026-10-09: done. What was done, per ID, with its judgement calls and caveats, is in
-`.audits/2026-10-09-disposition.md`.
+`.audits/2026-10-09/disposition.md`.
 
 ## Phase 2: correctness, by file group
 
@@ -221,7 +221,7 @@ Done when, for the whole phase: every finding above is fixed with a test where o
 correctly.
 
 Status, 2026-10-10: done. What was done, per ID, with its judgement calls and caveats, is in
-`.audits/2026-10-09-disposition.md`.
+`.audits/2026-10-09/disposition.md`.
 
 ## Phase 3: spec coherence
 
