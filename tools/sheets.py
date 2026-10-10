@@ -32,6 +32,11 @@ def main(argv):
         return 2
     topic = argv[0]
     d = topic_dir(topic)
+    for path, then in ((ROOT / "surveys" / f"{topic}.md", "steps 0-2 of docs/process.md"),
+                       (d / "pool.json", f"`python3 tools/pool.py {topic}`"),
+                       (d / "clusters.json", f"`uv run tools/cluster.py {topic}`")):
+        if not path.exists():
+            sys.exit(f"no {path.relative_to(ROOT)}; run {then} first")
     report = json.loads((d / "clusters.json").read_text())
     cache = json.loads((d / "pool.json").read_text())["papers"]
     papers = parse(topic)[4]

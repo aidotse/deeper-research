@@ -14,8 +14,10 @@ are never filled by hand. `cites` lists the other pool papers each paper cites. 
 is left untouched.
 
 Each record also keeps the paper's arXiv ID where Semantic Scholar knows it, from `externalIds` or an open-access PDF
-on arXiv, which tools/check.py uses to catch a CorpusId row for a paper that has an arXiv ID. It ends by printing the
-retrieval log's `Pool` line.
+on arXiv, which tools/check.py uses to catch a CorpusId row for a paper that has an arXiv ID. A record fetched before
+it kept the arXiv ID has no `arxiv` key; each run backfills that key and `corpus` for such records, by one light call
+per 100 papers, and leaves the rest of the record, and its fetch date, as it was. It ends by printing the retrieval
+log's `Pool` line: the papers in scope, how many of them have an arXiv ID, and the fetch dates.
 
 This runs outside any model's context, so it costs no tokens.
 
@@ -26,12 +28,13 @@ import json
 import sys
 import time
 
-from check import LINK, ROOT, arxiv_of, cells_of, s2_ref
+from check import ARXIV_ONLY, LINK, ROOT, arxiv_of, cells_of, s2_ref, sections
 from graph import parse, topic_dir
 from net import get_json
 
 FIELDS = "externalIds,openAccessPdf,publicationDate,year,citationCount,referenceCount,references.paperId,embedding.specter_v2"
 S2_BATCH = f"https://api.semanticscholar.org/graph/v1/paper/batch?fields={FIELDS}"
+S2_IDS = "https://api.semanticscholar.org/graph/v1/paper/batch?fields=externalIds,openAccessPdf"
 
 
 def fetch(ids, save):
@@ -59,6 +62,23 @@ def fetch(ids, save):
                 "embedding": [round(v, 5) for v in emb.get("vector") or []],
                 "fetched": today,
             }
+        save(out)
+        print(f"  {min(i + 100, len(ids))}/{len(ids)}")
+
+
+def backfill(ids, records, save):
+    """Add `arxiv` and `corpus` to records fetched before they were kept, changing nothing else: the citations,
+    references and embedding stay those the clustering was computed from. A paper Semantic Scholar does not return is
+    left without the key, to be tried again on the next run."""
+    for i in range(0, len(ids), 100):
+        batch = ids[i : i + 100]
+        out = {}
+        for aid, rec in zip(batch, get_json(S2_IDS, {"ids": [s2_ref(a) for a in batch]})):
+            if rec is None:
+                continue
+            ext = rec.get("externalIds") or {}
+            corpus = f"CorpusId:{ext['CorpusId']}" if ext.get("CorpusId") else None
+            out[aid] = dict(records[aid], arxiv=arxiv_of(rec), corpus=records[aid].get("corpus") or corpus)
         save(out)
         print(f"  {min(i + 100, len(ids))}/{len(ids)}")
 
@@ -111,9 +131,16 @@ def fill_pool(topic, records):
 
 
 def main(argv):
-    if not argv or argv[0].startswith("-"):
-        sys.exit(__doc__)
+    if not argv or argv[0].startswith("-") or any(a != "--refresh" for a in argv[1:]):
+        print(__doc__.strip())
+        return 2
     topic, refresh = argv[0], "--refresh" in argv
+    survey = ROOT / "surveys" / f"{topic}.md"
+    if not survey.exists():
+        sys.exit(f"surveys/{topic}.md does not exist; write it first, with its five section headings (docs/process.md, "
+                 "step 0), and add the pool's papers with `python3 tools/assign.py add`")
+    if "Coreset" not in sections(survey.read_text()):
+        sys.exit(f"surveys/{topic}.md has no `## Coreset` section; add the five section headings first (docs/formats.md)")
     papers = parse(topic)[4]
     path = topic_dir(topic) / "pool.json"
     cache = {} if refresh or not path.exists() else json.loads(path.read_text())
@@ -134,6 +161,10 @@ def main(argv):
         fetch(missing, save)
     elif old:
         save({})
+    stale = sorted(a for a in papers if a in records and "arxiv" not in records[a])
+    if stale:
+        print(f"backfilling the arXiv ID of {len(stale)} record(s) fetched before it was kept...")
+        backfill(stale, records, save)
     unresolved = sorted(a for a in papers if a not in records)
     no_emb = sorted(a for a in papers if a in records and not records[a]["embedding"])
     short = sum(1 for a in papers if a in records and len(records[a]["refs"]) < 10)
@@ -145,9 +176,12 @@ def main(argv):
     filled = fill_pool(topic, records)
     print("no Pool table (legacy survey); survey left untouched" if filled is None
           else f"Pool table: {filled} row(s) updated (citations as of {when})")
+    # A paper has an arXiv ID if its canonical ID is one, or, for a CorpusId row, if its record knows one.
+    on_arxiv = sum(1 for a in papers if ARXIV_ONLY.match(a) or (records.get(a) or {}).get("arxiv"))
     print("\nlog line:")
-    print(f"- **Pool:** {len(papers)} papers in scope; metadata fetched {when}")
+    print(f"- **Pool:** {len(papers)} papers in scope, {on_arxiv} with an arXiv ID; metadata fetched {when}")
+    return 0
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    sys.exit(main(sys.argv[1:]))

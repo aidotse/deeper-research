@@ -21,7 +21,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from check import ARXIV_ID, LINK, ROOT, bib_ids, link, sections  # noqa: E402
+from check import ARXIV_ID, ROOT, bib_ids, link, row_id, sections, table_rows  # noqa: E402
 from net import TRANSIENT, get_json, request  # noqa: E402
 
 API = "https://export.arxiv.org/api/query?max_results=100&id_list="
@@ -32,9 +32,16 @@ STOP = {"a", "an", "the", "on", "of", "in", "for", "to", "and", "is", "are", "do
 def survey_ids(topic):
     # The bib covers the coreset only, so read the Coreset section and not
     # the pool below it. Preserve table order, so the bib reads in the
-    # same order as the survey.
-    table = sections((ROOT / "surveys" / f"{topic}.md").read_text())["Coreset"]
-    return list(dict.fromkeys(LINK.findall(table)))
+    # same order as the survey. A row's ID is its first link, as tools/check.py reads it; a later link in the row, say
+    # to a paper it cites, is not a coreset paper.
+    path = ROOT / "surveys" / f"{topic}.md"
+    if not path.exists():
+        sys.exit(f"surveys/{topic}.md does not exist; there is no coreset to write a bib for")
+    secs = sections(path.read_text())
+    if "Coreset" not in secs:
+        sys.exit(f"surveys/{topic}.md has no `## Coreset` section; add the five section headings first (docs/formats.md)")
+    return list(dict.fromkeys(row_id(l) for h, _, _, l in table_rows(secs["Coreset"])
+                              if h and h[0] == "paper" and row_id(l)))
 
 
 def existing_entries(path):

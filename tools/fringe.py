@@ -6,10 +6,12 @@
 
 Usage:
   uv run tools/fringe.py collect <topic> [--per-route 60]
+  python3 tools/fringe.py judge <topic> < lines        (one `<s2><TAB>yes|no|maybe<TAB><reason>` per line)
   uv run tools/fringe.py analyse <topic> [--level 6]
 
 `collect` gathers candidates outside the pool by the two routes of docs/process.md, "Fringe routes", by script and at
-no model cost. It needs the pool sidecar (tools/pool.py) and the survey's retrieval log, not a clustering.
+no model cost. It needs the pool sidecar (tools/pool.py) and the survey's retrieval log, not a clustering. A paper
+already recorded as out of scope in graphs/<topic>/rejected.md (tools/assign.py reject) is not collected again.
 
   hidden     cited by at least two pool papers, at least a year old, and the least cited overall for its age
   new        Semantic Scholar recommendations (POST /recommendations/v1/papers, positivePaperIds) from one seed set;
@@ -29,9 +31,15 @@ The route keeps the first --per-route recommendations not already in the pool.
 A third route, `followers` (low-cited citers of each cluster's most-cited paper), was tested and dropped.
 
 It fetches their metadata, references and embeddings into graphs/<topic>/fringe.json, and writes a blind screening
-sheet, graphs/<topic>/fringe-screen.md: titles and abstracts in shuffled order, without the route, for an agent to
-mark in or out of scope. A rerun keeps the judgements already on the sheet. Each candidate records its arXiv ID or,
-failing that, its CorpusId; tools/assign.py add-fringe then adds the in-scope ones to the pool.
+sheet, graphs/<topic>/fringe-screen.md: titles and abstracts in shuffled order, without the route and without the
+year, which would give the route away (`new` finds only recent work), for an agent to mark in or out of scope. A rerun
+keeps the judgements already on the sheet. Each candidate records its arXiv ID or, failing that, its CorpusId;
+tools/assign.py add-fringe then adds the in-scope ones to the pool.
+
+`judge` writes screening verdicts into the sheet's `in scope` and `reason` cells, from stdin, so that an agent need not
+edit the rows by hand. It refuses the whole batch if any line names an s2 ID not on the sheet, gives a verdict other
+than yes, no or maybe, or has no reason. A `maybe` is a reminder to come back: until it is resolved to yes or no, the
+row counts as unjudged, for tools/assign.py add-fringe and for the G1 gate alike.
 
 `analyse` adds the in-scope candidates to the pool and reclusters with the chosen measure. Per route, it reports how
 consistently papers keep their cluster-mates across reruns, how close they sit to their nearest neighbours, and whether
@@ -48,7 +56,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
-from check import BARE_ID, sections  # noqa: E402
+from assign import rejected  # noqa: E402
+from check import BARE_ID, cells_of, sections  # noqa: E402
 from graph import parse, topic_dir  # noqa: E402
 from net import get_json  # noqa: E402
 
@@ -56,6 +65,34 @@ API = "https://api.semanticscholar.org"
 FIELDS = ("title,abstract,externalIds,publicationDate,year,citationCount,referenceCount,references.paperId,"
           "embedding.specter_v2")
 CITED_SEEDS = 10  # the most-cited pool papers added to the frontier candidates as seeds for the `new` route
+VERDICTS = ("yes", "no", "maybe")
+S2_ID = re.compile(r"[0-9a-f]{40}")
+
+
+def need(path, then):
+    """Exit with what to run first, if `path` is missing."""
+    if not path.exists():
+        sys.exit(f"no {path.relative_to(ROOT)}; run {then} first")
+
+
+def sheet_rows(text):
+    """(line index, header, cells) for each candidate row of a screening sheet, located by header name, so that sheets
+    written before the `year` column was dropped read the same."""
+    header, out = None, []
+    for i, line in enumerate(text.splitlines()):
+        if not line.startswith("|"):
+            header = None
+        elif header is None:
+            header = cells_of(line)
+        elif not line.startswith("| --"):
+            cells = cells_of(line)
+            if header[0] == "s2" and S2_ID.fullmatch(cells[0]) and len(cells) >= len(header):
+                out.append((i, header, cells))
+    return out
+
+
+def verdict(header, cells):
+    return cells[header.index("in scope")], cells[header.index("reason")]
 
 
 def call(url, body=None):
@@ -119,10 +156,19 @@ def new_route_seeds(topic, pool):
 
 def collect(topic, per_route):
     d = topic_dir(topic)
+    need(ROOT / "surveys" / f"{topic}.md", "steps 0 and 1 of docs/process.md")
+    need(d / "pool.json", f"`python3 tools/pool.py {topic}`")
     pool = json.loads((d / "pool.json").read_text())["papers"]
     in_pool = {r["s2"] for r in pool.values()}
-    latest = max(date.fromisoformat(r["date"]) for r in pool.values() if r.get("date"))
+    dated = [date.fromisoformat(r["date"]) for r in pool.values() if r.get("date")]
+    if not dated:
+        sys.exit(f"no pool paper in pool.json has a publication date; run `python3 tools/pool.py {topic}` first")
+    latest = max(dated)
     routes = {}
+    # A paper screened out earlier is not collected again, so that it cannot get a second, opposite verdict.
+    rej = set(rejected(topic))
+    is_rejected = lambda m: bool({m.get("arxiv"), m.get("corpus")} & rej)
+    excluded = {}
 
     # hidden: references the pool cites repeatedly, but the wider literature does not.
     counts = {}
@@ -134,6 +180,8 @@ def collect(topic, per_route):
     print(f"hidden: {len(multi)} out-of-pool references cited by >= 2 pool papers; fetching...")
     meta = fetch_s2(multi)
     old = [m for m in meta.values() if (age_years(m, latest) or 0) >= 1]
+    excluded["hidden"] = sum(1 for m in old if is_rejected(m))
+    old = [m for m in old if not is_rejected(m)]
     old.sort(key=lambda m: (rate(m, latest), -counts[m["s2"]]))
     routes["hidden"] = [m["s2"] for m in old[:per_route]]
 
@@ -149,9 +197,17 @@ def collect(topic, per_route):
     print(f"new: seeded from {len(frontier)} frontier candidate(s) ({', '.join(frontier) or 'none'}) and the "
           f"{len(cited)} most-cited pool papers ({', '.join(f'{a} ({indeg[a]})' for a in cited)})")
     pos = [pool[a]["s2"] for a in frontier + cited]
-    recs = call(f"{API}/recommendations/v1/papers?fields=paperId&limit={min(500, 2 * per_route)}",
+    recs = call(f"{API}/recommendations/v1/papers?fields=paperId,externalIds&limit={min(500, 2 * per_route)}",
                 {"positivePaperIds": pos})
-    new = [p["paperId"] for p in recs["recommendedPapers"] if p["paperId"] not in in_pool]
+    new = []
+    for p in recs["recommendedPapers"]:
+        ext = p.get("externalIds") or {}
+        if p["paperId"] in in_pool:
+            continue
+        if is_rejected({"arxiv": ext.get("ArXiv"), "corpus": f"CorpusId:{ext['CorpusId']}" if ext.get("CorpusId") else None}):
+            excluded["new"] = excluded.get("new", 0) + 1
+            continue
+        new.append(p["paperId"])
     routes["new"] = list(dict.fromkeys(new))[:per_route]
     seeds = {"frontier": frontier, "cited": cited, "frontier_missing": missing}
 
@@ -160,7 +216,10 @@ def collect(topic, per_route):
     cands = {}
     for route, ids in routes.items():
         for x in ids:
-            if x in meta:
+            # Again on the fetched record, in case a recommendation came back without its external IDs.
+            if x in meta and is_rejected(meta[x]):
+                excluded[route] = excluded.get(route, 0) + 1
+            elif x in meta:
                 m = cands.setdefault(x, dict(meta[x], routes=[]))
                 m["routes"].append(route)
                 if route == "hidden":
@@ -168,23 +227,25 @@ def collect(topic, per_route):
     (d / "fringe.json").write_text(json.dumps({"collected": time.strftime("%Y-%m-%d"), "routes": routes,
                                                 "new_seeds": seeds, "candidates": cands}, separators=(",", ":")))
 
-    # Blind screening sheet: shuffled, no route, no citation counts. Judgements already on the sheet, from an earlier
-    # collect, are carried over, so a rerun never erases screening work.
+    # Blind screening sheet: shuffled, no route, no year (the `new` route finds only recent work), no citation counts.
+    # Judgements already on the sheet, from an earlier collect, are carried over, so a rerun never erases screening work.
     earlier = {}
     if (d / "fringe-screen.md").exists():
-        for line in (d / "fringe-screen.md").read_text().splitlines():
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            if len(cells) >= 6 and re.fullmatch(r"[0-9a-f]{40}", cells[0]) and cells[4]:
-                earlier[cells[0]] = (cells[4], cells[5])
+        for _, h, cells in sheet_rows((d / "fringe-screen.md").read_text()):
+            if verdict(h, cells)[0]:
+                earlier[cells[0]] = tuple(c.replace("\0", "/") for c in verdict(h, cells))
     order = sorted(cands)
     random.Random(0).shuffle(order)
-    clean = lambda s: re.sub(r"\s+", " ", s).replace("|", "/").strip()
-    rows = [f"| {x} | {clean(cands[x]['title'])} | {cands[x]['year'] or ''} | {clean(cands[x]['abstract'])[:700] or '(no abstract)'} | "
+    rows = [f"| {x} | {clean(cands[x]['title'])} | {clean(cands[x]['abstract'])[:700] or '(no abstract)'} | "
             f"{' | '.join(earlier.get(x, ('', '')))} |" for x in order]
     (d / "fringe-screen.md").write_text(
         "# Fringe screening sheet\n\n"
-        f"Candidates for `{topic}`, in shuffled order. Mark `in scope` as `yes` or `no`, with a short reason.\n\n"
-        "| s2 | title | year | abstract | in scope | reason |\n| -- | -- | -- | -- | -- | -- |\n" + "\n".join(rows) + "\n")
+        f"Candidates for `{topic}`, in shuffled order. Mark `in scope` as `yes` or `no`, with a short reason "
+        f"(`python3 tools/fringe.py judge {topic}`).\n\n"
+        "| s2 | title | abstract | in scope | reason |\n| -- | -- | -- | -- | -- |\n" + "\n".join(rows) + "\n")
+    if any(excluded.values()):
+        print(f"left out as already rejected (graphs/{topic}/rejected.md): "
+              + ", ".join(f"{r} {excluded.get(r, 0)}" for r in routes))
     for route, ids in routes.items():
         got = [cands[x] for x in ids if x in cands]
         print(f"{route:9} {len(got):3} candidates; median citations {sorted(m['citations'] for m in got)[len(got) // 2] if got else '-'}; "
@@ -193,24 +254,87 @@ def collect(topic, per_route):
           f"({len(cands)} unique candidates; {sum(x in earlier for x in cands)} already judged, carried over)")
 
 
+def clean(s):
+    return re.sub(r"\s+", " ", s).replace("|", "/").strip()
+
+
+def judge(topic):
+    d = topic_dir(topic)
+    path = d / "fringe-screen.md"
+    need(path, f"`uv run tools/fringe.py collect {topic}`")
+    lines = path.read_text().splitlines()
+    rows = {cells[0]: (i, h, cells) for i, h, cells in sheet_rows("\n".join(lines))}
+    # Check every line before writing any, so that a batch is written whole or not at all.
+    given, problems = {}, []
+    for n, line in enumerate(sys.stdin, 1):
+        if not line.strip():
+            continue
+        parts = line.rstrip("\n").split("\t", 2)
+        if len(parts) < 3:
+            problems.append(f"line {n}: expected `<s2><TAB>yes|no|maybe<TAB><reason>`")
+            continue
+        s, v, reason = parts[0].strip(), parts[1].strip().lower(), clean(parts[2])
+        if s not in rows:
+            problems.append(f"line {n}: {s!r} is not an s2 ID on the sheet")
+        elif v not in VERDICTS:
+            problems.append(f"line {n}: verdict {parts[1].strip()!r} is not one of {', '.join(VERDICTS)}")
+        elif not reason:
+            problems.append(f"line {n}: {s} has no reason")
+        elif given.get(s, (v, reason)) != (v, reason):
+            problems.append(f"line {n}: {s} is judged twice, differently")
+        else:
+            given[s] = (v, reason)
+    if problems:
+        sys.exit("\n".join(problems) + f"\nnothing written: {len(problems)} line(s) wrong")
+    if not given:
+        sys.exit("no `<s2><TAB>yes|no|maybe<TAB><reason>` lines on stdin; nothing written")
+    written, replaced = 0, 0
+    for s, (v, reason) in given.items():
+        i, h, cells = rows[s]
+        before = verdict(h, cells)
+        if before == (v, reason):
+            continue
+        replaced += bool(before[0])
+        cells[h.index("in scope")], cells[h.index("reason")] = v, reason
+        lines[i] = "| " + " | ".join(c.replace("\0", "\\|") for c in cells) + " |"
+        written += 1
+    if written:
+        path.write_text("\n".join(lines) + "\n")
+    counts = {x: sum(1 for v, _ in given.values() if v == x) for x in VERDICTS}
+    final = [verdict(h, cells)[0].lower() for _, h, cells in sheet_rows("\n".join(lines))]
+    open_ = sum(1 for v in final if not (v.startswith("yes") or v.startswith("no")))
+    print(f"{path.relative_to(ROOT)}: {len(given)} verdict(s) read ({', '.join(f'{x} {k}' for x, k in counts.items())}); "
+          f"{written} row(s) written, of which {replaced} replaced an earlier verdict; {len(given) - written} unchanged")
+    print(f"still unjudged: {open_} of {len(final)} candidate(s)"
+          + (f", including {sum(1 for v in final if v == 'maybe')} `maybe`: resolve each to yes or no before "
+             f"`python3 tools/assign.py add-fringe {topic}`" if "maybe" in final else ""))
+    return 0
+
+
 def main(argv):
-    if len(argv) < 2 or argv[0] not in ("collect", "analyse"):
-        sys.exit(__doc__)
-    per_route = int(argv[argv.index("--per-route") + 1]) if "--per-route" in argv else 60
+    flags = {"--per-route": int, "--level": int}
+    try:
+        opts = {argv[i]: flags[argv[i]](argv[i + 1]) for i in range(2, len(argv), 2)}
+    except (KeyError, IndexError, ValueError):
+        opts = None
+    if (len(argv) < 2 or argv[0] not in ("collect", "judge", "analyse") or opts is None
+            or (argv[0] == "judge" and (opts or sys.stdin.isatty()))):
+        print(__doc__.strip())
+        return 2
     if argv[0] == "collect":
-        collect(argv[1], per_route)
+        collect(argv[1], opts.get("--per-route", 60))
+    elif argv[0] == "judge":
+        return judge(argv[1])
     else:
-        analyse(argv[1], int(argv[argv.index("--level") + 1]) if "--level" in argv else None)
+        analyse(argv[1], opts.get("--level"))
+    return 0
 
 
 def screened(d):
     """In-scope s2 ids from the screening sheet, and the count of rows still unscreened."""
     keep, blank = set(), 0
-    for line in (d / "fringe-screen.md").read_text().splitlines():
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) < 6 or not re.fullmatch(r"[0-9a-f]{40}", cells[0]):
-            continue
-        v = cells[4].lower()
+    for _, h, cells in sheet_rows((d / "fringe-screen.md").read_text()):
+        v = verdict(h, cells)[0].lower()
         if v.startswith("yes"):
             keep.add(cells[0])
         elif not v.startswith("no"):
@@ -219,12 +343,17 @@ def screened(d):
 
 
 def analyse(topic, level):
+    d = topic_dir(topic)
+    need(d / "pool.json", f"`python3 tools/pool.py {topic}`")
+    need(d / "clusters.json", f"`uv run tools/cluster.py {topic}`")
+    need(d / "fringe.json", f"`uv run tools/fringe.py collect {topic}`")
+    need(d / "fringe-screen.md", f"`uv run tools/fringe.py collect {topic}`")
+
     import numpy as np
     from scipy.stats import mannwhitneyu
     from sklearn.metrics import adjusted_rand_score as ari
     from cluster import combined_sim, knn_graph, leiden, refs_sim, text_sim, tune
 
-    d = topic_dir(topic)
     pool = json.loads((d / "pool.json").read_text())["papers"]
     report = json.loads((d / "clusters.json").read_text())
     fr = json.loads((d / "fringe.json").read_text())
@@ -303,4 +432,4 @@ def analyse(topic, level):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    sys.exit(main(sys.argv[1:]))

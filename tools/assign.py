@@ -11,16 +11,19 @@ Usage:
   uv run tools/assign.py late <topic>
   python3 tools/assign.py remap <topic>
   python3 tools/assign.py reject <topic> <paper-id> <reason ...>
+  python3 tools/assign.py reject <topic> < lines          (one `<paper-id><TAB><reason>` per line)
 
 add         Adds papers to the Pool table by canonical ID (docs/formats.md, "Paper IDs"): an arXiv ID, or CorpusId:<n>
             for a paper without one. Each row is a title linked by its ID, with the other cells empty. Titles come
             from Semantic Scholar; a paper it does not know, or one without a SPECTER2 embedding, which clustering
             needs, cannot enter the pool yet, and is listed for Open work. A
-            CorpusId whose paper has an arXiv ID is refused, with the arXiv ID to use instead. Run tools/pool.py
-            afterwards for `year`, `citations` and `cites`.
+            CorpusId whose paper has an arXiv ID is refused, with the arXiv ID to use instead. A paper already in
+            graphs/<topic>/rejected.md is added, with a warning that names the rejection. Afterwards the main session
+            runs tools/pool.py (before step 3) or `assign.py late` (after it), for `year`, `citations` and `cites`,
+            and pastes the `Pool` line it prints.
 add-fringe  Adds the candidates marked `yes` in graphs/<topic>/fringe-screen.md (end of step 2), each by its arXiv ID
             or, failing that, its CorpusId, and prints the log's `Fringe` line. It refuses while any candidate is
-            still unjudged.
+            still unjudged, that is, marked neither `yes` nor `no`. It warns, as `add` does, on a rejected paper.
 clusters    Writes each pool paper's computed cluster (graphs/<topic>/clusters.json) into the Pool `cluster` column,
             under the name the Clusters table's `computed` column gives it. Run after naming (step 3), and after any
             recluster and remap. Membership is never written by hand.
@@ -37,6 +40,8 @@ remap       After a recluster, moves each named cluster's `computed` id to the n
 reject      Records a candidate screened out of scope, with a one-line reason, in graphs/<topic>/rejected.md: the trace
             of a judgement that would otherwise leave none (docs/gates.md). Used in steps 1 and 2 and in targeted
             expansions; the fringe routes record theirs on their own sheet. Refuses a paper already in the pool.
+            Without a paper ID, it reads one `<paper-id><TAB><reason>` per line from stdin, and records them all or,
+            if any line is wrong, none.
 
 Calls to Semantic Scholar are unauthenticated; no key or user identifier is sent.
 """
@@ -124,6 +129,30 @@ def load_report(topic):
     return path, json.loads(path.read_text())
 
 
+def rejected(topic):
+    """{paper id: (date, reason)} from graphs/<topic>/rejected.md, the latest rejection of each paper."""
+    path = topic_dir(topic) / "rejected.md"
+    if not path.exists():
+        return {}
+    return {row_id(l): (c[1], c[2]) for h, c, _, l in table_rows(path.read_text())
+            if h and h[0] == "paper" and row_id(l) and len(c) >= 3}
+
+
+def warn_rejected(topic, added):
+    """Name each added paper that an earlier screening rejected: two opposite verdicts on record need reconciling."""
+    rej = rejected(topic)
+    hit = [a for a in added if a in rej]
+    if hit:
+        print(f"WARNING: {len(hit)} added paper(s) were rejected earlier (graphs/{topic}/rejected.md), so the record "
+              "now holds two opposite verdicts; say in the log which one stands and why: "
+              + "; ".join(f"{a} (rejected {rej[a][0]}: {rej[a][1]})" for a in hit))
+
+
+def next_step(topic):
+    return (f"next, for the main session: `python3 tools/pool.py {topic}` before clustering (step 3), or "
+            f"`uv run tools/assign.py late {topic}` after it; paste the `Pool` line it prints into the log")
+
+
 # --- add ------------------------------------------------------------------------------------------
 
 
@@ -152,7 +181,9 @@ def add(topic, ids):
     from net import get_json
     bad = [a for a in ids if not ID.match(a)]
     if bad or not ids:
-        sys.exit(f"expected paper IDs such as 2408.03314, hep-th/9901001 or CorpusId:6628106; got {bad or 'none'}")
+        print(f"expected paper IDs such as 2408.03314, hep-th/9901001 or CorpusId:6628106; got {bad or 'none'}",
+              file=sys.stderr)
+        return 2
     titled, unknown, has_arxiv, no_embedding = {}, [], {}, []
     for i in range(0, len(ids), 100):
         batch = ids[i:i + 100]
@@ -175,22 +206,32 @@ def add(topic, ids):
     if has_arxiv:
         print("these have an arXiv ID, which is their canonical ID; add them by it instead: "
               + ", ".join(f"{a} -> {x}" for a, x in has_arxiv.items()))
+    warn_rejected(topic, added)
     if added:
-        print(f"next: `python3 tools/pool.py {topic}`")
+        print(next_step(topic))
     return 0
 
 
 def add_fringe(topic):
     d = topic_dir(topic)
+    for name in ("fringe.json", "fringe-screen.md"):
+        if not (d / name).exists():
+            sys.exit(f"no graphs/{topic}/{name}; run `uv run tools/fringe.py collect {topic}` first, then have the "
+                     "candidates screened")
     data = json.loads((d / "fringe.json").read_text())
     cands = data["candidates"]
     screened = {}
     for h, c, _, _ in table_rows((d / "fringe-screen.md").read_text()):
-        if h and h[0] == "s2":
+        if h and h[0] == "s2" and "in scope" in h and len(c) >= len(h):
             screened[c[0]] = c[h.index("in scope")].strip().lower()
-    blank = [s for s, v in screened.items() if not v]
+    # Anything but `yes` or `no`, blank or `maybe`, is unjudged, as the gate counts it (G1, fringe-screened).
+    blank = [s for s, v in screened.items() if not (v.startswith("yes") or v.startswith("no"))]
     if blank:
-        sys.exit(f"{len(blank)} candidate(s) in fringe-screen.md have no `in scope` judgement yet")
+        sys.exit(f"{len(blank)} candidate(s) in fringe-screen.md have no `yes` or `no` judgement yet")
+    unknown = [s for s in screened if s not in cands]
+    if unknown:
+        sys.exit(f"{len(unknown)} row(s) of fringe-screen.md are not in fringe.json: {unknown[:3]}; rerun "
+                 f"`uv run tools/fringe.py collect {topic}`, which keeps the judgements already on the sheet")
     yes = [s for s, v in screened.items() if v.startswith("yes")]
     # The canonical ID: the arXiv ID where there is one, otherwise the corpus ID (docs/formats.md).
     missing = [s for s in yes if not cands[s].get("arxiv")]
@@ -215,8 +256,9 @@ def add_fringe(topic):
     print(f"- **Fringe:** collected {data['collected']}: hidden {routes['hidden']}, new {routes['new']} candidates "
           f"({len(cands)} unique); in scope {len(yes)}; added to the pool {len(added)}, of which "
           f"{sum(1 for a in added if a.startswith('CorpusId:'))} without an arXiv ID; left out {len(no_id)}")
+    warn_rejected(topic, added)
     if added:
-        print(f"\nnext: `python3 tools/pool.py {topic}`")
+        print(f"\n{next_step(topic)}")
     return 0
 
 
@@ -264,11 +306,12 @@ def late(topic):
     if not queue:
         print("no late papers to assign")
         return 0
-    share = (len(report.get("late", {})) + len(queue)) / len(members)
-    if share > LATE_SHARE:
-        print(f"RECLUSTER: late papers since the last full clustering would be {share:.0%} of the pool, above "
-              f"{LATE_SHARE:.0%}: rerun `uv run tools/cluster.py {topic}` instead, then "
-              f"`python3 tools/assign.py remap {topic}`")
+    n_late = len(report.get("late", {})) + len(queue)
+    if n_late / len(members) > LATE_SHARE:
+        # One decimal: in whole percents, 10.3% would read "10% of the pool, above 10%".
+        print(f"RECLUSTER: late papers since the last full clustering would be {n_late} of {len(members)} "
+              f"({n_late / len(members):.1%}), above {LATE_SHARE:.0%} of the pool: rerun `uv run tools/cluster.py "
+              f"{topic}` instead, then `python3 tools/assign.py remap {topic}`")
         return 3
 
     base = report["ids"]
@@ -343,39 +386,70 @@ Candidates screened out of scope in orientation, expansion and targeted expansio
 """
 
 
-def reject(topic, pid, reason):
-    if not ID.match(pid):
-        sys.exit(f"{pid!r} is not a canonical paper ID (docs/formats.md, \"Paper IDs\")")
-    reason = " ".join(reason).replace("|", "/").strip()
-    if not reason:
-        sys.exit("give a one-line reason")
+def reject(topic, args):
+    """args: a paper ID and its reason; or none, to read `<paper-id><TAB><reason>` lines from stdin."""
+    if args:
+        items = [(1, args[0], " ".join(args[1:]))]
+    else:
+        items = []
+        for n, line in enumerate(sys.stdin, 1):
+            if line.strip():
+                pid, _, reason = line.rstrip("\n").partition("\t")
+                items.append((n, pid.strip(), reason))
+        if not items:
+            sys.exit("no `<paper-id><TAB><reason>` lines on stdin; nothing recorded")
     pool = {row_id(l) for h, _, _, l in table_rows(sections(survey_path(topic).read_text()).get("Pool", ""))
             if h and h[0] == "paper"}
-    if pid in pool:
-        sys.exit(f"{pid} is in the pool; a paper leaves the pool only with the user's permission (H12)")
+    # Check every line before writing any, so that a batch is recorded whole or not at all.
+    todo, problems = [], []
+    for n, pid, reason in items:
+        reason = " ".join(reason.replace("|", "/").split())
+        where = "" if args else f"line {n}: "
+        if not ID.match(pid):
+            problems.append(f"{where}{pid!r} is not a canonical paper ID (docs/formats.md, \"Paper IDs\")")
+        elif not reason:
+            problems.append(f"{where}give {pid} a one-line reason" + ("" if args else ", after a tab"))
+        elif pid in pool:
+            problems.append(f"{where}{pid} is in the pool; a paper leaves the pool only with the user's permission (H12)")
+        else:
+            todo.append((pid, reason))
+    if problems:
+        sys.exit("\n".join(problems) + ("" if args else f"\nnothing recorded: {len(problems)} of {len(items)} line(s) wrong"))
     path = topic_dir(topic) / "rejected.md"
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(REJECTED_HEADER.format(topic=topic))
     today = time.strftime("%Y-%m-%d")
     text = path.read_text()
-    if any(c[0].startswith(f"[{pid}]") and c[1] == today for h, c, _, _ in table_rows(text) if h and h[0] == "paper"):
-        print(f"{pid} is already recorded as rejected today")
-        return 0
-    path.write_text(text.rstrip("\n") + f"\n| [{pid}]({link(pid)}) | {today} | {reason} |\n")
-    print(f"recorded {pid} as out of scope in {path.relative_to(ROOT)}")
+    done = {row_id(l) for h, c, _, l in table_rows(text) if h and h[0] == "paper" and len(c) > 1 and c[1] == today}
+    new, again = [], []
+    for pid, reason in todo:
+        (again if pid in done else new).append((pid, reason))
+        done.add(pid)
+    if new:
+        path.write_text(text.rstrip("\n") + "\n" + "".join(f"| [{p}]({link(p)}) | {today} | {r} |\n" for p, r in new))
+    if args:
+        print(f"{args[0]} is already recorded as rejected today" if again
+              else f"recorded {args[0]} as out of scope in {path.relative_to(ROOT)}")
+    else:
+        print(f"recorded {len(new)} paper(s) as out of scope in {path.relative_to(ROOT)}"
+              + (f"; {len(again)} already recorded today, skipped: {[p for p, _ in again]}" if again else ""))
     return 0
 
 
 def main(argv):
     commands = {"add": lambda t: add(t, argv[2:]), "add-fringe": add_fringe, "clusters": write_clusters,
-                "late": late, "remap": remap, "reject": lambda t: reject(t, argv[2], argv[3:])}
-    if argv and argv[0] == "reject" and len(argv) < 4:
+                "late": late, "remap": remap, "reject": lambda t: reject(t, argv[2:])}
+    # `reject` takes an ID and a reason, or neither and lines on stdin, which must then not be a terminal.
+    if argv and argv[0] == "reject" and (len(argv) == 3 or (len(argv) == 2 and sys.stdin.isatty())):
         print(__doc__.strip())
         return 2
     if len(argv) < 2 or argv[0] not in commands or (argv[0] not in ("add", "reject") and len(argv) != 2):
         print(__doc__.strip())
         return 2
+    if not survey_path(argv[1]).exists():
+        sys.exit(f"surveys/{argv[1]}.md does not exist; write it first, with its five section headings "
+                 "(docs/process.md, step 0; docs/formats.md)")
     return commands[argv[0]](argv[1])
 
 
