@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["numpy", "scikit-learn", "igraph", "leidenalg"]
+# dependencies = ["numpy==2.5.3", "scikit-learn==1.9.1", "igraph==1.0.0", "leidenalg==0.12.0"]
 # ///
 """Experiment: recursive clustering with a per-cluster stopping rule, against the global levels of tools/cluster.py.
 

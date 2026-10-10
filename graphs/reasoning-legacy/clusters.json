@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-09",
+ "generated": "2026-10-10",
  "pool_fetched": [
   "2026-09-29"
  ],
@@ -26,13 +26,61 @@
    "2025-12-16"
   ],
   "tau": 0.75,
-  "subcluster_score": 0.6
+  "subcluster_score": 0.6,
+  "fringe_cohort": 30,
+  "defaults": {
+   "k": 10,
+   "c": 10.0,
+   "reps": 20,
+   "nulls": 1,
+   "tau": 0.75,
+   "levels": [
+    3,
+    4,
+    5,
+    6,
+    8,
+    10,
+    12,
+    15,
+    18,
+    22
+   ]
+  },
+  "seeds": {
+   "leiden": 0,
+   "resolution_search": 0,
+   "holdout_leiden": [
+    0,
+    1,
+    2
+   ],
+   "resample_draws": "default_rng(0)",
+   "resample_leiden": "rerun index",
+   "seed_agreement": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "exchange_draws": "default_rng(1)",
+   "null_data": "default_rng(1000 + draw)",
+   "null_resample_draws": "default_rng(0) per level"
+  },
+  "versions": {
+   "python": "3.12.9",
+   "numpy": "2.5.3",
+   "scikit-learn": "1.9.1",
+   "igraph": "1.0.0",
+   "leidenalg": "0.12.0"
+  }
  },
  "measure": "combined",
  "stability_from": "holdout and resampling",
  "rule": "tau",
  "level": 6,
- "level_reason": "finest level with stability >= 0.75: 0.79; next level 8 clusters at 0.67",
+ "level_reason": "finest level with stability >= 0.75: 0.80; next level 8 clusters at 0.67",
  "tau_sensitivity": {
   "0.70": 12,
   "0.75": 6,
@@ -42,61 +90,61 @@
   "combined": [
    {
     "clusters": 3.0,
-    "stability": 0.3276632113919342,
-    "stability_se": 0.020282308257025573
+    "stability": 0.30760532166277543,
+    "stability_se": 0.027531252319524264
    },
    {
     "clusters": 4.0,
-    "stability": 0.3053026409321677,
-    "stability_se": 0.014516671744050042
+    "stability": 0.314563951329969,
+    "stability_se": 0.016289560562678957
    },
    {
     "clusters": 5.0,
-    "stability": 0.25093272841257985,
-    "stability_se": 0.012149778805434247
+    "stability": 0.2590905224052974,
+    "stability_se": 0.015444263012798099
    },
    {
     "clusters": 6.0,
-    "stability": 0.27709986703391043,
-    "stability_se": 0.015484101642693543
+    "stability": 0.30458657625074387,
+    "stability_se": 0.02433856818718209
    },
    {
     "clusters": 8.0,
-    "stability": 0.2421145298992135,
-    "stability_se": 0.013841264714108173
+    "stability": 0.26438473236342186,
+    "stability_se": 0.016244368533986746
    },
    {
     "clusters": 10.0,
-    "stability": 0.2629499360620526,
-    "stability_se": 0.013391993400065822
+    "stability": 0.2659168768538149,
+    "stability_se": 0.018145304078204014
    },
    {
     "clusters": 12.0,
-    "stability": 0.2448346309811764,
-    "stability_se": 0.014961424201318447
+    "stability": 0.2532754061246401,
+    "stability_se": 0.014803098589711853
    },
    {
     "clusters": 15.0,
-    "stability": 0.2404649398366119,
-    "stability_se": 0.0169832679806194
+    "stability": 0.23894935784025279,
+    "stability_se": 0.013122807180418087
    },
    {
     "clusters": 18.0,
-    "stability": 0.26988762669460004,
-    "stability_se": 0.008781988827237457
+    "stability": 0.26475428139714124,
+    "stability_se": 0.01139762058858018
    },
    {
     "clusters": 22.0,
-    "stability": 0.24296769049110142,
-    "stability_se": 0.010576553826399953
+    "stability": 0.24319559776236366,
+    "stability_se": 0.009906378529518246
    }
   ]
  },
  "slider": [
   {
    "clusters": 3,
-   "stability": 0.9392607028530435,
-   "null_stability": 0.3276632113919342,
+   "stability": 0.9344814886168826,
+   "null_stability": 0.30760532166277543,
    "labels": [
     "c2",
     "c3",
@@ -297,8 +345,8 @@
   },
   {
    "clusters": 4,
-   "stability": 0.8007974723812994,
-   "null_stability": 0.3053026409321677,
+   "stability": 0.801632753005896,
+   "null_stability": 0.314563951329969,
    "labels": [
     "c1",
     "c3",
@@ -499,8 +547,8 @@
   },
   {
    "clusters": 5,
-   "stability": 0.8110654883970982,
-   "null_stability": 0.25093272841257985,
+   "stability": 0.8355124212274325,
+   "null_stability": 0.2590905224052974,
    "labels": [
     "c1",
     "c3",
@@ -701,8 +749,8 @@
   },
   {
    "clusters": 6,
-   "stability": 0.7887951334149957,
-   "null_stability": 0.27709986703391043,
+   "stability": 0.7985895907231781,
+   "null_stability": 0.30458657625074387,
    "labels": [
     "c1",
     "c4",
@@ -903,8 +951,8 @@
   },
   {
    "clusters": 8,
-   "stability": 0.6700852859753772,
-   "null_stability": 0.2421145298992135,
+   "stability": 0.673059405302026,
+   "null_stability": 0.26438473236342186,
    "labels": [
     "c5",
     "c4",
@@ -1105,8 +1153,8 @@
   },
   {
    "clusters": 10,
-   "stability": 0.6984142647740141,
-   "null_stability": 0.2629499360620526,
+   "stability": 0.6989433730789602,
+   "null_stability": 0.2659168768538149,
    "labels": [
     "c10",
     "c3",
@@ -1307,8 +1355,8 @@
   },
   {
    "clusters": 12,
-   "stability": 0.7006134090607129,
-   "null_stability": 0.2448346309811764,
+   "stability": 0.7046585690124025,
+   "null_stability": 0.2532754061246401,
    "labels": [
     "c8",
     "c4",
@@ -1509,8 +1557,8 @@
   },
   {
    "clusters": 15,
-   "stability": 0.6339568417518116,
-   "null_stability": 0.2404649398366119,
+   "stability": 0.6362137971343673,
+   "null_stability": 0.23894935784025279,
    "labels": [
     "c15",
     "c2",
@@ -1711,8 +1759,8 @@
   },
   {
    "clusters": 18,
-   "stability": 0.5989204025117828,
-   "null_stability": 0.26988762669460004,
+   "stability": 0.5882429343981892,
+   "null_stability": 0.26475428139714124,
    "labels": [
     "c16",
     "c6",
@@ -1913,8 +1961,8 @@
   },
   {
    "clusters": 22,
-   "stability": 0.5768405841199136,
-   "null_stability": 0.24296769049110142,
+   "stability": 0.5898194010930355,
+   "null_stability": 0.24319559776236366,
    "labels": [
     "c18",
     "c3",
@@ -8438,89 +8486,8 @@
  ],
  "fringe": [
   {
-   "id": "2605.06367",
-   "score": 0.988,
-   "nn_text": 0.901,
-   "nn_refs": 0.0,
-   "refs": 0,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2603.12163",
-   "score": 0.957,
-   "nn_text": 0.924,
-   "nn_refs": 0.0,
-   "refs": 0,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2506.09401",
-   "score": 0.951,
-   "nn_text": 0.889,
-   "nn_refs": 0.047,
-   "refs": 12,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
-   "id": "2104.03113",
-   "score": 0.93,
-   "nn_text": 0.92,
-   "nn_refs": 0.048,
-   "refs": 40,
-   "year": 2021,
-   "cluster": "c1"
-  },
-  {
-   "id": "2605.23055",
-   "score": 0.926,
-   "nn_text": 0.928,
-   "nn_refs": 0.0,
-   "refs": 0,
-   "year": 2026,
-   "cluster": "c3"
-  },
-  {
-   "id": "2510.15020",
-   "score": 0.921,
-   "nn_text": 0.928,
-   "nn_refs": 0.0,
-   "refs": 0,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
-   "id": "2605.04127",
-   "score": 0.92,
-   "nn_text": 0.918,
-   "nn_refs": 0.049,
-   "refs": 100,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2410.21514",
-   "score": 0.916,
-   "nn_text": 0.931,
-   "nn_refs": 0.0,
-   "refs": 0,
-   "year": 2024,
-   "cluster": "c3"
-  },
-  {
-   "id": "2606.28438",
-   "score": 0.907,
-   "nn_text": 0.928,
-   "nn_refs": 0.069,
-   "refs": 54,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
    "id": "2608.25593",
-   "score": 0.892,
+   "score": 0.968,
    "nn_text": 0.937,
    "nn_refs": 0.058,
    "refs": 66,
@@ -8528,44 +8495,44 @@
    "cluster": "c6"
   },
   {
-   "id": "2504.17704",
-   "score": 0.891,
-   "nn_text": 0.928,
-   "nn_refs": 0.074,
-   "refs": 96,
+   "id": "2506.09401",
+   "score": 0.967,
+   "nn_text": 0.889,
+   "nn_refs": 0.047,
+   "refs": 12,
    "year": 2025,
-   "cluster": "c3"
+   "cluster": "c1"
   },
   {
-   "id": "2603.11331",
-   "score": 0.884,
-   "nn_text": 0.926,
-   "nn_refs": 0.088,
-   "refs": 77,
-   "year": 2026,
-   "cluster": "c3"
-  },
-  {
-   "id": "2608.13545",
-   "score": 0.877,
-   "nn_text": 0.924,
-   "nn_refs": 0.103,
-   "refs": 49,
+   "id": "2605.06367",
+   "score": 0.967,
+   "nn_text": 0.901,
+   "nn_refs": 0.0,
+   "refs": 0,
    "year": 2026,
    "cluster": "c1"
   },
   {
-   "id": "2609.00925",
-   "score": 0.875,
-   "nn_text": 0.935,
-   "nn_refs": 0.087,
-   "refs": 48,
+   "id": "2104.03113",
+   "score": 0.967,
+   "nn_text": 0.92,
+   "nn_refs": 0.048,
+   "refs": 40,
+   "year": 2021,
+   "cluster": "c1"
+  },
+  {
+   "id": "2606.28438",
+   "score": 0.967,
+   "nn_text": 0.928,
+   "nn_refs": 0.069,
+   "refs": 54,
    "year": 2026,
    "cluster": "c1"
   },
   {
    "id": "2510.05379",
-   "score": 0.874,
+   "score": 0.967,
    "nn_text": 0.93,
    "nn_refs": 0.116,
    "refs": 10,
@@ -8573,71 +8540,8 @@
    "cluster": "c3"
   },
   {
-   "id": "2606.28425",
-   "score": 0.873,
-   "nn_text": 0.93,
-   "nn_refs": 0.09,
-   "refs": 75,
-   "year": 2026,
-   "cluster": "c3"
-  },
-  {
-   "id": "2605.23950",
-   "score": 0.864,
-   "nn_text": 0.93,
-   "nn_refs": 0.111,
-   "refs": 27,
-   "year": 2026,
-   "cluster": "c6"
-  },
-  {
-   "id": "2407.00215",
-   "score": 0.854,
-   "nn_text": 0.933,
-   "nn_refs": 0.117,
-   "refs": 23,
-   "year": 2024,
-   "cluster": "c4"
-  },
-  {
-   "id": "2608.05152",
-   "score": 0.845,
-   "nn_text": 0.929,
-   "nn_refs": 0.119,
-   "refs": 37,
-   "year": 2026,
-   "cluster": "c4"
-  },
-  {
-   "id": "2303.17651",
-   "score": 0.843,
-   "nn_text": 0.939,
-   "nn_refs": 0.112,
-   "refs": 46,
-   "year": 2023,
-   "cluster": "c4"
-  },
-  {
-   "id": "2605.31170",
-   "score": 0.842,
-   "nn_text": 0.924,
-   "nn_refs": 0.139,
-   "refs": 12,
-   "year": 2026,
-   "cluster": "c3"
-  },
-  {
-   "id": "2406.07358",
-   "score": 0.827,
-   "nn_text": 0.941,
-   "nn_refs": 0.117,
-   "refs": 51,
-   "year": 2024,
-   "cluster": "c3"
-  },
-  {
    "id": "2501.18841",
-   "score": 0.823,
+   "score": 0.967,
    "nn_text": 0.94,
    "nn_refs": 0.091,
    "refs": 27,
@@ -8645,8 +8549,62 @@
    "cluster": "c3"
   },
   {
+   "id": "2605.04127",
+   "score": 0.935,
+   "nn_text": 0.918,
+   "nn_refs": 0.049,
+   "refs": 100,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2609.00925",
+   "score": 0.935,
+   "nn_text": 0.935,
+   "nn_refs": 0.087,
+   "refs": 48,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2504.17704",
+   "score": 0.933,
+   "nn_text": 0.928,
+   "nn_refs": 0.074,
+   "refs": 96,
+   "year": 2025,
+   "cluster": "c3"
+  },
+  {
+   "id": "2606.28425",
+   "score": 0.933,
+   "nn_text": 0.93,
+   "nn_refs": 0.09,
+   "refs": 75,
+   "year": 2026,
+   "cluster": "c3"
+  },
+  {
+   "id": "2510.15020",
+   "score": 0.933,
+   "nn_text": 0.928,
+   "nn_refs": 0.0,
+   "refs": 0,
+   "year": 2025,
+   "cluster": "c1"
+  },
+  {
+   "id": "2407.00215",
+   "score": 0.933,
+   "nn_text": 0.933,
+   "nn_refs": 0.117,
+   "refs": 23,
+   "year": 2024,
+   "cluster": "c4"
+  },
+  {
    "id": "2502.02542",
-   "score": 0.822,
+   "score": 0.933,
    "nn_text": 0.943,
    "nn_refs": 0.111,
    "refs": 83,
@@ -8654,134 +8612,44 @@
    "cluster": "c3"
   },
   {
-   "id": "2607.04364",
-   "score": 0.796,
-   "nn_text": 0.941,
-   "nn_refs": 0.12,
-   "refs": 39,
+   "id": "2303.17651",
+   "score": 0.933,
+   "nn_text": 0.939,
+   "nn_refs": 0.112,
+   "refs": 46,
+   "year": 2023,
+   "cluster": "c4"
+  },
+  {
+   "id": "2608.13545",
+   "score": 0.903,
+   "nn_text": 0.924,
+   "nn_refs": 0.103,
+   "refs": 49,
    "year": 2026,
    "cluster": "c1"
   },
   {
-   "id": "2502.12893",
-   "score": 0.792,
-   "nn_text": 0.941,
-   "nn_refs": 0.118,
-   "refs": 37,
-   "year": 2025,
-   "cluster": "c3"
-  },
-  {
-   "id": "2602.03814",
-   "score": 0.792,
-   "nn_text": 0.947,
-   "nn_refs": 0.071,
-   "refs": 29,
+   "id": "2603.12163",
+   "score": 0.9,
+   "nn_text": 0.924,
+   "nn_refs": 0.0,
+   "refs": 0,
    "year": 2026,
-   "cluster": "c5"
+   "cluster": "c1"
   },
   {
-   "id": "2606.03217",
-   "score": 0.788,
-   "nn_text": 0.94,
-   "nn_refs": 0.123,
-   "refs": 37,
-   "year": 2026,
-   "cluster": "c4"
-  },
-  {
-   "id": "2606.00437",
-   "score": 0.782,
-   "nn_text": 0.941,
-   "nn_refs": 0.12,
-   "refs": 33,
-   "year": 2026,
-   "cluster": "c5"
-  },
-  {
-   "id": "2606.20683",
-   "score": 0.781,
-   "nn_text": 0.941,
-   "nn_refs": 0.133,
-   "refs": 222,
+   "id": "2605.23950",
+   "score": 0.9,
+   "nn_text": 0.93,
+   "nn_refs": 0.111,
+   "refs": 27,
    "year": 2026,
    "cluster": "c6"
   },
   {
-   "id": "2110.14168",
-   "score": 0.779,
-   "nn_text": 0.942,
-   "nn_refs": 0.118,
-   "refs": 30,
-   "year": 2021,
-   "cluster": "c4"
-  },
-  {
-   "id": "2502.02393",
-   "score": 0.778,
-   "nn_text": 0.93,
-   "nn_refs": 0.134,
-   "refs": 81,
-   "year": 2025,
-   "cluster": "c4"
-  },
-  {
-   "id": "2606.17930",
-   "score": 0.778,
-   "nn_text": 0.94,
-   "nn_refs": 0.13,
-   "refs": 27,
-   "year": 2026,
-   "cluster": "c5"
-  },
-  {
-   "id": "2507.14417",
-   "score": 0.775,
-   "nn_text": 0.937,
-   "nn_refs": 0.0,
-   "refs": 0,
-   "year": 2025,
-   "cluster": "c5"
-  },
-  {
-   "id": "2605.26537",
-   "score": 0.771,
-   "nn_text": 0.931,
-   "nn_refs": 0.151,
-   "refs": 12,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
-   "id": "2606.18164",
-   "score": 0.771,
-   "nn_text": 0.925,
-   "nn_refs": 0.14,
-   "refs": 44,
-   "year": 2026,
-   "cluster": "c4"
-  },
-  {
-   "id": "2312.06942",
-   "score": 0.77,
-   "nn_text": 0.946,
-   "nn_refs": 0.109,
-   "refs": 26,
-   "year": 2023,
-   "cluster": "c3"
-  },
-  {
-   "id": "2412.16339",
-   "score": 0.768,
-   "nn_text": 0.938,
-   "nn_refs": 0.14,
-   "refs": 32,
-   "year": 2024,
-   "cluster": "c3"
-  },
-  {
    "id": "2506.04374",
-   "score": 0.758,
+   "score": 0.9,
    "nn_text": 0.935,
    "nn_refs": 0.137,
    "refs": 35,
@@ -8789,80 +8657,62 @@
    "cluster": "c4"
   },
   {
-   "id": "2605.13338",
-   "score": 0.752,
-   "nn_text": 0.938,
-   "nn_refs": 0.136,
-   "refs": 30,
-   "year": 2026,
-   "cluster": "c3"
-  },
-  {
-   "id": "2605.15377",
-   "score": 0.752,
-   "nn_text": 0.941,
-   "nn_refs": 0.133,
-   "refs": 26,
-   "year": 2026,
-   "cluster": "c3"
-  },
-  {
-   "id": "2606.21090",
-   "score": 0.746,
-   "nn_text": 0.934,
-   "nn_refs": 0.143,
-   "refs": 35,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2605.26112",
-   "score": 0.733,
-   "nn_text": 0.944,
-   "nn_refs": 0.132,
-   "refs": 31,
-   "year": 2026,
-   "cluster": "c6"
-  },
-  {
-   "id": "2506.05333",
-   "score": 0.732,
-   "nn_text": 0.944,
-   "nn_refs": 0.137,
-   "refs": 98,
+   "id": "2507.14417",
+   "score": 0.9,
+   "nn_text": 0.937,
+   "nn_refs": 0.0,
+   "refs": 0,
    "year": 2025,
    "cluster": "c5"
   },
   {
-   "id": "2512.02157",
-   "score": 0.732,
-   "nn_text": 0.94,
-   "nn_refs": 0.039,
-   "refs": 1,
+   "id": "2603.11331",
+   "score": 0.867,
+   "nn_text": 0.926,
+   "nn_refs": 0.088,
+   "refs": 77,
+   "year": 2026,
+   "cluster": "c3"
+  },
+  {
+   "id": "2605.23055",
+   "score": 0.867,
+   "nn_text": 0.928,
+   "nn_refs": 0.0,
+   "refs": 0,
+   "year": 2026,
+   "cluster": "c3"
+  },
+  {
+   "id": "2406.07358",
+   "score": 0.867,
+   "nn_text": 0.941,
+   "nn_refs": 0.117,
+   "refs": 51,
+   "year": 2024,
+   "cluster": "c3"
+  },
+  {
+   "id": "2502.12893",
+   "score": 0.867,
+   "nn_text": 0.941,
+   "nn_refs": 0.118,
+   "refs": 37,
    "year": 2025,
    "cluster": "c3"
   },
   {
-   "id": "2310.07923",
-   "score": 0.727,
-   "nn_text": 0.934,
-   "nn_refs": 0.135,
-   "refs": 27,
-   "year": 2023,
+   "id": "2502.02393",
+   "score": 0.867,
+   "nn_text": 0.93,
+   "nn_refs": 0.134,
+   "refs": 81,
+   "year": 2025,
    "cluster": "c4"
   },
   {
-   "id": "2604.16027",
-   "score": 0.725,
-   "nn_text": 0.936,
-   "nn_refs": 0.143,
-   "refs": 65,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
    "id": "2509.04259",
-   "score": 0.718,
+   "score": 0.867,
    "nn_text": 0.948,
    "nn_refs": 0.135,
    "refs": 74,
@@ -8870,8 +8720,35 @@
    "cluster": "c1"
   },
   {
+   "id": "2312.06942",
+   "score": 0.839,
+   "nn_text": 0.946,
+   "nn_refs": 0.109,
+   "refs": 26,
+   "year": 2023,
+   "cluster": "c3"
+  },
+  {
+   "id": "2607.04364",
+   "score": 0.839,
+   "nn_text": 0.941,
+   "nn_refs": 0.12,
+   "refs": 39,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2506.05333",
+   "score": 0.839,
+   "nn_text": 0.944,
+   "nn_refs": 0.137,
+   "refs": 98,
+   "year": 2025,
+   "cluster": "c5"
+  },
+  {
    "id": "2505.14617",
-   "score": 0.717,
+   "score": 0.839,
    "nn_text": 0.934,
    "nn_refs": 0.157,
    "refs": 21,
@@ -8880,7 +8757,7 @@
   },
   {
    "id": "2609.16660",
-   "score": 0.705,
+   "score": 0.839,
    "nn_text": 0.937,
    "nn_refs": 0.156,
    "refs": 24,
@@ -8888,17 +8765,44 @@
    "cluster": "c5"
   },
   {
-   "id": "2305.10601",
-   "score": 0.696,
-   "nn_text": 0.945,
-   "nn_refs": 0.133,
-   "refs": 52,
-   "year": 2023,
-   "cluster": "c4"
+   "id": "2605.31170",
+   "score": 0.833,
+   "nn_text": 0.924,
+   "nn_refs": 0.139,
+   "refs": 12,
+   "year": 2026,
+   "cluster": "c3"
+  },
+  {
+   "id": "2410.21514",
+   "score": 0.833,
+   "nn_text": 0.931,
+   "nn_refs": 0.0,
+   "refs": 0,
+   "year": 2024,
+   "cluster": "c3"
+  },
+  {
+   "id": "2512.02157",
+   "score": 0.833,
+   "nn_text": 0.94,
+   "nn_refs": 0.039,
+   "refs": 1,
+   "year": 2025,
+   "cluster": "c3"
+  },
+  {
+   "id": "2602.03814",
+   "score": 0.806,
+   "nn_text": 0.947,
+   "nn_refs": 0.071,
+   "refs": 29,
+   "year": 2026,
+   "cluster": "c5"
   },
   {
    "id": "2609.04518",
-   "score": 0.693,
+   "score": 0.806,
    "nn_text": 0.934,
    "nn_refs": 0.157,
    "refs": 49,
@@ -8906,62 +8810,26 @@
    "cluster": "c6"
   },
   {
-   "id": "2412.04984",
-   "score": 0.682,
-   "nn_text": 0.944,
-   "nn_refs": 0.0,
-   "refs": 0,
+   "id": "2608.05152",
+   "score": 0.8,
+   "nn_text": 0.929,
+   "nn_refs": 0.119,
+   "refs": 37,
+   "year": 2026,
+   "cluster": "c4"
+  },
+  {
+   "id": "2412.16339",
+   "score": 0.8,
+   "nn_text": 0.938,
+   "nn_refs": 0.14,
+   "refs": 32,
    "year": 2024,
    "cluster": "c3"
   },
   {
-   "id": "2603.03824",
-   "score": 0.678,
-   "nn_text": 0.942,
-   "nn_refs": 0.146,
-   "refs": 16,
-   "year": 2026,
-   "cluster": "c3"
-  },
-  {
-   "id": "2603.18325",
-   "score": 0.678,
-   "nn_text": 0.956,
-   "nn_refs": 0.133,
-   "refs": 55,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2603.06957",
-   "score": 0.671,
-   "nn_text": 0.926,
-   "nn_refs": 0.167,
-   "refs": 36,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2609.12243",
-   "score": 0.662,
-   "nn_text": 0.935,
-   "nn_refs": 0.162,
-   "refs": 36,
-   "year": 2026,
-   "cluster": "c5"
-  },
-  {
-   "id": "2607.13389",
-   "score": 0.66,
-   "nn_text": 0.937,
-   "nn_refs": 0.177,
-   "refs": 18,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
    "id": "2510.21978",
-   "score": 0.659,
+   "score": 0.8,
    "nn_text": 0.955,
    "nn_refs": 0.144,
    "refs": 116,
@@ -8969,98 +8837,8 @@
    "cluster": "c1"
   },
   {
-   "id": "2411.17501",
-   "score": 0.657,
-   "nn_text": 0.931,
-   "nn_refs": 0.172,
-   "refs": 67,
-   "year": 2024,
-   "cluster": "c5"
-  },
-  {
-   "id": "2605.26047",
-   "score": 0.652,
-   "nn_text": 0.942,
-   "nn_refs": 0.159,
-   "refs": 6,
-   "year": 2026,
-   "cluster": "c3"
-  },
-  {
-   "id": "2502.17416",
-   "score": 0.647,
-   "nn_text": 0.953,
-   "nn_refs": 0.141,
-   "refs": 60,
-   "year": 2025,
-   "cluster": "c4"
-  },
-  {
-   "id": "2303.11366",
-   "score": 0.638,
-   "nn_text": 0.95,
-   "nn_refs": 0.131,
-   "refs": 34,
-   "year": 2023,
-   "cluster": "c4"
-  },
-  {
-   "id": "2408.03314",
-   "score": 0.635,
-   "nn_text": 0.947,
-   "nn_refs": 0.162,
-   "refs": 29,
-   "year": 2024,
-   "cluster": "c5"
-  },
-  {
-   "id": "2609.19465",
-   "score": 0.628,
-   "nn_text": 0.944,
-   "nn_refs": 0.158,
-   "refs": 25,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2605.26733",
-   "score": 0.625,
-   "nn_text": 0.936,
-   "nn_refs": 0.177,
-   "refs": 37,
-   "year": 2026,
-   "cluster": "c4"
-  },
-  {
-   "id": "2507.18071",
-   "score": 0.612,
-   "nn_text": 0.937,
-   "nn_refs": 0.248,
-   "refs": 4,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
-   "id": "2608.20290",
-   "score": 0.609,
-   "nn_text": 0.924,
-   "nn_refs": 0.182,
-   "refs": 73,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2603.21676",
-   "score": 0.607,
-   "nn_text": 0.945,
-   "nn_refs": 0.161,
-   "refs": 24,
-   "year": 2026,
-   "cluster": "c4"
-  },
-  {
    "id": "2506.14374",
-   "score": 0.604,
+   "score": 0.8,
    "nn_text": 0.947,
    "nn_refs": 0.155,
    "refs": 18,
@@ -9068,8 +8846,26 @@
    "cluster": "c3"
   },
   {
+   "id": "2310.07923",
+   "score": 0.774,
+   "nn_text": 0.934,
+   "nn_refs": 0.135,
+   "refs": 27,
+   "year": 2023,
+   "cluster": "c4"
+  },
+  {
+   "id": "2609.12243",
+   "score": 0.774,
+   "nn_text": 0.935,
+   "nn_refs": 0.162,
+   "refs": 36,
+   "year": 2026,
+   "cluster": "c5"
+  },
+  {
    "id": "2509.23365",
-   "score": 0.604,
+   "score": 0.774,
    "nn_text": 0.953,
    "nn_refs": 0.15,
    "refs": 41,
@@ -9077,8 +8873,62 @@
    "cluster": "c4"
   },
   {
+   "id": "2110.14168",
+   "score": 0.767,
+   "nn_text": 0.942,
+   "nn_refs": 0.118,
+   "refs": 30,
+   "year": 2021,
+   "cluster": "c4"
+  },
+  {
+   "id": "2502.17416",
+   "score": 0.767,
+   "nn_text": 0.953,
+   "nn_refs": 0.141,
+   "refs": 60,
+   "year": 2025,
+   "cluster": "c4"
+  },
+  {
+   "id": "2606.03217",
+   "score": 0.742,
+   "nn_text": 0.94,
+   "nn_refs": 0.123,
+   "refs": 37,
+   "year": 2026,
+   "cluster": "c4"
+  },
+  {
+   "id": "2606.00437",
+   "score": 0.733,
+   "nn_text": 0.941,
+   "nn_refs": 0.12,
+   "refs": 33,
+   "year": 2026,
+   "cluster": "c5"
+  },
+  {
+   "id": "2305.10601",
+   "score": 0.733,
+   "nn_text": 0.945,
+   "nn_refs": 0.133,
+   "refs": 52,
+   "year": 2023,
+   "cluster": "c4"
+  },
+  {
+   "id": "2411.17501",
+   "score": 0.733,
+   "nn_text": 0.931,
+   "nn_refs": 0.172,
+   "refs": 67,
+   "year": 2024,
+   "cluster": "c5"
+  },
+  {
    "id": "2502.01633",
-   "score": 0.601,
+   "score": 0.733,
    "nn_text": 0.945,
    "nn_refs": 0.162,
    "refs": 44,
@@ -9087,7 +8937,7 @@
   },
   {
    "id": "2507.01786",
-   "score": 0.599,
+   "score": 0.733,
    "nn_text": 0.944,
    "nn_refs": 0.167,
    "refs": 40,
@@ -9095,71 +8945,8 @@
    "cluster": "c3"
   },
   {
-   "id": "2507.05386",
-   "score": 0.598,
-   "nn_text": 0.944,
-   "nn_refs": 0.166,
-   "refs": 60,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
-   "id": "2407.21787",
-   "score": 0.594,
-   "nn_text": 0.945,
-   "nn_refs": 0.174,
-   "refs": 48,
-   "year": 2024,
-   "cluster": "c5"
-  },
-  {
-   "id": "2402.12875",
-   "score": 0.584,
-   "nn_text": 0.943,
-   "nn_refs": 0.181,
-   "refs": 65,
-   "year": 2024,
-   "cluster": "c4"
-  },
-  {
-   "id": "2605.05835",
-   "score": 0.58,
-   "nn_text": 0.94,
-   "nn_refs": 0.193,
-   "refs": 26,
-   "year": 2026,
-   "cluster": "c3"
-  },
-  {
-   "id": "2608.24949",
-   "score": 0.571,
-   "nn_text": 0.957,
-   "nn_refs": 0.128,
-   "refs": 20,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2606.25013",
-   "score": 0.569,
-   "nn_text": 0.942,
-   "nn_refs": 0.183,
-   "refs": 55,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
-   "id": "2501.12599",
-   "score": 0.567,
-   "nn_text": 0.956,
-   "nn_refs": 0.159,
-   "refs": 61,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
    "id": "2503.24235",
-   "score": 0.557,
+   "score": 0.733,
    "nn_text": 0.94,
    "nn_refs": 0.181,
    "refs": 244,
@@ -9167,170 +8954,44 @@
    "cluster": "c5"
   },
   {
-   "id": "2605.25052",
-   "score": 0.557,
-   "nn_text": 0.933,
-   "nn_refs": 0.197,
-   "refs": 57,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
-   "id": "2412.06769",
-   "score": 0.549,
-   "nn_text": 0.946,
-   "nn_refs": 0.193,
-   "refs": 58,
-   "year": 2024,
-   "cluster": "c4"
-  },
-  {
-   "id": "2503.11926",
-   "score": 0.549,
-   "nn_text": 0.95,
-   "nn_refs": 0.172,
-   "refs": 61,
-   "year": 2025,
-   "cluster": "c2"
-  },
-  {
-   "id": "2402.03300",
-   "score": 0.546,
+   "id": "2609.19465",
+   "score": 0.71,
    "nn_text": 0.944,
-   "nn_refs": 0.195,
-   "refs": 52,
-   "year": 2024,
-   "cluster": "c5"
-  },
-  {
-   "id": "2607.07646",
-   "score": 0.546,
-   "nn_text": 0.931,
-   "nn_refs": 0.226,
-   "refs": 18,
+   "nn_refs": 0.158,
+   "refs": 25,
    "year": 2026,
    "cluster": "c1"
   },
   {
-   "id": "2407.18219",
-   "score": 0.545,
-   "nn_text": 0.951,
-   "nn_refs": 0.181,
-   "refs": 64,
-   "year": 2024,
-   "cluster": "c4"
-  },
-  {
-   "id": "2607.01571",
-   "score": 0.537,
-   "nn_text": 0.945,
-   "nn_refs": 0.191,
-   "refs": 15,
-   "year": 2026,
-   "cluster": "c4"
-  },
-  {
-   "id": "2501.19393",
-   "score": 0.534,
-   "nn_text": 0.944,
-   "nn_refs": 0.183,
-   "refs": 68,
-   "year": 2025,
-   "cluster": "c5"
-  },
-  {
-   "id": "2609.04108",
-   "score": 0.527,
-   "nn_text": 0.954,
-   "nn_refs": 0.161,
-   "refs": 33,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2605.14186",
-   "score": 0.508,
-   "nn_text": 0.947,
-   "nn_refs": 0.196,
-   "refs": 32,
-   "year": 2026,
-   "cluster": "c5"
-  },
-  {
-   "id": "2609.08650",
-   "score": 0.507,
-   "nn_text": 0.959,
-   "nn_refs": 0.153,
+   "id": "2606.17930",
+   "score": 0.7,
+   "nn_text": 0.94,
+   "nn_refs": 0.13,
    "refs": 27,
    "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2411.19477",
-   "score": 0.506,
-   "nn_text": 0.929,
-   "nn_refs": 0.213,
-   "refs": 48,
-   "year": 2024,
    "cluster": "c5"
   },
   {
-   "id": "2305.15408",
-   "score": 0.505,
-   "nn_text": 0.952,
-   "nn_refs": 0.159,
-   "refs": 60,
+   "id": "2303.11366",
+   "score": 0.7,
+   "nn_text": 0.95,
+   "nn_refs": 0.131,
+   "refs": 34,
    "year": 2023,
    "cluster": "c4"
   },
   {
-   "id": "2506.04210",
-   "score": 0.503,
-   "nn_text": 0.938,
-   "nn_refs": 0.197,
-   "refs": 58,
+   "id": "2507.18071",
+   "score": 0.7,
+   "nn_text": 0.937,
+   "nn_refs": 0.248,
+   "refs": 4,
    "year": 2025,
-   "cluster": "c5"
-  },
-  {
-   "id": "2609.12317",
-   "score": 0.494,
-   "nn_text": 0.951,
-   "nn_refs": 0.179,
-   "refs": 22,
-   "year": 2026,
    "cluster": "c1"
   },
   {
-   "id": "2502.05171",
-   "score": 0.483,
-   "nn_text": 0.947,
-   "nn_refs": 0.0,
-   "refs": 0,
-   "year": 2025,
-   "cluster": "c5"
-  },
-  {
-   "id": "2505.11730",
-   "score": 0.479,
-   "nn_text": 0.935,
-   "nn_refs": 0.217,
-   "refs": 35,
-   "year": 2025,
-   "cluster": "c5"
-  },
-  {
-   "id": "2507.02199",
-   "score": 0.471,
-   "nn_text": 0.948,
-   "nn_refs": 0.195,
-   "refs": 15,
-   "year": 2025,
-   "cluster": "c4"
-  },
-  {
    "id": "2509.23629",
-   "score": 0.469,
+   "score": 0.688,
    "nn_text": 0.947,
    "nn_refs": 0.197,
    "refs": 45,
@@ -9338,13 +8999,409 @@
    "cluster": "c1"
   },
   {
+   "id": "2608.20290",
+   "score": 0.677,
+   "nn_text": 0.924,
+   "nn_refs": 0.182,
+   "refs": 73,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2501.12599",
+   "score": 0.677,
+   "nn_text": 0.956,
+   "nn_refs": 0.159,
+   "refs": 61,
+   "year": 2025,
+   "cluster": "c1"
+  },
+  {
+   "id": "2505.11730",
+   "score": 0.677,
+   "nn_text": 0.935,
+   "nn_refs": 0.217,
+   "refs": 35,
+   "year": 2025,
+   "cluster": "c5"
+  },
+  {
+   "id": "2505.01420",
+   "score": 0.677,
+   "nn_text": 0.95,
+   "nn_refs": 0.198,
+   "refs": 27,
+   "year": 2025,
+   "cluster": "c3"
+  },
+  {
+   "id": "2606.18164",
+   "score": 0.667,
+   "nn_text": 0.925,
+   "nn_refs": 0.14,
+   "refs": 44,
+   "year": 2026,
+   "cluster": "c4"
+  },
+  {
+   "id": "2507.05386",
+   "score": 0.667,
+   "nn_text": 0.944,
+   "nn_refs": 0.166,
+   "refs": 60,
+   "year": 2025,
+   "cluster": "c1"
+  },
+  {
+   "id": "2503.11926",
+   "score": 0.667,
+   "nn_text": 0.95,
+   "nn_refs": 0.172,
+   "refs": 61,
+   "year": 2025,
+   "cluster": "c2"
+  },
+  {
+   "id": "2506.04210",
+   "score": 0.667,
+   "nn_text": 0.938,
+   "nn_refs": 0.197,
+   "refs": 58,
+   "year": 2025,
+   "cluster": "c5"
+  },
+  {
+   "id": "2509.25300",
+   "score": 0.667,
+   "nn_text": 0.949,
+   "nn_refs": 0.199,
+   "refs": 46,
+   "year": 2025,
+   "cluster": "c1"
+  },
+  {
+   "id": "2606.20683",
+   "score": 0.645,
+   "nn_text": 0.941,
+   "nn_refs": 0.133,
+   "refs": 222,
+   "year": 2026,
+   "cluster": "c6"
+  },
+  {
+   "id": "2310.01798",
+   "score": 0.645,
+   "nn_text": 0.93,
+   "nn_refs": 0.173,
+   "refs": 52,
+   "year": 2023,
+   "cluster": "c4"
+  },
+  {
+   "id": "2608.24949",
+   "score": 0.645,
+   "nn_text": 0.957,
+   "nn_refs": 0.128,
+   "refs": 20,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2504.03380",
+   "score": 0.636,
+   "nn_text": 0.954,
+   "nn_refs": 0.198,
+   "refs": 51,
+   "year": 2025,
+   "cluster": "c1"
+  },
+  {
+   "id": "2605.15377",
+   "score": 0.633,
+   "nn_text": 0.941,
+   "nn_refs": 0.133,
+   "refs": 26,
+   "year": 2026,
+   "cluster": "c3"
+  },
+  {
+   "id": "2603.18325",
+   "score": 0.633,
+   "nn_text": 0.956,
+   "nn_refs": 0.133,
+   "refs": 55,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2510.13786",
+   "score": 0.633,
+   "nn_text": 0.948,
+   "nn_refs": 0.211,
+   "refs": 43,
+   "year": 2025,
+   "cluster": "c1"
+  },
+  {
+   "id": "2412.04984",
+   "score": 0.613,
+   "nn_text": 0.944,
+   "nn_refs": 0.0,
+   "refs": 0,
+   "year": 2024,
+   "cluster": "c3"
+  },
+  {
+   "id": "2605.26537",
+   "score": 0.6,
+   "nn_text": 0.931,
+   "nn_refs": 0.151,
+   "refs": 12,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2605.13338",
+   "score": 0.6,
+   "nn_text": 0.938,
+   "nn_refs": 0.136,
+   "refs": 30,
+   "year": 2026,
+   "cluster": "c3"
+  },
+  {
+   "id": "2604.16027",
+   "score": 0.6,
+   "nn_text": 0.936,
+   "nn_refs": 0.143,
+   "refs": 65,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2603.06957",
+   "score": 0.6,
+   "nn_text": 0.926,
+   "nn_refs": 0.167,
+   "refs": 36,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2603.03824",
+   "score": 0.6,
+   "nn_text": 0.942,
+   "nn_refs": 0.146,
+   "refs": 16,
+   "year": 2026,
+   "cluster": "c3"
+  },
+  {
+   "id": "2607.13389",
+   "score": 0.6,
+   "nn_text": 0.937,
+   "nn_refs": 0.177,
+   "refs": 18,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2408.03314",
+   "score": 0.6,
+   "nn_text": 0.947,
+   "nn_refs": 0.162,
+   "refs": 29,
+   "year": 2024,
+   "cluster": "c5"
+  },
+  {
+   "id": "2507.02199",
+   "score": 0.6,
+   "nn_text": 0.948,
+   "nn_refs": 0.195,
+   "refs": 15,
+   "year": 2025,
+   "cluster": "c4"
+  },
+  {
+   "id": "2609.04108",
+   "score": 0.581,
+   "nn_text": 0.954,
+   "nn_refs": 0.161,
+   "refs": 33,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2506.01926",
+   "score": 0.581,
+   "nn_text": 0.95,
+   "nn_refs": 0.208,
+   "refs": 21,
+   "year": 2025,
+   "cluster": "c2"
+  },
+  {
+   "id": "2203.14465",
+   "score": 0.567,
+   "nn_text": 0.953,
+   "nn_refs": 0.15,
+   "refs": 46,
+   "year": 2022,
+   "cluster": "c4"
+  },
+  {
+   "id": "2501.19393",
+   "score": 0.567,
+   "nn_text": 0.944,
+   "nn_refs": 0.183,
+   "refs": 68,
+   "year": 2025,
+   "cluster": "c5"
+  },
+  {
+   "id": "2510.09462",
+   "score": 0.567,
+   "nn_text": 0.949,
+   "nn_refs": 0.0,
+   "refs": 0,
+   "year": 2025,
+   "cluster": "c3"
+  },
+  {
+   "id": "2606.21090",
+   "score": 0.533,
+   "nn_text": 0.934,
+   "nn_refs": 0.143,
+   "refs": 35,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2603.21676",
+   "score": 0.533,
+   "nn_text": 0.945,
+   "nn_refs": 0.161,
+   "refs": 24,
+   "year": 2026,
+   "cluster": "c4"
+  },
+  {
+   "id": "2203.11171",
+   "score": 0.533,
+   "nn_text": 0.957,
+   "nn_refs": 0.154,
+   "refs": 71,
+   "year": 2022,
+   "cluster": "c4"
+  },
+  {
+   "id": "2305.15408",
+   "score": 0.533,
+   "nn_text": 0.952,
+   "nn_refs": 0.159,
+   "refs": 60,
+   "year": 2023,
+   "cluster": "c4"
+  },
+  {
+   "id": "2504.14047",
+   "score": 0.533,
+   "nn_text": 0.951,
+   "nn_refs": 0.216,
+   "refs": 25,
+   "year": 2025,
+   "cluster": "c5"
+  },
+  {
+   "id": "2510.09714",
+   "score": 0.533,
+   "nn_text": 0.937,
+   "nn_refs": 0.24,
+   "refs": 44,
+   "year": 2025,
+   "cluster": "c2"
+  },
+  {
    "id": "2602.01017",
-   "score": 0.468,
+   "score": 0.531,
    "nn_text": 0.946,
    "nn_refs": 0.202,
    "refs": 35,
    "year": 2026,
    "cluster": "c2"
+  },
+  {
+   "id": "2609.12317",
+   "score": 0.516,
+   "nn_text": 0.951,
+   "nn_refs": 0.179,
+   "refs": 22,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2605.26112",
+   "score": 0.5,
+   "nn_text": 0.944,
+   "nn_refs": 0.132,
+   "refs": 31,
+   "year": 2026,
+   "cluster": "c6"
+  },
+  {
+   "id": "2407.21787",
+   "score": 0.5,
+   "nn_text": 0.945,
+   "nn_refs": 0.174,
+   "refs": 48,
+   "year": 2024,
+   "cluster": "c5"
+  },
+  {
+   "id": "2412.06769",
+   "score": 0.5,
+   "nn_text": 0.946,
+   "nn_refs": 0.193,
+   "refs": 58,
+   "year": 2024,
+   "cluster": "c4"
+  },
+  {
+   "id": "2512.02008",
+   "score": 0.5,
+   "nn_text": 0.949,
+   "nn_refs": 0.199,
+   "refs": 20,
+   "year": 2025,
+   "cluster": "c5"
+  },
+  {
+   "id": "2505.03335",
+   "score": 0.5,
+   "nn_text": 0.957,
+   "nn_refs": 0.221,
+   "refs": 75,
+   "year": 2025,
+   "cluster": "c1"
+  },
+  {
+   "id": "2607.07646",
+   "score": 0.484,
+   "nn_text": 0.931,
+   "nn_refs": 0.226,
+   "refs": 18,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2609.08650",
+   "score": 0.484,
+   "nn_text": 0.959,
+   "nn_refs": 0.153,
+   "refs": 27,
+   "year": 2026,
+   "cluster": "c1"
   },
   {
    "id": "2305.04388",
@@ -9356,251 +9413,26 @@
    "cluster": "c4"
   },
   {
-   "id": "2603.30036",
-   "score": 0.466,
-   "nn_text": 0.948,
-   "nn_refs": 0.0,
-   "refs": 0,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
-   "id": "2310.01798",
-   "score": 0.458,
-   "nn_text": 0.93,
-   "nn_refs": 0.173,
-   "refs": 52,
-   "year": 2023,
-   "cluster": "c4"
-  },
-  {
-   "id": "2203.14465",
-   "score": 0.456,
-   "nn_text": 0.953,
-   "nn_refs": 0.15,
-   "refs": 46,
-   "year": 2022,
-   "cluster": "c4"
-  },
-  {
-   "id": "2606.11998",
-   "score": 0.455,
-   "nn_text": 0.943,
-   "nn_refs": 0.224,
-   "refs": 18,
-   "year": 2026,
-   "cluster": "c3"
-  },
-  {
-   "id": "2607.13087",
-   "score": 0.45,
-   "nn_text": 0.943,
-   "nn_refs": 0.223,
+   "id": "2605.05835",
+   "score": 0.467,
+   "nn_text": 0.94,
+   "nn_refs": 0.193,
    "refs": 26,
    "year": 2026,
    "cluster": "c3"
   },
   {
-   "id": "2607.16097",
-   "score": 0.449,
-   "nn_text": 0.957,
-   "nn_refs": 0.194,
-   "refs": 42,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2509.25300",
-   "score": 0.436,
-   "nn_text": 0.949,
-   "nn_refs": 0.199,
-   "refs": 46,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
-   "id": "2603.12151",
-   "score": 0.435,
-   "nn_text": 0.948,
-   "nn_refs": 0.212,
-   "refs": 32,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2307.13702",
-   "score": 0.427,
-   "nn_text": 0.95,
-   "nn_refs": 0.165,
-   "refs": 40,
-   "year": 2023,
-   "cluster": "c4"
-  },
-  {
-   "id": "2410.08146",
-   "score": 0.427,
-   "nn_text": 0.95,
-   "nn_refs": 0.204,
-   "refs": 45,
-   "year": 2024,
-   "cluster": "c5"
-  },
-  {
-   "id": "2203.11171",
-   "score": 0.42,
-   "nn_text": 0.957,
-   "nn_refs": 0.154,
-   "refs": 71,
-   "year": 2022,
-   "cluster": "c4"
-  },
-  {
-   "id": "2505.01420",
-   "score": 0.418,
-   "nn_text": 0.95,
-   "nn_refs": 0.198,
-   "refs": 27,
-   "year": 2025,
-   "cluster": "c3"
-  },
-  {
-   "id": "2510.13786",
-   "score": 0.418,
-   "nn_text": 0.948,
-   "nn_refs": 0.211,
-   "refs": 43,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
-   "id": "2504.03380",
-   "score": 0.41,
-   "nn_text": 0.954,
-   "nn_refs": 0.198,
-   "refs": 51,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
-   "id": "2512.02008",
-   "score": 0.41,
-   "nn_text": 0.949,
-   "nn_refs": 0.199,
-   "refs": 20,
-   "year": 2025,
-   "cluster": "c5"
-  },
-  {
-   "id": "2604.22074",
-   "score": 0.407,
-   "nn_text": 0.951,
-   "nn_refs": 0.204,
-   "refs": 29,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
-   "id": "2604.16259",
-   "score": 0.406,
-   "nn_text": 0.948,
-   "nn_refs": 0.22,
-   "refs": 42,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2607.02514",
-   "score": 0.397,
-   "nn_text": 0.942,
-   "nn_refs": 0.235,
-   "refs": 25,
-   "year": 2026,
-   "cluster": "c3"
-  },
-  {
-   "id": "2502.07154",
-   "score": 0.392,
-   "nn_text": 0.949,
-   "nn_refs": 0.213,
-   "refs": 47,
-   "year": 2025,
-   "cluster": "c5"
-  },
-  {
-   "id": "2605.11491",
-   "score": 0.392,
-   "nn_text": 0.955,
-   "nn_refs": 0.197,
-   "refs": 23,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2506.01926",
-   "score": 0.387,
-   "nn_text": 0.95,
-   "nn_refs": 0.208,
-   "refs": 21,
-   "year": 2025,
-   "cluster": "c2"
-  },
-  {
-   "id": "2511.11584",
-   "score": 0.382,
-   "nn_text": 0.938,
-   "nn_refs": 0.307,
-   "refs": 11,
-   "year": 2025,
-   "cluster": "c2"
-  },
-  {
-   "id": "2609.09030",
-   "score": 0.377,
-   "nn_text": 0.951,
-   "nn_refs": 0.221,
-   "refs": 46,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
-   "id": "2408.15240",
-   "score": 0.367,
-   "nn_text": 0.949,
-   "nn_refs": 0.228,
-   "refs": 59,
-   "year": 2024,
-   "cluster": "c5"
-  },
-  {
-   "id": "2510.09462",
-   "score": 0.365,
-   "nn_text": 0.949,
+   "id": "2502.05171",
+   "score": 0.467,
+   "nn_text": 0.947,
    "nn_refs": 0.0,
    "refs": 0,
-   "year": 2025,
-   "cluster": "c3"
-  },
-  {
-   "id": "2504.14047",
-   "score": 0.362,
-   "nn_text": 0.951,
-   "nn_refs": 0.216,
-   "refs": 25,
-   "year": 2025,
-   "cluster": "c5"
-  },
-  {
-   "id": "2504.00891",
-   "score": 0.361,
-   "nn_text": 0.951,
-   "nn_refs": 0.218,
-   "refs": 45,
    "year": 2025,
    "cluster": "c5"
   },
   {
    "id": "2502.20379",
-   "score": 0.359,
+   "score": 0.467,
    "nn_text": 0.939,
    "nn_refs": 0.23,
    "refs": 84,
@@ -9608,35 +9440,17 @@
    "cluster": "c5"
   },
   {
-   "id": "2510.09714",
-   "score": 0.353,
-   "nn_text": 0.937,
-   "nn_refs": 0.24,
-   "refs": 44,
-   "year": 2025,
-   "cluster": "c2"
-  },
-  {
-   "id": "2501.12948",
-   "score": 0.352,
-   "nn_text": 0.958,
-   "nn_refs": 0.196,
-   "refs": 23,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
-   "id": "2605.06638",
-   "score": 0.346,
+   "id": "2504.00891",
+   "score": 0.467,
    "nn_text": 0.951,
-   "nn_refs": 0.227,
-   "refs": 48,
-   "year": 2026,
-   "cluster": "c1"
+   "nn_refs": 0.218,
+   "refs": 45,
+   "year": 2025,
+   "cluster": "c5"
   },
   {
    "id": "2508.10751",
-   "score": 0.341,
+   "score": 0.467,
    "nn_text": 0.945,
    "nn_refs": 0.23,
    "refs": 54,
@@ -9644,179 +9458,53 @@
    "cluster": "c1"
   },
   {
-   "id": "2603.05488",
-   "score": 0.339,
+   "id": "2506.19143",
+   "score": 0.452,
    "nn_text": 0.949,
-   "nn_refs": 0.231,
-   "refs": 44,
-   "year": 2026,
+   "nn_refs": 0.237,
+   "refs": 31,
+   "year": 2025,
    "cluster": "c2"
   },
   {
-   "id": "2608.00583",
-   "score": 0.338,
-   "nn_text": 0.944,
-   "nn_refs": 0.248,
-   "refs": 23,
+   "id": "2605.26047",
+   "score": 0.433,
+   "nn_text": 0.942,
+   "nn_refs": 0.159,
+   "refs": 6,
    "year": 2026,
    "cluster": "c3"
   },
   {
-   "id": "2505.03335",
-   "score": 0.327,
-   "nn_text": 0.957,
-   "nn_refs": 0.221,
-   "refs": 75,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
-   "id": "2503.14476",
-   "score": 0.326,
-   "nn_text": 0.947,
-   "nn_refs": 0.237,
-   "refs": 26,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
-   "id": "2608.29464",
-   "score": 0.319,
-   "nn_text": 0.933,
-   "nn_refs": 0.258,
-   "refs": 44,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
-   "id": "2512.18311",
-   "score": 0.309,
-   "nn_text": 0.951,
-   "nn_refs": 0.0,
-   "refs": 0,
-   "year": 2025,
-   "cluster": "c2"
-  },
-  {
-   "id": "2503.08679",
-   "score": 0.307,
-   "nn_text": 0.95,
-   "nn_refs": 0.23,
-   "refs": 40,
-   "year": 2025,
-   "cluster": "c2"
-  },
-  {
-   "id": "2608.29188",
-   "score": 0.304,
-   "nn_text": 0.957,
-   "nn_refs": 0.227,
-   "refs": 42,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2503.01307",
-   "score": 0.301,
-   "nn_text": 0.956,
-   "nn_refs": 0.224,
-   "refs": 40,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
-   "id": "2603.26410",
-   "score": 0.301,
-   "nn_text": 0.943,
-   "nn_refs": 0.286,
-   "refs": 17,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
-   "id": "2605.27901",
-   "score": 0.299,
-   "nn_text": 0.946,
-   "nn_refs": 0.252,
-   "refs": 31,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
-   "id": "2504.04718",
-   "score": 0.29,
-   "nn_text": 0.943,
-   "nn_refs": 0.251,
-   "refs": 42,
-   "year": 2025,
-   "cluster": "c5"
-  },
-  {
-   "id": "2504.16828",
-   "score": 0.286,
-   "nn_text": 0.95,
-   "nn_refs": 0.234,
-   "refs": 61,
-   "year": 2025,
-   "cluster": "c5"
-  },
-  {
-   "id": "2506.19143",
-   "score": 0.285,
-   "nn_text": 0.949,
-   "nn_refs": 0.237,
-   "refs": 31,
-   "year": 2025,
-   "cluster": "c2"
-  },
-  {
-   "id": "2602.14095",
-   "score": 0.285,
-   "nn_text": 0.943,
-   "nn_refs": 0.277,
-   "refs": 22,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
-   "id": "2604.23460",
-   "score": 0.282,
+   "id": "2606.25013",
+   "score": 0.433,
    "nn_text": 0.942,
-   "nn_refs": 0.277,
-   "refs": 24,
+   "nn_refs": 0.183,
+   "refs": 55,
    "year": 2026,
    "cluster": "c2"
   },
   {
-   "id": "2605.11746",
-   "score": 0.278,
+   "id": "2502.07154",
+   "score": 0.433,
    "nn_text": 0.949,
-   "nn_refs": 0.248,
-   "refs": 67,
-   "year": 2026,
-   "cluster": "c2"
+   "nn_refs": 0.213,
+   "refs": 47,
+   "year": 2025,
+   "cluster": "c5"
   },
   {
-   "id": "2609.15989",
-   "score": 0.273,
-   "nn_text": 0.948,
-   "nn_refs": 0.253,
-   "refs": 32,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
-   "id": "2505.05410",
-   "score": 0.266,
-   "nn_text": 0.956,
-   "nn_refs": 0.23,
-   "refs": 37,
+   "id": "2511.11584",
+   "score": 0.433,
+   "nn_text": 0.938,
+   "nn_refs": 0.307,
+   "refs": 11,
    "year": 2025,
    "cluster": "c2"
   },
   {
    "id": "2507.10532",
-   "score": 0.266,
+   "score": 0.433,
    "nn_text": 0.953,
    "nn_refs": 0.233,
    "refs": 32,
@@ -9824,71 +9512,179 @@
    "cluster": "c1"
   },
   {
-   "id": "2312.08935",
-   "score": 0.247,
-   "nn_text": 0.943,
-   "nn_refs": 0.2,
+   "id": "2605.26733",
+   "score": 0.4,
+   "nn_text": 0.936,
+   "nn_refs": 0.177,
+   "refs": 37,
+   "year": 2026,
+   "cluster": "c4"
+  },
+  {
+   "id": "2607.01571",
+   "score": 0.4,
+   "nn_text": 0.945,
+   "nn_refs": 0.191,
+   "refs": 15,
+   "year": 2026,
+   "cluster": "c4"
+  },
+  {
+   "id": "2411.19477",
+   "score": 0.4,
+   "nn_text": 0.929,
+   "nn_refs": 0.213,
    "refs": 48,
-   "year": 2023,
+   "year": 2024,
    "cluster": "c5"
   },
   {
-   "id": "2605.24286",
-   "score": 0.247,
-   "nn_text": 0.949,
-   "nn_refs": 0.255,
-   "refs": 35,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
-   "id": "2606.15455",
-   "score": 0.242,
-   "nn_text": 0.956,
-   "nn_refs": 0.245,
-   "refs": 42,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2608.04735",
-   "score": 0.242,
-   "nn_text": 0.938,
-   "nn_refs": 0.317,
-   "refs": 24,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
-   "id": "2504.07912",
-   "score": 0.231,
-   "nn_text": 0.954,
-   "nn_refs": 0.247,
-   "refs": 56,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
-   "id": "2601.23086",
-   "score": 0.227,
-   "nn_text": 0.953,
+   "id": "2603.30036",
+   "score": 0.4,
+   "nn_text": 0.948,
    "nn_refs": 0.0,
    "refs": 0,
    "year": 2026,
    "cluster": "c2"
   },
   {
-   "id": "2201.11903",
-   "score": 0.213,
-   "nn_text": 0.959,
+   "id": "2512.18311",
+   "score": 0.4,
+   "nn_text": 0.951,
+   "nn_refs": 0.0,
+   "refs": 0,
+   "year": 2025,
+   "cluster": "c2"
+  },
+  {
+   "id": "2504.16828",
+   "score": 0.4,
+   "nn_text": 0.95,
+   "nn_refs": 0.234,
+   "refs": 61,
+   "year": 2025,
+   "cluster": "c5"
+  },
+  {
+   "id": "2505.05410",
+   "score": 0.4,
+   "nn_text": 0.956,
+   "nn_refs": 0.23,
+   "refs": 37,
+   "year": 2025,
+   "cluster": "c2"
+  },
+  {
+   "id": "2607.13087",
+   "score": 0.394,
+   "nn_text": 0.943,
+   "nn_refs": 0.223,
+   "refs": 26,
+   "year": 2026,
+   "cluster": "c3"
+  },
+  {
+   "id": "2503.14476",
+   "score": 0.387,
+   "nn_text": 0.947,
+   "nn_refs": 0.237,
+   "refs": 26,
+   "year": 2025,
+   "cluster": "c1"
+  },
+  {
+   "id": "2307.13702",
+   "score": 0.367,
+   "nn_text": 0.95,
    "nn_refs": 0.165,
-   "refs": 94,
-   "year": 2022,
+   "refs": 40,
+   "year": 2023,
    "cluster": "c4"
   },
   {
+   "id": "2407.18219",
+   "score": 0.367,
+   "nn_text": 0.951,
+   "nn_refs": 0.181,
+   "refs": 64,
+   "year": 2024,
+   "cluster": "c4"
+  },
+  {
+   "id": "2605.14186",
+   "score": 0.367,
+   "nn_text": 0.947,
+   "nn_refs": 0.196,
+   "refs": 32,
+   "year": 2026,
+   "cluster": "c5"
+  },
+  {
+   "id": "2603.12151",
+   "score": 0.367,
+   "nn_text": 0.948,
+   "nn_refs": 0.212,
+   "refs": 32,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2607.16097",
+   "score": 0.355,
+   "nn_text": 0.957,
+   "nn_refs": 0.194,
+   "refs": 42,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2609.09030",
+   "score": 0.355,
+   "nn_text": 0.951,
+   "nn_refs": 0.221,
+   "refs": 46,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2402.12875",
+   "score": 0.333,
+   "nn_text": 0.943,
+   "nn_refs": 0.181,
+   "refs": 65,
+   "year": 2024,
+   "cluster": "c4"
+  },
+  {
+   "id": "2605.25052",
+   "score": 0.333,
+   "nn_text": 0.933,
+   "nn_refs": 0.197,
+   "refs": 57,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2604.22074",
+   "score": 0.333,
+   "nn_text": 0.951,
+   "nn_refs": 0.204,
+   "refs": 29,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2504.04718",
+   "score": 0.333,
+   "nn_text": 0.943,
+   "nn_refs": 0.251,
+   "refs": 42,
+   "year": 2025,
+   "cluster": "c5"
+  },
+  {
    "id": "2505.23575",
-   "score": 0.208,
+   "score": 0.333,
    "nn_text": 0.954,
    "nn_refs": 0.248,
    "refs": 26,
@@ -9896,80 +9692,8 @@
    "cluster": "c2"
   },
   {
-   "id": "2512.01222",
-   "score": 0.199,
-   "nn_text": 0.944,
-   "nn_refs": 0.342,
-   "refs": 20,
-   "year": 2025,
-   "cluster": "c2"
-  },
-  {
-   "id": "2505.24864",
-   "score": 0.197,
-   "nn_text": 0.966,
-   "nn_refs": 0.245,
-   "refs": 35,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
-   "id": "2607.22925",
-   "score": 0.197,
-   "nn_text": 0.949,
-   "nn_refs": 0.276,
-   "refs": 35,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
-   "id": "2608.20256",
-   "score": 0.197,
-   "nn_text": 0.953,
-   "nn_refs": 0.267,
-   "refs": 16,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2510.17057",
-   "score": 0.184,
-   "nn_text": 0.952,
-   "nn_refs": 0.264,
-   "refs": 21,
-   "year": 2025,
-   "cluster": "c2"
-  },
-  {
-   "id": "2605.28388",
-   "score": 0.182,
-   "nn_text": 0.958,
-   "nn_refs": 0.256,
-   "refs": 51,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2507.14843",
-   "score": 0.179,
-   "nn_text": 0.951,
-   "nn_refs": 0.261,
-   "refs": 57,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
-   "id": "2607.08066",
-   "score": 0.179,
-   "nn_text": 0.953,
-   "nn_refs": 0.271,
-   "refs": 33,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
    "id": "2507.05246",
-   "score": 0.169,
+   "score": 0.333,
    "nn_text": 0.954,
    "nn_refs": 0.0,
    "refs": 0,
@@ -9977,8 +9701,35 @@
    "cluster": "c2"
   },
   {
+   "id": "2510.17057",
+   "score": 0.333,
+   "nn_text": 0.952,
+   "nn_refs": 0.264,
+   "refs": 21,
+   "year": 2025,
+   "cluster": "c2"
+  },
+  {
+   "id": "2503.08679",
+   "score": 0.3,
+   "nn_text": 0.95,
+   "nn_refs": 0.23,
+   "refs": 40,
+   "year": 2025,
+   "cluster": "c2"
+  },
+  {
+   "id": "2507.14843",
+   "score": 0.3,
+   "nn_text": 0.951,
+   "nn_refs": 0.261,
+   "refs": 57,
+   "year": 2025,
+   "cluster": "c1"
+  },
+  {
    "id": "2510.08141",
-   "score": 0.167,
+   "score": 0.3,
    "nn_text": 0.959,
    "nn_refs": 0.252,
    "refs": 39,
@@ -9986,35 +9737,53 @@
    "cluster": "c1"
   },
   {
-   "id": "2609.01274",
-   "score": 0.157,
-   "nn_text": 0.953,
-   "nn_refs": 0.28,
-   "refs": 20,
-   "year": 2026,
-   "cluster": "c1"
-  },
-  {
-   "id": "2607.09786",
-   "score": 0.155,
-   "nn_text": 0.949,
-   "nn_refs": 0.289,
-   "refs": 43,
+   "id": "2608.29464",
+   "score": 0.29,
+   "nn_text": 0.933,
+   "nn_refs": 0.258,
+   "refs": 44,
    "year": 2026,
    "cluster": "c2"
   },
   {
-   "id": "2609.13997",
-   "score": 0.155,
-   "nn_text": 0.957,
-   "nn_refs": 0.262,
-   "refs": 38,
+   "id": "2201.11903",
+   "score": 0.267,
+   "nn_text": 0.959,
+   "nn_refs": 0.165,
+   "refs": 94,
+   "year": 2022,
+   "cluster": "c4"
+  },
+  {
+   "id": "2410.08146",
+   "score": 0.267,
+   "nn_text": 0.95,
+   "nn_refs": 0.204,
+   "refs": 45,
+   "year": 2024,
+   "cluster": "c5"
+  },
+  {
+   "id": "2607.02514",
+   "score": 0.267,
+   "nn_text": 0.942,
+   "nn_refs": 0.235,
+   "refs": 25,
    "year": 2026,
-   "cluster": "c1"
+   "cluster": "c3"
+  },
+  {
+   "id": "2608.00583",
+   "score": 0.267,
+   "nn_text": 0.944,
+   "nn_refs": 0.248,
+   "refs": 23,
+   "year": 2026,
+   "cluster": "c3"
   },
   {
    "id": "2509.25004",
-   "score": 0.149,
+   "score": 0.267,
    "nn_text": 0.958,
    "nn_refs": 0.26,
    "refs": 43,
@@ -10023,7 +9792,7 @@
   },
   {
    "id": "2507.13266",
-   "score": 0.144,
+   "score": 0.267,
    "nn_text": 0.958,
    "nn_refs": 0.261,
    "refs": 33,
@@ -10031,35 +9800,107 @@
    "cluster": "c1"
   },
   {
-   "id": "2503.20783",
-   "score": 0.143,
-   "nn_text": 0.953,
-   "nn_refs": 0.28,
-   "refs": 27,
+   "id": "2505.24864",
+   "score": 0.267,
+   "nn_text": 0.966,
+   "nn_refs": 0.245,
+   "refs": 35,
    "year": 2025,
    "cluster": "c1"
   },
   {
-   "id": "2211.14275",
-   "score": 0.134,
-   "nn_text": 0.943,
-   "nn_refs": 0.21,
-   "refs": 60,
-   "year": 2022,
-   "cluster": "c4"
-  },
-  {
-   "id": "2503.18892",
-   "score": 0.124,
+   "id": "2608.29188",
+   "score": 0.258,
    "nn_text": 0.957,
-   "nn_refs": 0.274,
-   "refs": 33,
+   "nn_refs": 0.227,
+   "refs": 42,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2504.07912",
+   "score": 0.258,
+   "nn_text": 0.954,
+   "nn_refs": 0.247,
+   "refs": 56,
    "year": 2025,
    "cluster": "c1"
+  },
+  {
+   "id": "2604.16259",
+   "score": 0.233,
+   "nn_text": 0.948,
+   "nn_refs": 0.22,
+   "refs": 42,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2605.11491",
+   "score": 0.233,
+   "nn_text": 0.955,
+   "nn_refs": 0.197,
+   "refs": 23,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2503.01307",
+   "score": 0.233,
+   "nn_text": 0.956,
+   "nn_refs": 0.224,
+   "refs": 40,
+   "year": 2025,
+   "cluster": "c1"
+  },
+  {
+   "id": "2609.15989",
+   "score": 0.226,
+   "nn_text": 0.948,
+   "nn_refs": 0.253,
+   "refs": 32,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2402.03300",
+   "score": 0.2,
+   "nn_text": 0.944,
+   "nn_refs": 0.195,
+   "refs": 52,
+   "year": 2024,
+   "cluster": "c5"
+  },
+  {
+   "id": "2606.11998",
+   "score": 0.2,
+   "nn_text": 0.943,
+   "nn_refs": 0.224,
+   "refs": 18,
+   "year": 2026,
+   "cluster": "c3"
+  },
+  {
+   "id": "2605.06638",
+   "score": 0.2,
+   "nn_text": 0.951,
+   "nn_refs": 0.227,
+   "refs": 48,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2603.05488",
+   "score": 0.2,
+   "nn_text": 0.949,
+   "nn_refs": 0.231,
+   "refs": 44,
+   "year": 2026,
+   "cluster": "c2"
   },
   {
    "id": "2507.11473",
-   "score": 0.112,
+   "score": 0.2,
    "nn_text": 0.951,
    "nn_refs": 0.3,
    "refs": 26,
@@ -10067,62 +9908,17 @@
    "cluster": "c2"
   },
   {
-   "id": "2510.23966",
-   "score": 0.106,
-   "nn_text": 0.953,
-   "nn_refs": 0.328,
-   "refs": 15,
-   "year": 2025,
-   "cluster": "c2"
-  },
-  {
-   "id": "2510.08325",
-   "score": 0.1,
-   "nn_text": 0.954,
-   "nn_refs": 0.298,
-   "refs": 24,
-   "year": 2025,
-   "cluster": "c1"
-  },
-  {
-   "id": "2305.20050",
-   "score": 0.095,
-   "nn_text": 0.947,
-   "nn_refs": 0.249,
-   "refs": 25,
-   "year": 2023,
-   "cluster": "c4"
-  },
-  {
-   "id": "2510.19476",
-   "score": 0.091,
-   "nn_text": 0.949,
-   "nn_refs": 0.35,
-   "refs": 34,
-   "year": 2025,
-   "cluster": "c2"
-  },
-  {
-   "id": "2603.22582",
-   "score": 0.09,
-   "nn_text": 0.955,
-   "nn_refs": 0.294,
-   "refs": 44,
-   "year": 2026,
-   "cluster": "c2"
-  },
-  {
-   "id": "2506.01939",
-   "score": 0.08,
-   "nn_text": 0.962,
-   "nn_refs": 0.288,
-   "refs": 41,
+   "id": "2501.12948",
+   "score": 0.194,
+   "nn_text": 0.958,
+   "nn_refs": 0.196,
+   "refs": 23,
    "year": 2025,
    "cluster": "c1"
   },
   {
    "id": "2505.22617",
-   "score": 0.075,
+   "score": 0.194,
    "nn_text": 0.958,
    "nn_refs": 0.293,
    "refs": 47,
@@ -10130,8 +9926,98 @@
    "cluster": "c1"
   },
   {
+   "id": "2312.08935",
+   "score": 0.161,
+   "nn_text": 0.943,
+   "nn_refs": 0.2,
+   "refs": 48,
+   "year": 2023,
+   "cluster": "c5"
+  },
+  {
+   "id": "2607.22925",
+   "score": 0.161,
+   "nn_text": 0.949,
+   "nn_refs": 0.276,
+   "refs": 35,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2608.20256",
+   "score": 0.161,
+   "nn_text": 0.953,
+   "nn_refs": 0.267,
+   "refs": 16,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2506.01939",
+   "score": 0.161,
+   "nn_text": 0.962,
+   "nn_refs": 0.288,
+   "refs": 41,
+   "year": 2025,
+   "cluster": "c1"
+  },
+  {
+   "id": "2408.15240",
+   "score": 0.133,
+   "nn_text": 0.949,
+   "nn_refs": 0.228,
+   "refs": 59,
+   "year": 2024,
+   "cluster": "c5"
+  },
+  {
+   "id": "2605.27901",
+   "score": 0.133,
+   "nn_text": 0.946,
+   "nn_refs": 0.252,
+   "refs": 31,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2605.11746",
+   "score": 0.133,
+   "nn_text": 0.949,
+   "nn_refs": 0.248,
+   "refs": 67,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2602.14095",
+   "score": 0.133,
+   "nn_text": 0.943,
+   "nn_refs": 0.277,
+   "refs": 22,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2512.01222",
+   "score": 0.133,
+   "nn_text": 0.944,
+   "nn_refs": 0.342,
+   "refs": 20,
+   "year": 2025,
+   "cluster": "c2"
+  },
+  {
+   "id": "2510.08325",
+   "score": 0.133,
+   "nn_text": 0.954,
+   "nn_refs": 0.298,
+   "refs": 24,
+   "year": 2025,
+   "cluster": "c1"
+  },
+  {
    "id": "2504.20571",
-   "score": 0.073,
+   "score": 0.121,
    "nn_text": 0.963,
    "nn_refs": 0.29,
    "refs": 58,
@@ -10139,8 +10025,62 @@
    "cluster": "c1"
   },
   {
+   "id": "2211.14275",
+   "score": 0.1,
+   "nn_text": 0.943,
+   "nn_refs": 0.21,
+   "refs": 60,
+   "year": 2022,
+   "cluster": "c4"
+  },
+  {
+   "id": "2603.26410",
+   "score": 0.1,
+   "nn_text": 0.943,
+   "nn_refs": 0.286,
+   "refs": 17,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2604.23460",
+   "score": 0.1,
+   "nn_text": 0.942,
+   "nn_refs": 0.277,
+   "refs": 24,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2601.23086",
+   "score": 0.1,
+   "nn_text": 0.953,
+   "nn_refs": 0.0,
+   "refs": 0,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2606.15455",
+   "score": 0.1,
+   "nn_text": 0.956,
+   "nn_refs": 0.245,
+   "refs": 42,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2503.20783",
+   "score": 0.1,
+   "nn_text": 0.953,
+   "nn_refs": 0.28,
+   "refs": 27,
+   "year": 2025,
+   "cluster": "c1"
+  },
+  {
    "id": "2506.14245",
-   "score": 0.063,
+   "score": 0.1,
    "nn_text": 0.962,
    "nn_refs": 0.293,
    "refs": 43,
@@ -10148,17 +10088,44 @@
    "cluster": "c1"
   },
   {
-   "id": "2510.19851",
-   "score": 0.056,
-   "nn_text": 0.954,
-   "nn_refs": 0.354,
-   "refs": 25,
+   "id": "2510.23966",
+   "score": 0.1,
+   "nn_text": 0.953,
+   "nn_refs": 0.328,
+   "refs": 15,
    "year": 2025,
    "cluster": "c2"
   },
   {
+   "id": "2609.13997",
+   "score": 0.097,
+   "nn_text": 0.957,
+   "nn_refs": 0.262,
+   "refs": 38,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2605.24286",
+   "score": 0.067,
+   "nn_text": 0.949,
+   "nn_refs": 0.255,
+   "refs": 35,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2503.18892",
+   "score": 0.067,
+   "nn_text": 0.957,
+   "nn_refs": 0.274,
+   "refs": 33,
+   "year": 2025,
+   "cluster": "c1"
+  },
+  {
    "id": "2506.14758",
-   "score": 0.054,
+   "score": 0.067,
    "nn_text": 0.956,
    "nn_refs": 0.308,
    "refs": 48,
@@ -10166,8 +10133,80 @@
    "cluster": "c1"
   },
   {
+   "id": "2607.08066",
+   "score": 0.065,
+   "nn_text": 0.953,
+   "nn_refs": 0.271,
+   "refs": 33,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2609.01274",
+   "score": 0.065,
+   "nn_text": 0.953,
+   "nn_refs": 0.28,
+   "refs": 20,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2510.19476",
+   "score": 0.065,
+   "nn_text": 0.949,
+   "nn_refs": 0.35,
+   "refs": 34,
+   "year": 2025,
+   "cluster": "c2"
+  },
+  {
+   "id": "2607.09786",
+   "score": 0.032,
+   "nn_text": 0.949,
+   "nn_refs": 0.289,
+   "refs": 43,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2305.20050",
+   "score": 0.0,
+   "nn_text": 0.947,
+   "nn_refs": 0.249,
+   "refs": 25,
+   "year": 2023,
+   "cluster": "c4"
+  },
+  {
+   "id": "2605.28388",
+   "score": 0.0,
+   "nn_text": 0.958,
+   "nn_refs": 0.256,
+   "refs": 51,
+   "year": 2026,
+   "cluster": "c1"
+  },
+  {
+   "id": "2608.04735",
+   "score": 0.0,
+   "nn_text": 0.938,
+   "nn_refs": 0.317,
+   "refs": 24,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
+   "id": "2603.22582",
+   "score": 0.0,
+   "nn_text": 0.955,
+   "nn_refs": 0.294,
+   "refs": 44,
+   "year": 2026,
+   "cluster": "c2"
+  },
+  {
    "id": "2506.10947",
-   "score": 0.05,
+   "score": 0.0,
    "nn_text": 0.958,
    "nn_refs": 0.302,
    "refs": 43,
@@ -10176,7 +10215,7 @@
   },
   {
    "id": "2504.13837",
-   "score": 0.03,
+   "score": 0.0,
    "nn_text": 0.963,
    "nn_refs": 0.312,
    "refs": 54,
@@ -10185,10 +10224,19 @@
   },
   {
    "id": "2508.00943",
-   "score": 0.028,
+   "score": 0.0,
    "nn_text": 0.958,
    "nn_refs": 0.348,
    "refs": 23,
+   "year": 2025,
+   "cluster": "c2"
+  },
+  {
+   "id": "2510.19851",
+   "score": 0.0,
+   "nn_text": 0.954,
+   "nn_refs": 0.354,
+   "refs": 25,
    "year": 2025,
    "cluster": "c2"
   }
@@ -10214,8 +10262,8 @@
  ],
  "notes": [],
  "health": {
-  "max_null_excess": 0.6115974914611093,
-  "chosen_null_excess": 0.5116952663810853,
+  "max_null_excess": 0.6268761669541072,
+  "chosen_null_excess": 0.4940030144724343,
   "thin_reference_share": 0.08205128205128205
  },
  "cohesion": {
@@ -10230,12 +10278,12 @@
     "target": 3,
     "clusters": 3,
     "gamma": 0.3760603093086394,
-    "holdout_ari": 0.9758867869448261,
-    "holdout_se": 0.00806776024056243,
+    "holdout_ari": 0.9663283584725042,
+    "holdout_se": 0.005668982298738454,
     "resample_ari": 0.902634618761261,
     "resample_se": 0.030513527312717385,
-    "stability": 0.9392607028530435,
-    "stability_se": 0.0157810337459492,
+    "stability": 0.9344814886168826,
+    "stability_se": 0.015517834170458194,
     "seed_ari": 0.8548517131434814,
     "median_clusterwise": 0.9372139051475173
    },
@@ -10243,12 +10291,12 @@
     "target": 4,
     "clusters": 4,
     "gamma": 0.7830948624000186,
-    "holdout_ari": 0.8518387300859008,
-    "holdout_se": 0.01848448086276226,
+    "holdout_ari": 0.8535092913350942,
+    "holdout_se": 0.014526122996294341,
     "resample_ari": 0.7497562146766978,
     "resample_se": 0.020273578480736302,
-    "stability": 0.8007974723812994,
-    "stability_se": 0.013717634792306563,
+    "stability": 0.801632753005896,
+    "stability_se": 0.012470226879632597,
     "seed_ari": 0.8755065154658567,
     "median_clusterwise": 0.727131521551045
    },
@@ -10256,12 +10304,12 @@
     "target": 5,
     "clusters": 5,
     "gamma": 1.0,
-    "holdout_ari": 0.8474211611485959,
-    "holdout_se": 0.022716759598385636,
+    "holdout_ari": 0.8963150268092642,
+    "holdout_se": 0.01465369096961634,
     "resample_ari": 0.7747098156456007,
     "resample_se": 0.015456178830017321,
-    "stability": 0.8110654883970982,
-    "stability_se": 0.013738127880795125,
+    "stability": 0.8355124212274325,
+    "stability_se": 0.010649226768391345,
     "seed_ari": 0.9170064356254158,
     "median_clusterwise": 0.8263508102058695
    },
@@ -10269,12 +10317,12 @@
     "target": 6,
     "clusters": 6,
     "gamma": 1.201266093346643,
-    "holdout_ari": 0.8192766796913538,
-    "holdout_se": 0.011583482441178137,
+    "holdout_ari": 0.8388655943077186,
+    "holdout_se": 0.0105869378478377,
     "resample_ari": 0.7583135871386377,
     "resample_se": 0.014469895446484147,
-    "stability": 0.7887951334149957,
-    "stability_se": 0.009267617543053674,
+    "stability": 0.7985895907231781,
+    "stability_se": 0.008964668527421426,
     "seed_ari": 0.8749772537667571,
     "median_clusterwise": 0.6807407652790848
    },
@@ -10282,12 +10330,12 @@
     "target": 8,
     "clusters": 8,
     "gamma": 1.6306894089533097,
-    "holdout_ari": 0.6517023000289405,
-    "holdout_se": 0.0058270764673556625,
+    "holdout_ari": 0.657650538682238,
+    "holdout_se": 0.003056347396289808,
     "resample_ari": 0.688468271921814,
     "resample_se": 0.015698109528749178,
-    "stability": 0.6700852859753772,
-    "stability_se": 0.008372357238750266,
+    "stability": 0.673059405302026,
+    "stability_se": 0.007996435177368307,
     "seed_ari": 0.8813580049238716,
     "median_clusterwise": 0.6904162672738541
    },
@@ -10295,12 +10343,12 @@
     "target": 10,
     "clusters": 10,
     "gamma": 2.0823650968103595,
-    "holdout_ari": 0.6996187804710546,
-    "holdout_se": 0.013816512535235366,
+    "holdout_ari": 0.7006769970809466,
+    "holdout_se": 0.013543428720722199,
     "resample_ari": 0.6972097490769738,
     "resample_se": 0.014287557820346242,
-    "stability": 0.6984142647740141,
-    "stability_se": 0.009937684930430893,
+    "stability": 0.6989433730789602,
+    "stability_se": 0.009843256193747828,
     "seed_ari": 0.77307504703761,
     "median_clusterwise": 0.6730561009287652
    },
@@ -10308,12 +10356,12 @@
     "target": 12,
     "clusters": 12,
     "gamma": 2.213621081291236,
-    "holdout_ari": 0.6965923924997899,
-    "holdout_se": 0.016334256224521542,
+    "holdout_ari": 0.704682712403169,
+    "holdout_se": 0.011855408625153238,
     "resample_ari": 0.7046344256216359,
     "resample_se": 0.016103485386286958,
-    "stability": 0.7006134090607129,
-    "stability_se": 0.01146876375197735,
+    "stability": 0.7046585690124025,
+    "stability_se": 0.009998411814579796,
     "seed_ari": 0.7737006799277784,
     "median_clusterwise": 0.6770371910209553
    },
@@ -10321,12 +10369,12 @@
     "target": 15,
     "clusters": 15,
     "gamma": 2.426179292016782,
-    "holdout_ari": 0.626053880327167,
-    "holdout_se": 0.012093936974087166,
+    "holdout_ari": 0.6305677910922788,
+    "holdout_se": 0.009281887659692241,
     "resample_ari": 0.641859803176456,
     "resample_se": 0.014134710111262074,
-    "stability": 0.6339568417518116,
-    "stability_se": 0.009301254504939198,
+    "stability": 0.6362137971343673,
+    "stability_se": 0.008454931526283365,
     "seed_ari": 0.8219825158815597,
     "median_clusterwise": 0.5447082271910647
    },
@@ -10334,12 +10382,12 @@
     "target": 18,
     "clusters": 18,
     "gamma": 3.3956907089426864,
-    "holdout_ari": 0.5640095259987729,
-    "holdout_se": 0.03379010222662553,
+    "holdout_ari": 0.5426545897715855,
+    "holdout_se": 0.022064007448881012,
     "resample_ari": 0.6338312790247927,
     "resample_se": 0.01506476498088607,
-    "stability": 0.5989204025117828,
-    "stability_se": 0.018498095526399028,
+    "stability": 0.5882429343981892,
+    "stability_se": 0.013358214407562187,
     "seed_ari": 0.8601598943598369,
     "median_clusterwise": 0.6166697885447885
    },
@@ -10347,12 +10395,12 @@
     "target": 22,
     "clusters": 22,
     "gamma": 4.336244396414018,
-    "holdout_ari": 0.5283794793802497,
-    "holdout_se": 0.02508235192511123,
+    "holdout_ari": 0.5543371133264936,
+    "holdout_se": 0.02371749386581638,
     "resample_ari": 0.6253016888595776,
     "resample_se": 0.01259678227025777,
-    "stability": 0.5768405841199136,
-    "stability_se": 0.014033916966223395,
+    "stability": 0.5898194010930355,
+    "stability_se": 0.01342756901713149,
     "seed_ari": 0.7885313247580881,
     "median_clusterwise": 0.5743253968253967
    }
@@ -10860,7 +10908,7 @@
    "subclusters": [
     {
      "size": 38,
-     "stability": 0.7421076955391162,
+     "stability": 0.727528711876575,
      "members": [
       "2501.12599",
       "2501.12948",
@@ -11018,7 +11066,7 @@
    "subclusters": [
     {
      "size": 18,
-     "stability": 0.46818038816568847,
+     "stability": 0.4462484683042084,
      "members": [
       "2505.05410",
       "2505.23575",
@@ -11066,7 +11114,7 @@
     },
     {
      "size": 3,
-     "stability": 0.4824186810351671,
+     "stability": 0.12102468083525948,
      "members": [
       "2503.11926",
       "2512.18311",
@@ -11288,7 +11336,7 @@
     },
     {
      "size": 3,
-     "stability": 0.4824186810351671,
+     "stability": 0.15506607281607282,
      "members": [
       "2303.11366",
       "2407.00215",
@@ -11369,7 +11417,7 @@
    "subclusters": [
     {
      "size": 27,
-     "stability": 0.9062199270134051,
+     "stability": 0.9318916739460217,
      "members": [
       "2312.08935",
       "2402.03300",
@@ -11439,7 +11487,7 @@
    "subclusters": [
     {
      "size": 5,
-     "stability": 0.4824186810351671,
+     "stability": 0.36221294083841515,
      "members": [
       "2605.23950",
       "2605.26112",

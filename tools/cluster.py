@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["numpy", "scikit-learn", "igraph", "leidenalg"]
+# dependencies = ["numpy==2.5.3", "scikit-learn==1.9.1", "igraph==1.0.0", "leidenalg==0.12.0"]
 # ///
 """Cluster a topic's pool by the method in docs/process.md, "Clustering method".
 
@@ -11,17 +11,19 @@ Reads the pool sidecar graphs/<topic>/pool.json (from tools/pool.py). The simila
 text similarity (SPECTER2 embeddings) and the reference similarity (bibliographic coupling), each converted to
 per-paper neighbour ranks and mixed per pair with weight w = n / (n + c) on references, n being the shorter of the two
 reference lists. For each level of a grid of cluster counts, it clusters the pool with Leiden and measures stability by
-time holdout and resampling. The chosen level is the finest whose stability is at least --tau, 0.75 by default: the
-last level before the curve falls off into instability. If every holdout cutoff is skipped (less than 30% of the pool
-older than it), stability is the resampling score alone, and the printout says so.
+time holdout and resampling. A holdout rerun recomputes the similarity on the older papers alone, rank normalisation
+included, as the pool would have been months ago. The chosen level is the finest whose stability is at least --tau,
+0.75 by default: the last level before the curve falls off into instability. If every holdout cutoff is skipped (less
+than 30% of the pool older than it), stability is the resampling score alone, and the printout says so.
 
 It also runs the same pipeline once on structure-free null data of the same size and shape (--nulls draws, 1 by
 default, averaged). The null serves only as the `no structure` guard: real stability exceeding it by less than 0.15 at
 every level. --nulls 0 is refused, since without a null draw the guard cannot run.
 
 It also scores every paper for how poorly the rest of the pool covers it, the fringe score: its distance to its k
-nearest neighbours, ranked within its age cohort, text and references mixed per paper by w = n / (n + c), n being its
-resolved references, so that a paper without reference data is scored by its text.
+nearest neighbours, text and references mixed per paper by w = n / (n + c), n being its resolved references, so that a
+paper without reference data is scored by its text; then ranked once within its age cohort, the COHORT (30) papers
+nearest to it by publication date. The score is a percentile within that cohort.
 
 The input's `granularity` steering (docs/formats.md) moves the chosen level one step coarser or finer, or to the
 level of N clusters; --level does the same as a user override and takes precedence. A level below tau is flagged.
@@ -30,13 +32,16 @@ If a previous clusters.json exists, the new clustering is matched to it by share
 that `tools/assign.py remap` can carry cluster names over.
 
 Writes graphs/<topic>/clusters.json and prints the retrieval log's `Clustering` line. Deterministic: every random
-choice is seeded.
+choice is seeded, and `params` records the seeds, the defaults used and the installed package versions. Usage errors
+exit with status 2.
 """
 
 import json
+import platform
 import sys
 import time
 from datetime import date
+from importlib.metadata import version
 from itertools import combinations
 from pathlib import Path
 
@@ -65,10 +70,31 @@ EXCHANGE = 0.2  # two unstable clusters whose papers are co-assigned this often 
 NO_STRUCTURE = 0.15  # if real stability never exceeds the null by this much, there is little structure
 BROAD = 0.9  # a coarsest level this stable, with nothing finer reaching tau: a broad scope, noted, not a diagnostic
 THIN_REFS = 10  # papers with fewer resolved references than this carry little reference signal
+# Defaults of the command-line settings, recorded in `params`. The spec fixes none of these values.
+K = 10  # --k: neighbours per paper in the graph, and in the fringe score
+C_REFS = 10.0  # --c: the reference weight w = n / (n + c) reaches 0.5 at c resolved references
+REPS = 20  # --reps: resampling reruns per level
+NULLS = 1  # --nulls: structure-free null draws, averaged
+COHORT = 30  # the fringe score's age cohort: the papers nearest by publication date (more on ties)
+# Every seed the method uses, recorded in `params`.
+SEEDS = {"leiden": 0, "resolution_search": 0, "holdout_leiden": [0, 1, 2], "resample_draws": "default_rng(0)",
+         "resample_leiden": "rerun index", "seed_agreement": [0, 1, 2, 3, 4], "exchange_draws": "default_rng(1)",
+         "null_data": "default_rng(1000 + draw)", "null_resample_draws": "default_rng(0) per level"}
+PACKAGES = ["numpy", "scikit-learn", "igraph", "leidenalg"]
+
+
+def usage(msg):
+    print(f"usage error: {msg}", file=sys.stderr)
+    sys.exit(2)
 
 
 def opt(argv, name, default, cast):
-    return cast(argv[argv.index(name) + 1]) if name in argv else default
+    if name not in argv:
+        return default
+    try:
+        return cast(argv[argv.index(name) + 1])
+    except (IndexError, ValueError):
+        usage(f"{name} needs a value" + (f" such as {default}" if default is not None else ""))
 
 
 # --- similarity measures --------------------------------------------------------------------------
@@ -184,6 +210,11 @@ def recluster(S, idx, k, gamma, seed):
     return leiden(knn_graph(S[np.ix_(idx, idx)], k), gamma, seed)
 
 
+def subset_sim(T, C, recs, c):
+    """The `combined` measure recomputed on a subset of papers, given by their indices: rank normalisation included."""
+    return lambda idx: combined_sim(T[np.ix_(idx, idx)], C[np.ix_(idx, idx)], [recs[i] for i in idx], c)
+
+
 # --- scores ---------------------------------------------------------------------------------------
 
 
@@ -193,6 +224,17 @@ def best_jaccard(ref, labels):
         A = set(np.flatnonzero(ref == c))
         out[int(c)] = max(len(A & B) / len(A | B) for B in (set(np.flatnonzero(labels == d)) for d in np.unique(labels)))
     return out
+
+
+def part_score(part, reruns):
+    """The clusterwise score of any set of papers: its best Jaccard overlap with a cluster of each resampling rerun, on
+    the papers the rerun kept, averaged. For a whole cluster it equals that cluster's clusterwise score."""
+    part, js = set(int(i) for i in part), []
+    for idx, lab in reruns:
+        A = {j for j, i in enumerate(idx) if i in part}
+        if A:
+            js.append(max(len(A & B) / len(A | B) for B in (set(np.flatnonzero(lab == d)) for d in np.unique(lab))))
+    return float(np.mean(js)) if js else None
 
 
 def mean_se(xs):
@@ -217,7 +259,9 @@ def cohesion(labels, T, C, edges):
     return out
 
 
-def level_stats(S, k, target, cutoffs, dates, reps, rng):
+def level_stats(S, k, target, cutoffs, dates, reps, rng, sub=None):
+    """Stability at one level. `sub(idx)`, if given, recomputes the similarity on the papers idx alone, for the time
+    holdout: the older papers on their own, as an earlier pass would have measured them. Without it, S is sliced."""
     g = knn_graph(S, k)
     gamma, got = tune(g, target)
     full = leiden(g, gamma, 0)
@@ -225,12 +269,14 @@ def level_stats(S, k, target, cutoffs, dates, reps, rng):
     hold = []
     for cut in cutoffs:
         idx = np.flatnonzero(dates < cut)
+        g_old = knn_graph(sub(idx) if sub else S[np.ix_(idx, idx)], k)
         for seed in range(3):
-            hold.append(ari(full[idx], recluster(S, idx, k, gamma, seed)))
-    res, cw = [], {c: [] for c in np.unique(full) if (full == c).sum() >= MIN_CLUSTER}
+            hold.append(ari(full[idx], leiden(g_old, gamma, seed)))
+    res, cw, reruns = [], {c: [] for c in np.unique(full) if (full == c).sum() >= MIN_CLUSTER}, []
     for r in range(reps):
         idx = np.sort(rng.choice(n, int(0.8 * n), replace=False))
         lab = recluster(S, idx, k, gamma, r)
+        reruns.append((idx, lab))
         res.append(ari(full[idx], lab))
         for c, j in best_jaccard(full[idx], lab).items():
             if c in cw:
@@ -250,6 +296,7 @@ def level_stats(S, k, target, cutoffs, dates, reps, rng):
         "stability": st, "stability_se": st_se,
         "seed_ari": float(np.mean([ari(a, b) for a, b in combinations(seeds, 2)])),
         "clusterwise": cw, "median_clusterwise": float(np.median(list(cw.values()))) if cw else 0.0,
+        "reruns": reruns,  # the resampling reruns, for scoring sub-clusters; not written out
     }
 
 
@@ -267,32 +314,64 @@ def choose_level(levels, tau):
     return j, f"finest level with stability >= {tau}: {levels[j]['stability']:.2f}{after}"
 
 
-def fringe_scores(T, C, recs, k, c):
-    """Per paper: distance to its k nearest neighbours, ranked among papers of similar age (year ± 1), 0 to 1.
+def mid_percentile(x):
+    """Each value's percentile within x, strictly between 0 and 1; tied values share the middle of their ranks."""
+    _, inv, counts = np.unique(x, return_inverse=True, return_counts=True)
+    below = np.concatenate([[0], np.cumsum(counts)[:-1]])
+    return (below[inv] + counts[inv] / 2) / len(x)
 
-    Older papers sit further from current work simply because the field moved on, so the raw distance is ranked within
-    an age cohort. The reference rank is mixed with the text rank per paper, as in `combined`, with weight
-    w = n / (n + c) on references, n being the paper's own number of resolved references. A paper with no resolved
-    references is equally far from everything by references alone, which would put it at the top of its cohort for
-    lack of data, not for being overlooked; the weight makes such a paper lean on text.
+
+def age_cohorts(recs, size):
+    """Per paper, its age cohort: the `size` papers nearest to it by publication date (itself included), widened to
+    take in every paper tied with the last. The date is the record's, or else mid-year of its year. An undated paper,
+    and every paper of a pool no larger than `size`, has the whole pool as its cohort."""
+    n = len(recs)
+    day = [date.fromisoformat(r["date"]).toordinal() if r.get("date") else
+           date(r["year"], 7, 1).toordinal() if r.get("year") else None for r in recs]
+    known = np.array([d is not None for d in day])
+    days = np.array([d if d is not None else 0 for d in day], dtype=float)
+    out = []
+    for i in range(n):
+        if day[i] is None or known.sum() <= size:
+            out.append(np.arange(n))
+            continue
+        gap = np.where(known, np.abs(days - days[i]), np.inf)
+        out.append(np.flatnonzero(gap <= np.sort(gap)[size - 1]))
+    return out
+
+
+def fringe_scores(T, C, recs, k, c, cohort=COHORT):
+    """Per paper: distance to its k nearest neighbours, text and references mixed, ranked within its age cohort, 0 to 1.
+
+    The two distances live on different scales, so each is first put on a common one: its normal score, from its
+    percentile in the pool; for references, among the papers that have any. They are then mixed per paper, as in
+    `combined`, with weight w = n / (n + c) on references, n being the paper's own number of resolved references. A
+    paper with no resolved references is equally far from everything by references alone, for lack of data rather than
+    for being overlooked; with w = 0 it is scored by its text. The mix is divided by its spread under the two scores'
+    correlation in the pool, so that every paper's mixed score has the same spread whatever its weight. Without that,
+    a mix of two partly independent scores is less extreme than either, and papers scored by one alone, those without
+    references, would crowd both ends of the ranking.
+
+    Older papers sit further from current work simply because the field moved on, so the mixed score is ranked once,
+    within the paper's age cohort (`age_cohorts`): the share of its cohort that it exceeds. Returns that percentile, the
+    mixed score (for breaking ties between percentiles), and the nearest-neighbour similarities.
     """
+    from statistics import NormalDist
     n = len(recs)
     off = ~np.eye(n, dtype=bool)
     near = {name: np.array([np.sort(S[i][off[i]])[-k:].mean() for i in range(n)]) for name, S in (("text", T), ("refs", C))}
-    years = np.array([r.get("year") or 0 for r in recs])
-    ranks = {}
-    for name in ("text", "refs"):
-        dist = 1 - near[name]
-        rk = np.zeros(n)
-        for i in range(n):
-            cohort = np.flatnonzero(np.abs(years - years[i]) <= 1)
-            if len(cohort) < 10:
-                cohort = np.arange(n)
-            rk[i] = (dist[cohort] < dist[i]).mean()
-        ranks[name] = rk
+    normal = np.vectorize(NormalDist().inv_cdf)
     n_refs = np.array([len(r["refs"]) for r in recs], dtype=float)
+    has = n_refs > 0
+    z_text, z_refs = normal(mid_percentile(1 - near["text"])), np.zeros(n)
+    if has.any():
+        z_refs[has] = normal(mid_percentile(1 - near["refs"][has]))
+    rho = float(np.corrcoef(z_text[has], z_refs[has])[0, 1]) if has.sum() > 2 else 0.0
+    rho = 0.0 if np.isnan(rho) else rho
     w = n_refs / (n_refs + c)
-    return w * ranks["refs"] + (1 - w) * ranks["text"], near
+    mixed = (w * z_refs + (1 - w) * z_text) / np.sqrt(np.maximum(w**2 + (1 - w)**2 + 2 * w * (1 - w) * rho, 1e-9))
+    score = np.array([(mixed[co] < mixed[i]).mean() for i, co in enumerate(age_cohorts(recs, cohort))])
+    return score, mixed, near
 
 
 def exchange_rates(S, full, k, gamma, reps, rng):
@@ -391,8 +470,11 @@ def steer(argv, topic, levels, li, rule, reason, curve, tau):
         # The viewer's slider shows the number of clusters each level reached, which can differ from its target.
         new = [l["clusters"] for l in curve].index(int(how))
     else:
-        sys.exit(f"--level or granularity must be coarser, finer, or one of this pool's levels: targets {levels}, "
-                 f"reached {[l['clusters'] for l in curve]}; not {how!r}")
+        msg = (f"--level or granularity must be coarser, finer, or one of this pool's levels: targets {levels}, "
+               f"reached {[l['clusters'] for l in curve]}; not {how!r}")
+        if source == "user override":
+            usage(msg)  # a bad --level is a usage error; a bad granularity in the input is not
+        sys.exit(msg)
     st = curve[new]["stability"]
     flag = f"; below tau ({st:.2f})" if st < tau else ""
     if flag:
@@ -414,6 +496,40 @@ def clustering_line(chosen, rule, curve, li, sensitivity, tau, k, c, cutoffs, di
             f"diagnostics: {diag}; manual overrides: {override}")
 
 
+def match_lines(prev):
+    """The printout of a match to the previous clustering: each new cluster and where it came from, then every change
+    in one line: splits, merges, absorptions, new and reshuffled clusters, and vanished ones."""
+    def num(key):
+        return (int(key[1:]), key) if key[1:].isdigit() else (1 << 30, key)
+
+    def names(xs):
+        return ", ".join(sorted(xs, key=num))
+    old, new = prev["old"], prev["new"]
+    lines = [f"  {b}: {x['case']}" + (f" from {names(x['from'])}" if x.get("from") else "") + f" ({x['share']:.0%})"
+             for b, x in sorted(new.items(), key=lambda kv: num(kv[0]))]
+    changes = []
+    for a, x in sorted(old.items(), key=lambda kv: num(kv[0])):
+        if x["case"] == "split":
+            changes.append(f"{a} split into {names(x['to'])}")
+        elif x["case"] == "absorbed":
+            changes.append(f"{a} absorbed into {x['to'][0]}")
+        elif x["case"] == "vanished":
+            changes.append(f"{a} vanished")
+    for b, x in sorted(new.items(), key=lambda kv: num(kv[0])):
+        if x["case"] == "merged":
+            changes.append(f"{names(x['from'])} merged into {b}")
+        elif x["case"] == "new":
+            changes.append(f"{b} new ({x['fresh']:.0%} of its papers new)")
+        elif x["case"] == "reshuffled":
+            changes.append(f"{b} reshuffled from several clusters")
+    frags = prev.get("fragments") or {}
+    if frags.get("old") or frags.get("new"):
+        changes.append(f"fragments under {MIN_CLUSTER} papers, not matched: {frags.get('old', 0)} old, "
+                       f"{frags.get('new', 0)} new")
+    lines.append("  changes: " + ("; ".join(changes) if changes else "none; every cluster matched"))
+    return lines
+
+
 def month_back(d, months):
     y, m = d.year, d.month - months
     while m <= 0:
@@ -426,17 +542,16 @@ def month_back(d, months):
 
 def main(argv):
     if not argv or argv[0].startswith("-"):
-        sys.exit(__doc__)
+        print(__doc__, file=sys.stderr)
+        sys.exit(2)
     topic = argv[0]
     for gone in ("--rule",):
         if gone in argv:
-            print(f"usage error: {gone} was removed; the level is always the finest reaching --tau", file=sys.stderr)
-            sys.exit(2)
-    k, c, reps = opt(argv, "--k", 10, int), opt(argv, "--c", 10.0, float), opt(argv, "--reps", 20, int)
-    tau, n_nulls = opt(argv, "--tau", TAU, float), opt(argv, "--nulls", 1, int)
+            usage(f"{gone} was removed; the level is always the finest reaching --tau")
+    k, c, reps = opt(argv, "--k", K, int), opt(argv, "--c", C_REFS, float), opt(argv, "--reps", REPS, int)
+    tau, n_nulls = opt(argv, "--tau", TAU, float), opt(argv, "--nulls", NULLS, int)
     if n_nulls < 1:
-        print("usage error: --nulls must be at least 1; the null draw is the `no structure` guard", file=sys.stderr)
-        sys.exit(2)
+        usage("--nulls must be at least 1; the null draw is the `no structure` guard")
     papers = parse(topic)[4]
     sidecar = json.loads((topic_dir(topic) / "pool.json").read_text())
     cache = sidecar["papers"]
@@ -467,7 +582,7 @@ def main(argv):
               f"{MIN_HOLDOUT_SHARE:.0%} of the pool, so all are skipped: stability is the resampling score alone")
 
     rng = np.random.default_rng(0)  # one stream across the levels, so the resamples match earlier runs of this method
-    curve = [level_stats(S, k, L, cutoffs, dates, reps, rng) for L in levels]
+    curve = [level_stats(S, k, L, cutoffs, dates, reps, rng, subset_sim(T, C, recs, c)) for L in levels]
     print(f"  {MEASURE:9}" + " ".join(f"{l['clusters']:>3}:{l['stability']:.2f}" for l in curve))
 
     # The null curve: the same pipeline on structure-free data, for the `no structure` guard only.
@@ -475,10 +590,10 @@ def main(argv):
     for d in range(n_nulls):
         rng = np.random.default_rng(1000 + d)
         Tn, Cn = null_text(recs, rng), null_refs(recs, rng)
-        draws.append(combined_sim(Tn, Cn, recs, c))
+        draws.append((combined_sim(Tn, Cn, recs, c), subset_sim(Tn, Cn, recs, c)))
     null_curve = []
     for L in levels:
-        runs = [level_stats(dr, k, L, cutoffs, dates, reps, np.random.default_rng(0)) for dr in draws]
+        runs = [level_stats(dr, k, L, cutoffs, dates, reps, np.random.default_rng(0), sub) for dr, sub in draws]
         null_curve.append({"clusters": float(np.mean([r["clusters"] for r in runs])),
                            "stability": float(np.mean([r["stability"] for r in runs])),
                            "stability_se": float(np.sqrt(sum(r["stability_se"] ** 2 for r in runs)) / len(runs))})
@@ -503,11 +618,13 @@ def main(argv):
         top = sorted(members, key=lambda i: -indeg[i])[:8]
         sub = []
         if finer:
+            # Leiden levels are not nested: a finer cluster can straddle several clusters of this level. Each part
+            # (finer cluster ∩ this cluster) is scored on its own papers, against the finer level's reruns.
             fl = np.array(finer["labels"])
             for f in np.unique(fl[members]):
                 part = members[fl[members] == f]
                 if len(part) >= MIN_CLUSTER:
-                    sub.append({"size": len(part), "stability": finer["clusterwise"].get(int(f)),
+                    sub.append({"size": len(part), "stability": part_score(part, finer["reruns"]),
                                 "members": [ids[i] for i in part]})
             sub.sort(key=lambda s: -s["size"])
         divided = sum(1 for s in sub if (s["stability"] or 0) >= SUBCLUSTER_SCORE) >= 2
@@ -530,10 +647,11 @@ def main(argv):
     g_knn = knn_graph(S, k)
     knn = [[ids[e.source], ids[e.target], round(w, 3)] for e, w in zip(g_knn.es, g_knn.es["weight"])]
 
-    score, near = fringe_scores(T, C, recs, k, c)
-    fringe = sorted(({"id": ids[i], "score": round(float(score[i]), 3), "nn_text": round(float(near["text"][i]), 3),
-                      "nn_refs": round(float(near["refs"][i]), 3), "refs": len(recs[i]["refs"]), "year": recs[i].get("year"),
-                      "cluster": rename[int(labels[i])]} for i in range(n)), key=lambda x: -x["score"])
+    score, mixed, near = fringe_scores(T, C, recs, k, c, COHORT)
+    # Percentiles within a cohort of about COHORT papers tie often, so ties are broken by the mixed score itself.
+    fringe = [{"id": ids[i], "score": round(float(score[i]), 3), "nn_text": round(float(near["text"][i]), 3),
+               "nn_refs": round(float(near["refs"][i]), 3), "refs": len(recs[i]["refs"]), "year": recs[i].get("year"),
+               "cluster": rename[int(labels[i])]} for i in sorted(range(n), key=lambda i: (-score[i], -mixed[i]))]
 
     assignment = {ids[i]: rename[int(labels[i])] for i in range(n)}
     survey_labels = [papers[a].get("cluster") or "" for a in ids]
@@ -543,14 +661,17 @@ def main(argv):
     report = {
         "generated": time.strftime("%Y-%m-%d"), "pool_fetched": sorted({r.get("fetched") or sidecar.get("fetched") for r in recs} - {None}),
         "params": {"k": k, "c": c, "reps": reps, "nulls": n_nulls, "levels": levels, "cutoffs": cutoffs,
-                   "tau": tau, "subcluster_score": SUBCLUSTER_SCORE},
+                   "tau": tau, "subcluster_score": SUBCLUSTER_SCORE, "fringe_cohort": COHORT,
+                   "defaults": {"k": K, "c": C_REFS, "reps": REPS, "nulls": NULLS, "tau": TAU, "levels": LEVELS},
+                   "seeds": SEEDS,
+                   "versions": {"python": platform.python_version(), **{p: version(p) for p in PACKAGES}}},
         "measure": MEASURE, "stability_from": "holdout and resampling" if cutoffs else "resampling only",
         "rule": rule, "level": chosen["clusters"], "level_reason": level_reason, "tau_sensitivity": sensitivity,
         "null_curves": {MEASURE: null_curve}, "slider": slider, "knn": knn, "fringe": fringe,
         "diagnostics": diagnostics, "notes": notes, "health": health,
         "cohesion": cohesion(labels, T, C, edges),
         "ami_vs_survey_clusters": float(ami(survey_labels, labels)),
-        "curves": {MEASURE: [{x: l[x] for x in l if x not in ("labels", "clusterwise")} for l in curve]},
+        "curves": {MEASURE: [{x: l[x] for x in l if x not in ("labels", "clusterwise", "reruns")} for l in curve]},
         "ids": ids, "assignment": assignment,
         "clusters": clusters, "skipped": skipped,
     }
@@ -596,12 +717,7 @@ def main(argv):
     print(clustering_line(chosen, rule, curve, li, sensitivity, tau, k, c, cutoffs, diagnostics, override))
     if "previous" in report:
         print(f"\nmatched to the previous clustering ({report['previous']['generated']}; tools/match.py):")
-        for b, x in sorted(report["previous"]["new"].items(), key=lambda kv: int(kv[0][1:])):
-            print(f"  {b}: {x['case']}" + (f" from {', '.join(x['from'])}" if x.get("from") else "")
-                  + f" ({x['share']:.0%})")
-        gone = [f"{a} {x['case']}" for a, x in report["previous"]["old"].items() if x["case"] in ("vanished",)]
-        if gone:
-            print("  " + "; ".join(gone))
+        print("\n".join(match_lines(report["previous"])))
         print(f"  carry the names over with `python3 tools/assign.py remap {topic}`")
     print(f"\nwrote {out.relative_to(ROOT)}")
 

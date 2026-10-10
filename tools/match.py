@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["numpy", "scikit-learn", "igraph", "leidenalg"]
+# dependencies = ["numpy==2.5.3", "scikit-learn==1.9.1", "igraph==1.0.0", "leidenalg==0.12.0"]
 # ///
 """Matching clusters across passes: the matching rule, and a simulation of earlier passes on one topic.
 
@@ -144,6 +144,11 @@ def sim(idx, measure, c):
     return combined_sim(text_sim(recs), refs_sim(recs), recs, c)
 
 
+def subset(idx, measure, c):
+    """For level_stats' time holdout: the measure recomputed on part of the papers idx, given by positions in idx."""
+    return lambda j: sim(idx[j], measure, c)
+
+
 def cutoffs_for(dates):
     latest = date.fromisoformat(max(dates))
     return [cut for cut in (month_back(latest, m) for m in HOLDOUT_MONTHS) if (dates < cut).mean() >= MIN_HOLDOUT_SHARE]
@@ -154,7 +159,8 @@ def curve(job):
     idx, measure, k, c, reps = job
     S, d = sim(idx, measure, c), DATES[idx]
     rng = np.random.default_rng(0)
-    return [level_stats(S, k, L, cutoffs_for(d), d, reps, rng) for L in LEVELS if L <= len(idx) // 4]
+    return [level_stats(S, k, L, cutoffs_for(d), d, reps, rng, subset(idx, measure, c))
+            for L in LEVELS if L <= len(idx) // 4]
 
 
 def today_settings(job):
@@ -237,7 +243,7 @@ def snapshot(job):
     S, d = sim(idx, measure, c), DATES[idx]
     g = knn_graph(S, k)
     gamma, got = tune(g, target)
-    st = level_stats(S, k, target, cutoffs_for(d), d, reps, np.random.default_rng(0))
+    st = level_stats(S, k, target, cutoffs_for(d), d, reps, np.random.default_rng(0), subset(idx, measure, c))
     return {"clusters": got, "stability": st["stability"], "labels": [leiden(g, gamma, s) for s in range(seeds)]}
 
 
@@ -333,5 +339,6 @@ def log_line(h):
 if __name__ == "__main__":
     commands = {"simulate": simulate, "history": history}
     if len(sys.argv) < 3 or sys.argv[1] not in commands:
-        sys.exit(__doc__)
+        print(__doc__, file=sys.stderr)
+        sys.exit(2)
     commands[sys.argv[1]](sys.argv[2:])

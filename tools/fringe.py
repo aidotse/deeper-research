@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["numpy", "scipy", "scikit-learn", "igraph", "leidenalg"]
+# dependencies = ["numpy==2.5.3", "scipy==1.18.1", "scikit-learn==1.9.1", "igraph==1.0.0", "leidenalg==0.12.0"]
 # ///
 """Collect fringe candidates for a topic, and test how they behave under the clustering method.
 
