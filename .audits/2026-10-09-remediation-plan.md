@@ -39,6 +39,68 @@ that order.
   before step 3) and pastes the `Pool` line before checking. The gate stays strict.
 - `Z6` waits until after the run.
 
+## Items raised after the audit (2026-10-10)
+
+These came from a discussion of what `Z2` costs: full-text-first verification. They carry `R` IDs so that the index can
+place them.
+
+- `R1` — batch the full-text fetch. Verification runs as parallel agents. If each fetches its own papers, every process
+  keeps arXiv's 3-second spacing only for itself, so together they exceed it. Instead, the main session runs
+  `uv run tools/fulltext.py <topic> --abstract` once, before dispatching verification. At the measured 27 papers in 90
+  seconds, that is about 3 minutes for 60 rows.
+
+- `R2` — a section reader for full texts. A command along the lines of `fulltext.py show <topic> <id> [<pattern>]`:
+
+  - it prints the paper's outline: every heading, with its size in tokens;
+  - it prints the passages matching a pattern, each under its section heading, capped in size;
+  - it can print whole sections by name. It makes "read only the matching sections" the easy path, rather than a rule an
+    agent must remember. Reading the outline and the sections where unprompted caveats live (Limitations, Discussion,
+    Conclusion) also raises recall for what a targeted Grep cannot know to look for.
+
+- `R3` — record how many papers have an arXiv ID. This is an information point, not a requirement.
+
+  - `pool.py` prints it in the `Pool` line ("N papers in scope, A with an arXiv ID"), and `check.py` prints it for the
+    coreset beside the `source` tally.
+  - The viewer shows it, for example as a colour mode or a count in its overview.
+  - It also tells us, per topic, how much the non-arXiv backup (`R5`) would matter.
+
+- `R4` — measure how much targeted reading misses. This is an experiment, and it decides how verification reads a paper.
+  The question: does a strong agent that reads only by Grep, or by the section reader, find what a full reading finds?
+  Verification has two jobs:
+
+  - confirming the claims a draft row already makes, which targeted search does well;
+  - catching what the draft left out: author-stated limitations, conditions on a result, a dissent paper that turns out
+    to agree. Targeted search is weak there, because it only finds what the agent already knew to look for.
+
+  The test bed is the 27 abstract-sourced rows of `reasoning-legacy`. Their full texts are already on disk, and the rows
+  need verifying anyway. The arms:
+
+  - `A` — a strong agent with Grep and the section reader (`R2`);
+  - `B` — a cheap-model locator (for example Haiku) reads the whole paper in its own context, and returns a map of where
+    the method, the setup, each headline number, the limitations and the assumptions are, with quotable sentences. The
+    strong agent then reads only those places;
+  - `C`, the reference — a strong agent reads the whole paper, on a subsample of about 8 papers.
+
+  The measures, per row: tokens, by model; cells confirmed and corrected; limitations and conditions found; and what `A`
+  and `B` missed relative to `C`. A locator's map is safe for precision: every quote still has to be found verbatim in
+  the full text by `check.py`, so a hallucinated location fails the gate. It is not safe for recall, which is what the
+  experiment measures.
+
+  One constraint to settle first: whether a `survey-pass` agent can dispatch a locator subagent itself. If it cannot
+  (`UNVERIFIED`: Claude Code subagents are believed unable to spawn subagents), `B` runs as either:
+
+  - a locator dispatched by the main session per paper, before verification; or
+  - a script that calls a cheap model headlessly.
+
+  The cost of `B` also needs current per-model pricing, which this plan does not assume.
+
+- `R5` — a backup for papers with no fetchable full text: accept `snippet` again, for those papers only, and only from a
+  tool that saves the raw `snippet_search` results, so that the quotes can be checked. This is the audit's alternative
+  to `Z2`. Build it only if `R3` shows a topic where such papers are a real share of the coreset.
+
+- `R6` — measure verification cost. Compare verification tokens per row in the smoke pass against the ~10k estimate,
+  which comes from snippet-based passes. If it is much higher, check first whether agents read whole files.
+
 ## Phase 0: before any change
 
 - Confirm that the Semantic Scholar recommendations endpoint accepts a list of positive seed papers. `Z7` depends on it,
@@ -188,6 +250,9 @@ Each item gets its test case.
 - The plumbing parts of `C10`: the next-step hint, exit codes, the `RECLUSTER` rounding.
 - The `bib.py` link parsing in `M20`.
 - `T5`: batch `reject` and fringe judgements.
+- `R2`: the section reader in `tools/fulltext.py`.
+- `R3`: the arXiv share in `pool.py`'s `Pool` line, in `check.py`'s printout, and in the viewer (`graph.py`). `check.py`
+  belongs to `2a`, so add its line there, or after `2a` lands.
 
 ### 2e. `.claude/settings.json`
 
@@ -231,6 +296,7 @@ One pass over `docs/`, `CLAUDE.md` and `.claude/agents/`, describing the code as
   - `S15`: a skeleton input in `docs/formats.md`.
   - `C10`: the doc side of the defaults.
 - The doc side of `S1` and `S2`.
+- `R1`: the step-5 checklist row has the main session batch-fetch full texts before dispatching verification.
 
 Done when: a fresh tabletop run of a first pass, as in the audit, finds no stalls on the rows it found before. Run it as
 an agent, blind to this plan.
@@ -248,8 +314,12 @@ What turns the run into a measurement rather than a demo:
 - `T2`: a script that pairs each output sentence with its cited rows and evidence quotes. An independent agent judges a
   sample.
 - `T6`: print one section of a survey.
+- `R4`: the verification-recall experiment, on `reasoning-legacy`'s 27 abstract-sourced rows. Its result decides whether
+  the Verification brief uses a cheap-model locator (arm `B`) or the section reader alone (arm `A`). Record it in
+  `docs/experiments.md`.
 
-Done when: each tool runs on the gate fixture, and the briefs that use them name them.
+Done when: each tool runs on the gate fixture, the briefs that use them name them, and `R4` has decided the reading
+method.
 
 ## Phase 5: the runs
 
@@ -260,6 +330,8 @@ Done when: each tool runs on the gate fixture, and the briefs that use them name
 4. Rerun `reasoning` in the coreset layout. Compare the result with the legacy output: which of the legacy output's
    claims a coreset of about 50 rows reproduces, and which it loses. Record per-dispatch tokens, the `T3` agreement
    rate, the `T2` faithfulness sample, and the coverage radius with each coverage round.
+
+In both runs, measure verification tokens per row (`R6`), and run the batch fetch before verification (`R1`).
 
 ## After the run
 
@@ -277,6 +349,7 @@ run shows.
   - `W3`'s second step: trim the reading lists further, once spec reading is measured.
 - Minor:
   - the `hidden` route's fixed 60 (`M20`), which mainly matters on small pools.
+- `R5`: the snippet backup for papers with no fetchable full text, if `R3` shows a topic that needs it.
 - Anything the runs surface.
 
 ## Index: where each audit ID goes
@@ -289,10 +362,13 @@ run shows.
 | `S1`, `S2`, `S4`, `S6`, `C1`–`C5`, `C8`, `M1`–`M6` | Phase 2a |
 | `M18` | Phase 2b |
 | `M11`–`M14`, `T9` | Phase 2c |
-| `C6`, `C9`, `M15`–`M17`, `A9`, `T5` | Phase 2d |
+| `C6`, `C9`, `M15`–`M17`, `A9`, `T5`, `R2`, `R3` | Phase 2d (`R3`'s `check.py` line in 2a) |
 | `M19` | Phase 2e |
 | `C10`, `M20` | split across Phase 2c and 2d by part; `M20`'s hidden-route item after the run |
 | `W1`–`W4`, `S5`, `S7`, `S9`–`S12`, `S14`, `S15`, `A1`–`A8` | Phase 3; `S10` and `A7` only what remains after Phase 1 |
-| `T2`, `T3`, `T4`, `T6`; tools for `A3` | Phase 4 |
+| `T2`, `T3`, `T4`, `T6`, `R4`; tools for `A3` | Phase 4 |
+| `R1` | Phase 3 (the step-5 row), used in Phase 5 |
+| `R6` | Phase 5 |
+| `R5` | after the run, if needed |
 | `Z1` | the plan as a whole; `T7` after the run |
 | `Z6`, `C7`, `M7`, `M8`, `S8`, `S13`, `T7` | after the run |
