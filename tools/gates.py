@@ -4,22 +4,28 @@ No command line of its own: `python3 tools/check.py <topic> [--gate G<n>] [--sta
 
 A gate is a point in the order of operations (docs/process.md) after which a set of requirements must hold:
 
-  G0 ready             after step 0: the pass's log entry, its dimensions, a passing preflight
+  G0 ready             after step 0: the pass's log entry, its dimensions (declared, or proposed with their values),
+                       a passing preflight
   G1 pool complete     after step 2: orientation and expansion recorded, rejections recorded, the pool fetched, the
                        fringe routes collected, screened and added
   G2 clusters named    after step 3: this pass's clustering, named, written into the pool, and logged
   G3 coreset selected  after step 4: every required role filled or its empty slot recorded, dissent searched and quoted,
                        bridges and the fringe quota, no empty cell
-  G4 verified          after step 5: every verified row's evidence recorded, its full-text quotes found verbatim;
-                       every row still `abstract` listed as needing verification, H10 if over 20%
+  G4 verified          after step 5: every verified row's evidence recorded under its own ID, its full-text quotes
+                       found verbatim and in order, a dissent row's quoted claim among them; every row still `abstract`
+                       listed as needing verification, H10 if over 20%
   G5 pass ended        after step 7: the output and its sections, a converged coverage test or a recorded halt, no
                        late paper left, the closing log lines
 
 Requirements are cumulative: a gate's check also checks every earlier gate. Which gates are required is worked out from
 the files: the log's `Gates` line (the gates the main session has passed), plus a safety net of evidence that a later
 step has started, such as a `Clustering` line in the current entry or, on a first pass, Coreset rows. An open halt
-(`Halts` entry with the decision `pending`) holds every gate after the last one declared. A requirement the user has
-waived, in the log's `Waivers` line, is reported and does not fail.
+(`Halts` entry with the decision `pending`) fails every `--gate` until the user decides; the safety net still applies. A
+pass the user ended at a halt (`Ended: halted (<id>)`, with the decision recorded) needs only the gates it declared, and
+its closing lines. A requirement the user has waived, in the log's `Waivers` line, is reported and does not fail.
+
+`--gate` is passed only when nothing fails: integrity, gates and history alike. A full-text quote that cannot be checked
+because the full text is not fetched is a note in the plain check, and a failure under `--gate G4` or later.
 
 The checks are of records, not of judgement: that a screening was recorded, not that it was right (docs/gates.md).
 """
@@ -27,6 +33,7 @@ The checks are of records, not of judgement: that a screening was recorded, not 
 import json
 import re
 import subprocess
+import unicodedata
 
 from check import (ABSTRACT_SHARE, BARE_ID, CORESET_COLUMNS, FRINGE_QUOTA, NEEDED, ROOT, read, row_id, sections,
                    table_rows, words)
@@ -40,6 +47,10 @@ COMPUTED_ID = re.compile(r"\bc\d+\b")
 QUOTE = re.compile(r"[\"“][^\"”]{12,}[\"”]")
 REPEATABLE = {"Coverage test"}
 SOURCE_RANK = {"abstract": 0, "snippet": 1, "full-text": 1}   # `snippet` only in legacy surveys and old commits
+QUOTE_WORDS = 6        # the fewest words in each part of an evidence quote, so that a quote cannot be vacuous
+QUOTE_WINDOW = 3000    # the most characters of normalised text between two parts of an elided quote
+COVERAGE_SAMPLE = 10   # the fewest sampled candidates in a coverage-test round (docs/process.md: 10-15)
+TOKENS = re.compile(r"^[^:,]+:\s*~?\d[\d,.]*\s*[kKM]?$")
 
 
 # --- parsing --------------------------------------------------------------------------------------
@@ -94,6 +105,17 @@ def waivers(lines):
     return set(re.findall(r"\b(g\d\.[a-z0-9-]+)\s*—", " ".join(lines.get("Waivers", []))))
 
 
+def proposed_dimensions(text):
+    """{name: set of values} from a `Dimensions` line that proposes them, in the input's form:
+    `proposed: `name` — values: `a`, `b`; `other` — values: `c`, `d``."""
+    out = {}
+    for part in text.partition("proposed")[2].split(";"):
+        m = re.search(r"`([a-z0-9][a-z0-9-]*)`\s*—\s*values:(.*)$", part)
+        if m:
+            out[m.group(1)] = set(re.findall(r"`([^`]+)`", m.group(2)))
+    return out
+
+
 def mentions(text, *parts):
     """Whether `text` holds the parts in order, separated by a dash: `c — dissent`."""
     return re.search(r"\s*[—-]+\s*".join(re.escape(p) for p in parts), text or "") is not None
@@ -105,9 +127,11 @@ def mentions(text, *parts):
 class Ctx:
     """Everything the requirements read, gathered once by tools/check.py."""
 
-    def __init__(self, topic, secs, structure, rows, coreset_ids, abstract, output, dims, steering, targets):
+    def __init__(self, topic, secs, structure, rows, coreset_ids, abstract, output, dims, steering, targets,
+                 proposed=False):
         self.topic, self.secs, self.output = topic, secs, output
-        self.dims, self.steering, self.targets = dims, steering or {}, targets
+        # The dimensions: declared in the input, or, when it declares none, proposed in the `Dimensions` line.
+        self.dims, self.proposed, self.steering, self.targets = dims, proposed, steering or {}, targets
         self.rows, self.coreset_ids, self.abstract = rows, coreset_ids, abstract
         s = structure or {}
         self.clusters, self.computed = s.get("clusters", {}), s.get("computed", {})
@@ -149,7 +173,7 @@ class Ctx:
 
 
 def need_lines(c, *labels):
-    missing = [l for l in labels if not c.L.get(l)]
+    missing = [l for l in labels if not any(v.strip() for v in c.L.get(l, []))]   # an empty line is a missing one
     return f"the log entry of {c.date} has no `{'`, `'.join(missing)}` line" if missing else None
 
 
@@ -172,11 +196,16 @@ def r_dimensions(c):
     if (m := need_lines(c, "Dimensions")):
         return m
     text = c.line("Dimensions")
-    if c.dims and "declared in the input" not in text:
-        return "the input declares dimensions, but the `Dimensions` line does not say `declared in the input`"
-    if not c.dims and "proposed" not in text:
-        return "the input declares no dimensions: the `Dimensions` line names those proposed and adopted"
-    return None
+    if not c.proposed:
+        if c.dims and "declared in the input" not in text:
+            return "the input declares dimensions, but the `Dimensions` line does not say `declared in the input`"
+        if c.dims:
+            return None
+    form = "``proposed: `<name>` — values: `<a>`, `<b>`; `<name>` — values: ...``"
+    if not c.dims:
+        return f"the input declares no dimensions: propose them in the `Dimensions` line, in the form {form}"
+    few = sorted(n for n, v in c.dims.items() if len(v) < 2)
+    return f"proposed dimensions with fewer than two values: {few}; the form is {form}" if few else None
 
 
 def r_preflight(c):
@@ -210,9 +239,16 @@ def r_orientation(c):
 def r_expansion(c):
     if (m := need_lines(c, "Expansion")):
         return m
-    text = c.line("Expansion")
-    out = [i for i in frontier(c) if i not in text]
-    return f"`Expansion` does not name these frontier candidates as traversed: {out}" if out else None
+    # A candidate counts as traversed where a part of the line that opens with a direction gives it a count:
+    # `backward from <id> (40), <id> (35)`.
+    traversed = set()
+    for part in c.line("Expansion").split(";"):
+        part = part.strip()
+        if re.match(r"(backward|forward|both)\b", part) and not re.search(r"\bnot\b", part, re.I):
+            traversed |= set(re.findall(rf"{BARE_ID.pattern}\s*\(\d+\)", part))
+    out = [i for i in frontier(c) if i not in traversed]
+    return (f"`Expansion` does not name these frontier candidates as traversed, in the form `backward from <id> (<n>), "
+            f"...`: {out}") if out else None
 
 
 def r_errored(c):
@@ -232,17 +268,30 @@ def r_errored(c):
 
 
 def r_rejected(c):
+    # A pass that judged every candidate in scope says so in its `Expansion` line, rather than having nothing to show.
+    if re.search(r"\brejected: none\b", c.line("Expansion")):
+        return None
     if not c.rejected:
         return f"graphs/{c.topic}/rejected.md does not exist: record each out-of-scope candidate with `tools/assign.py reject`"
     dates = [cs[1] for h, cs, _, _ in table_rows(c.rejected) if h and h[0] == "paper" and len(cs) > 1]
     if not any(d >= c.date for d in dates):
-        return f"no rejection recorded since {c.date} (`tools/assign.py reject`)"
+        return (f"no rejection recorded since {c.date} (`tools/assign.py reject`); if none was out of scope, end the "
+                f"`Expansion` line with `; rejected: none`")
     return None
+
+
+def pool_step(c):
+    """What fetches papers added to the pool and prints the `Pool` line: `pool.py` before this pass's clustering, and
+    `assign.py late` after it, which also places them in their nearest cluster."""
+    if c.report and c.report.get("generated", "") >= c.date:
+        return f"`uv run tools/assign.py late {c.topic}`"
+    return f"`python3 tools/pool.py {c.topic}`"
 
 
 def r_fetched(c):
     out = sorted(c.pool - set(c.records))
-    return f"{len(out)} pool paper(s) not fetched: {out[:8]}; run `python3 tools/pool.py {c.topic}`" if out else None
+    return (f"{len(out)} pool paper(s) not fetched: {out[:8]}; run {pool_step(c)} and paste the `Pool` line it prints"
+            if out else None)
 
 
 def screened(c):
@@ -259,12 +308,25 @@ def r_fringe_collected(c):
     return None
 
 
+def judged(verdict, reason):
+    """Whether a screening row is judged: `yes` or `no` (not `maybe`), with a reason of a few words. `tools/assign.py
+    add-fringe` uses the same test."""
+    return (verdict.startswith("yes") or verdict.startswith("no")) and len(words(reason)) >= 2
+
+
 def r_fringe_screened(c):
     if not c.screen:
         return f"graphs/{c.topic}/fringe-screen.md does not exist"
     s = screened(c)
-    bad = [k for k, (v, r) in s.items() if not (v.startswith("yes") or v.startswith("no")) or not r]
-    return f"{len(bad)} fringe candidate(s) without an `in scope` judgement and a reason" if bad else None
+    # Every collected candidate needs its row: deleting rows must not shorten the screening.
+    absent = sorted(set((c.fringe or {}).get("candidates", {})) - set(s))
+    bad = [k for k, (v, r) in s.items() if not judged(v, r)]
+    problems = []
+    if absent:
+        problems.append(f"{len(absent)} fringe candidate(s) in fringe.json have no row in the screening sheet: {absent[:4]}")
+    if bad:
+        problems.append(f"{len(bad)} fringe candidate(s) without an `in scope` judgement and a reason of a few words")
+    return "; ".join(problems) or None
 
 
 def r_fringe_added(c):
@@ -320,7 +382,7 @@ def r_pool_line(c):
     when = fetched_range(c)
     if f"metadata fetched {when}" not in text:
         problems.append(f"does not say `metadata fetched {when}`, the fetch dates in pool.json")
-    return f"`Pool` {'; '.join(problems)}; paste the line `tools/pool.py` prints" if problems else None
+    return f"`Pool` {'; '.join(problems)}; run {pool_step(c)} and paste the line it prints" if problems else None
 
 
 def r_clustered(c):
@@ -417,15 +479,39 @@ def r_roles(c):
             f"searched>`): {out}") if out else None
 
 
+def dissent_searches(c):
+    """{cluster id: [found ids] or None for `none found`} from `Dissent searches`, whose entries read
+    `<cluster id>: <what was searched> -> found: <id>, ... | none found`, separated by `|` or `;`."""
+    out = {}
+    for m in re.finditer(r"(?:^|[|;])\s*([a-z0-9]+(?:-[a-z0-9]+)*):\s*([^|;]*?)->\s*(found:[^|;]*|none found)",
+                         c.line("Dissent searches")):
+        found = None if m.group(3).startswith("none") else BARE_ID.findall(m.group(3))
+        out.setdefault(m.group(1), []).append(found)
+    return out
+
+
 def r_dissent_searched(c):
-    text = c.line("Dissent searches")
-    out = [cid for cid, a in c.clusters.items() if a == "high" and not re.search(rf"\b{re.escape(cid)}\b", text)]
-    return f"high-alignment clusters missing from `Dissent searches`: {out}" if out else None
+    searches, problems = dissent_searches(c), []
+    missing = [cid for cid, a in c.clusters.items() if a == "high" and cid not in searches]
+    if missing:
+        problems.append(f"high-alignment clusters missing from `Dissent searches` (`<cluster id>: <what was searched> "
+                        f"-> found: <id> | none found`): {missing}")
+    _, rows = coreset_cells(c)
+    dissent = {(r["_block"], r["_id"]) for r in rows if r.get("role") == "dissent"}
+    demoted = c.line("Demotions")
+    for cid, results in searches.items():
+        if any(found == [] for found in results):
+            problems.append(f"`Dissent searches` for {cid} says found but names no paper ID")
+        stray = sorted({i for found in results if found for i in found if (cid, i) not in dissent and i not in demoted})
+        if stray:
+            problems.append(f"`Dissent searches` for {cid} found {stray}, which are not dissent rows of {cid}")
+    return "; ".join(problems) or None
 
 
 def coreset_cells(c):
     header = c.rows[0][0] if c.rows else []
-    return header, [dict(zip(header, cs)) | {"_id": row_id(l)} for _, cs, _, l in c.rows]
+    return header, [dict(zip(header, cs)) | {"_id": row_id(l), "_block": (b or "").split(" — ")[0].strip()}
+                    for _, cs, b, l in c.rows]
 
 
 def r_dissent_quoted(c):
@@ -481,13 +567,19 @@ def r_assigned(c):
 
 
 def r_dimension_columns(c):
-    if c.dims or not c.rows:
+    """One Coreset column per dimension, declared or proposed, and no other extra column."""
+    if not c.rows:
         return None
     header = c.rows[0][0]
-    extra = {k for k in header if k not in CORESET_COLUMNS and k != "source"}
-    named = set(re.findall(r"`?([a-z0-9-]+)`?", c.line("Dimensions").split(":", 1)[-1]))
-    out = sorted(extra - named)
-    return f"Coreset columns not named in the `Dimensions` line: {out}" if out else None
+    extra = sorted(k for k in header if k not in CORESET_COLUMNS and k != "source" and k not in c.dims)
+    absent = sorted(d for d in c.dims if d not in header)
+    problems = []
+    if extra:
+        problems.append(f"Coreset columns that are not dimensions (declared in the input, or proposed in the "
+                        f"`Dimensions` line): {extra}")
+    if absent:
+        problems.append(f"dimensions without a Coreset column: {absent}")
+    return "; ".join(problems) or None
 
 
 def r_abstract_listed(c):
@@ -536,17 +628,55 @@ def evidence_entries(text):
     return entries
 
 
-def letters(text):
-    return re.sub(r"[^a-z0-9]", "", text.lower())
+def normalised(text):
+    """Lower-case words, split on anything else, padded with spaces, so that a word matches only a whole word. Two
+    readings of the text: with words hyphenated across a line break joined (`im-\nproves`), and without, so that a
+    compound broken at its hyphen (`state-of-\nthe-art`) also matches."""
+    text = unicodedata.normalize("NFKC", text).lower()
+    joined = re.sub(r"([a-z0-9])-[ \t]*\n\s*([a-z0-9])", r"\1\2", text)
+    return [" " + " ".join(re.findall(r"[a-z0-9]+", v)) + " " for v in (joined, text)]
+
+
+def quote_parts(quote):
+    """The parts of a quote elided with `...`, normalised; empty parts dropped."""
+    return [p for p in (" " + " ".join(re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKC", x).lower())) + " "
+                        for x in ELLIPSIS.split(quote)) if p.strip()]
+
+
+def too_short(quote):
+    parts = quote_parts(quote)
+    return not parts or any(len(p.split()) < QUOTE_WORDS for p in parts)
+
+
+def found_in(quote, readings):
+    """Whether the quote's parts are in one reading of the text, in order, each within QUOTE_WINDOW of the last."""
+    parts = quote_parts(quote)
+    if not parts:
+        return False
+    for body in readings:
+        start = body.find(parts[0])
+        while start >= 0:
+            end, ok = start + len(parts[0]) - 1, True
+            for part in parts[1:]:
+                i = body.find(part, end)
+                if i < 0 or i - end > QUOTE_WINDOW:
+                    ok = False
+                    break
+                end = i + len(part) - 1
+            if ok:
+                return True
+            start = body.find(parts[0], start + 1)
+    return False
 
 
 def r_evidence(c):
     """Every row verified against the full text keeps the quotes it rests on (docs/verification.md): at least `method
-    summary`, `result`, and each declared dimension not `n/a`. A full-text quote must be in the fetched full text, and
-    no quote may come from a snippet, which nothing can check afterwards."""
+    summary`, `result`, and each dimension not `n/a`. Its file is headed by its own ID, and its method rests on the full
+    text. A full-text quote must be in the fetched full text, at least QUOTE_WORDS words per part and its parts in
+    order; no quote may come from a snippet, which nothing can check afterwards."""
     header, rows = coreset_cells(c)
     dims = [k for k in header if k in c.dims]
-    missing, malformed, unfound, unchecked, snippets = [], [], [], [], []
+    missing, malformed, unfound, unchecked, snippets, short, foreign, no_text = [], [], [], [], [], [], [], []
     for r in rows:
         if r.get("source") in (None, "abstract"):
             continue
@@ -554,7 +684,11 @@ def r_evidence(c):
         if not path.exists():
             missing.append(r["_id"])
             continue
-        entries = evidence_entries(path.read_text())
+        raw = path.read_text()
+        head = re.search(r"^# Evidence:\s*(\S+)", raw, re.M)
+        if not head or head.group(1) != r["_id"]:
+            foreign.append(f"{r['_id']} (headed {head.group(1) if head else 'nothing'})")
+        entries = evidence_entries(raw)
         if any(e[0] is None for e in entries):
             malformed.append(r["_id"])
         if any(e[1] == "snippet" for e in entries):
@@ -563,29 +697,55 @@ def r_evidence(c):
         need = ["method summary", "result"] + [d for d in dims if r.get(d) not in ("n/a", "")]
         if [n for n in need if n not in covered]:
             missing.append(f"{r['_id']} ({', '.join(n for n in need if n not in covered)})")
+        # The abstract may carry a number, never the method (docs/verification.md).
+        if r.get("source") == "full-text" and not any(s == "full-text" and "method summary" in (cells or [])
+                                                      for cells, s, _, _ in entries):
+            no_text.append(r["_id"])
         text = read(ROOT / "graphs" / c.topic / "fulltext" / (path.stem + ".txt"))
+        readings = normalised(text) if text is not None else None
         for cells, source, _, quote in entries:
             if source != "full-text":
                 continue
-            if text is None:
+            if too_short(quote):
+                short.append(f"{r['_id']} ({', '.join(cells)})")
+            elif readings is None:
                 unchecked.append(r["_id"])
-                break
-            body = letters(text)
-            if any(letters(part) and letters(part) not in body for part in ELLIPSIS.split(quote)):
+            elif not found_in(quote, readings):
                 unfound.append(f"{r['_id']} ({', '.join(cells)})")
     problems = []
     if missing:
         problems.append(f"verified rows without evidence for every claim (method summary, result, dimensions): {missing[:8]}")
+    if foreign:
+        problems.append(f"evidence files not headed `# Evidence: <the row's ID>`: {foreign[:8]}")
     if malformed:
         problems.append(f"evidence lines not in the form ``- `cell` — source[, where] — \"quote\"``: {malformed[:8]}")
+    if no_text:
+        problems.append(f"`full-text` rows whose `method summary` has no full-text quote: {no_text[:8]}")
     if snippets:
         problems.append(f"evidence quoted from snippets, which nothing can check afterwards: quote the fetched full text "
                         f"instead (docs/verification.md): {snippets[:8]}")
+    if short:
+        problems.append(f"full-text quotes with a part shorter than {QUOTE_WORDS} words, too short to show where a claim "
+                        f"comes from: {short[:8]}")
     if unfound:
-        problems.append(f"full-text quotes not found in the fetched full text, so not verbatim: {unfound[:8]}")
+        problems.append(f"full-text quotes not found in the fetched full text, in order, so not verbatim: {unfound[:8]}")
     if unchecked:
         c.unchecked = sorted(set(unchecked))
     return "; ".join(problems) or None
+
+
+def r_dissent_evidence(c):
+    """A verified dissent row's quoted claim is in its evidence, so that it too traces back to the full text."""
+    out = []
+    for r in coreset_cells(c)[1]:
+        if r.get("role") != "dissent" or r.get("source") in (None, "abstract"):
+            continue
+        q = QUOTE.search(r.get("selected because", ""))
+        ev = read(evidence_path(c, r["_id"]))
+        if q and ev is not None and not any(found_in(q.group(0)[1:-1], [b]) for b in normalised(ev)):
+            out.append(r["_id"])
+    return (f"verified dissent rows whose quoted claim (`selected because`) is not among their evidence quotes: "
+            f"{out}") if out else None
 
 
 def r_coreset_line(c):
@@ -629,7 +789,9 @@ def rounds(c):
     for text in c.L.get("Coverage test", []):
         m = re.search(r"round (\d+):\s*(\d+) of (\d+) sampled candidates changed the output(.*?)(?:;\s*new clusters:\s*(.*))?$", text)
         if m:
-            out.append({"k": int(m.group(2)), "n": int(m.group(3)), "ids": BARE_ID.findall(m.group(4) or ""),
+            # The IDs that open an entry, `(<id>: <what it changed>, <id>: ...)`, not IDs inside what it changed.
+            ids = re.findall(rf"(?:\(|[,;]\s*){BARE_ID.pattern}\s*:", m.group(4) or "")
+            out.append({"k": int(m.group(2)), "n": int(m.group(3)), "ids": ids,
                         "new": (m.group(5) or "").strip()})
         else:
             out.append(None)
@@ -643,23 +805,34 @@ def converged(r):
 def r_coverage(c):
     if (m := need_lines(c, "Coverage test")):
         return m
-    if None in rounds(c):
+    rs = rounds(c)
+    if None in rs:
         return "a `Coverage test` line is not in the form `round R: K of N sampled candidates changed the output (...); new clusters: ...`"
-    return None
+    problems = []
+    for i, r in enumerate(rs, 1):
+        if r["n"] < COVERAGE_SAMPLE:
+            problems.append(f"round {i} sampled {r['n']} candidates, fewer than {COVERAGE_SAMPLE}")
+        if r["k"] != len(set(r["ids"])) or r["k"] > r["n"]:
+            problems.append(f"round {i} says {r['k']} of {r['n']} changed the output but names {len(set(r['ids']))} paper ID(s)")
+        if not r["new"]:
+            problems.append(f"round {i} does not say `new clusters: none | <which>`")
+    return "; ".join(problems) or None
 
 
 def r_converged(c):
     rs = [r for r in rounds(c) if r]
-    ended = c.line("Ended")
+    ended = c.line("Ended").strip()
     unconverged = sum(1 for r in rs if not converged(r))
     if unconverged >= 2 and "H11" not in c.halts:
         return "two coverage-test rounds without convergence, but `Halts` does not record H11"
+    if not ended:
+        return None  # g5.end-lines reports it
     if ended.startswith("finished") and not (rs and converged(rs[-1])):
         return "`Ended` says finished (F1), but the last coverage-test round did not converge"
     m = re.match(r"halted \((H\d+)\)", ended)
     if m and m.group(1) not in c.halts:
         return f"`Ended` says halted ({m.group(1)}), but `Halts` does not record it"
-    if ended and not (ended.startswith("finished (F1)") or m):
+    if not (ended.startswith("finished (F1)") or m):
         return "`Ended` is neither `finished (F1)` nor `halted (<id>)`"
     return None
 
@@ -678,7 +851,12 @@ def r_late_empty(c):
 
 
 def r_end_lines(c):
-    return need_lines(c, "Tokens", "Halts", "Ended")
+    if (m := need_lines(c, "Tokens", "Halts", "Ended")):
+        return m
+    bad = [x.strip() for x in c.line("Tokens").split(",") if not TOKENS.match(x.strip())]
+    if bad:
+        return f"`Tokens` is not a list of `<step>: <tokens>` (from each dispatch's reported usage): {bad[:4]}"
+    return None
 
 
 REQUIREMENTS = {
@@ -694,7 +872,8 @@ REQUIREMENTS = {
     3: [("g3.roles", r_roles), ("g3.dissent-searched", r_dissent_searched), ("g3.dissent-quoted", r_dissent_quoted),
         ("g3.bridges", r_bridges), ("g3.divided", r_divided), ("g3.fringe-quota", r_fringe_quota), ("g3.cells", r_cells),
         ("g3.assigned", r_assigned), ("g3.dimension-columns", r_dimension_columns)],
-    4: [("g4.evidence", r_evidence), ("g4.abstract-listed", r_abstract_listed), ("g4.h10", r_h10), ("g4.coreset-line", r_coreset_line)],
+    4: [("g4.evidence", r_evidence), ("g4.dissent-evidence", r_dissent_evidence), ("g4.abstract-listed", r_abstract_listed),
+        ("g4.h10", r_h10), ("g4.coreset-line", r_coreset_line)],
     5: [("g5.output", r_output), ("g5.cite-entries", r_cite_entries), ("g5.coverage", r_coverage),
         ("g5.converged", r_converged), ("g5.changed-in-coreset", r_changed_in_coreset), ("g5.late-empty", r_late_empty),
         ("g5.end-lines", r_end_lines)],
@@ -784,19 +963,36 @@ def evaluate(c):
     return {g: [(rid, fn(c), rid in c.waived) for rid, fn in REQUIREMENTS[g]] for g in REQUIREMENTS}
 
 
+def halted(c):
+    """The halt that ended the pass, if `Ended` says halted and `Halts` records the user's decision on it."""
+    m = re.match(r"halted \((H\d+)\)", c.line("Ended").strip())
+    if m and any(d and not d.lower().startswith("pending") for d in c.halts.get(m.group(1), [])):
+        return m.group(1)
+    return None
+
+
+def r_closed(c):
+    """A halted pass is closed: its end lines are written, and its halt is recorded with the user's decision."""
+    return need_lines(c, "Tokens", "Halts", "Ended")
+
+
 def run(c, target=None, status=False):
-    """Print the gate report; return (failures, notes) for tools/check.py."""
+    """Print the gate report; return (failures, notes) for tools/check.py, which says whether `--gate` passed."""
     failures, notes = [], []
-    if c.cur is None and not c.rows and not c.clusters:
+    if c.cur is None and not c.rows and not c.clusters and target is None and not status:
         return failures, notes  # a survey with no pass yet
     results = evaluate(c)
+    # The safety net holds whatever happens to the `Gates` line, and a pending halt does not switch it off.
     top = max([inferred(c)] + list(c.declared))
     pending = c.pending()
     if pending:
+        notes.append(f"halt pending ({', '.join(pending)}): no further gate passes until the user decides")
+    stop = halted(c)
+    if stop:
+        # A pass the user ended at a halt needs only the gates it declared, and to be closed (docs/gates.md).
         top = max(c.declared, default=0)
-        notes.append(f"halt pending ({', '.join(pending)}): gates after G{top} are held until the user decides")
-    if c.line("Ended").startswith("halted"):
-        top = min(top, 4)
+        if (m := r_closed(c)):
+            failures.append(f"halted pass ({stop}) not closed: {m}")
     required = set(range(top + 1))
     if target is not None:
         required |= set(range(target + 1))
@@ -805,8 +1001,9 @@ def run(c, target=None, status=False):
     passed = [g for g in range(6) if all(p is None or w for _, p, w in results[g])]
     nxt = next((g for g in range(6) if g not in passed), None)
 
-    print(f"gates:   pass of {c.date}; declared {' '.join(f'G{g}' for g in sorted(c.declared)) or 'none'}; "
-          f"required G0–G{max(required)}" + (f"; next G{nxt}" if nxt is not None else "; all passed"))
+    print(f"gates:   pass of {c.date or 'none'}; declared {' '.join(f'G{g}' for g in sorted(c.declared)) or 'none'}; "
+          + (f"required G0–G{max(required)}" if required else "required none") + (f"; ended at {stop}" if stop else "")
+          + (f"; next G{nxt}" if nxt is not None else "; all passed"))
     for g in sorted(required):
         for rid, problem, waived in results[g]:
             if problem and waived:
@@ -822,10 +1019,20 @@ def run(c, target=None, status=False):
             for rid, p in open_:
                 print(f"      {rid}: {p}")
         print()
-    if target is not None and not any(f.startswith(f"G{t} ") for t in range(target + 1) for f in failures) and not pending:
-        notes.append(f"G{target} passed: add `G{target} <today>` to the log's `Gates` line")
+    # Bridges are selected before the fringe (docs/process.md), so the trading pairs show as soon as there are rows.
+    if c.rows and 3 not in required and (b := r_bridges(c)):
+        notes.append(f"{b}: run the Bridges row before Fringe selection")
     if getattr(c, "unchecked", None):
-        notes.append(f"full-text quotes not checked verbatim, since the full text is not fetched here: {c.unchecked[:8]}; "
-                     f"`uv run tools/fulltext.py {c.topic} <id>` fetches it")
+        missing = (f"full-text quotes not checked verbatim, since the full text is not fetched here: {c.unchecked[:8]}; "
+                   f"`uv run tools/fulltext.py {c.topic} <id>` fetches it")
+        if target is not None and target >= 4 and "g4.evidence" not in c.waived:
+            failures.append(f"G4 g4.evidence: {missing}")   # a gate is never passed on quotes nobody checked
+        else:
+            notes.append(missing)
+    conflict = sorted((c.pool | c.coreset_ids) & {row_id(l) for h, _, _, l in table_rows(c.rejected or "")
+                                                  if h and h[0] == "paper"})
+    if conflict:
+        notes.append(f"papers both rejected (rejected.md) and in the pool: {conflict[:8]}; one of the two judgements is "
+                     f"wrong")
     h_fail, h_notes = history(c)
     return failures + h_fail, notes + h_notes

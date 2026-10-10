@@ -13,15 +13,20 @@ Two kinds of check, both failing with exit status 1:
              values, blocks headed by known clusters in the Clusters table's order, valid roles and bridges, every
              coreset paper in the pool and in the block of its computed cluster, and coreset/bib parity; once the
              output exists, every cited paper ID in the coreset, every citation of an `abstract`-sourced paper marked
-             [abstract-only] with a legend before the first section, and a section per target plus Questions and
-             Reading.
+             [abstract-only] with a legend before the first section, no marker after the legend that follows no
+             citation, and a section per target plus Questions and Reading.
   gates      what each step must have left behind, G0 to G5 (tools/gates.py, docs/gates.md). The gates the pass has
              reached are worked out from the files; `--gate G<n>` also requires every gate up to G<n>, which is how the
              main session checks a gate before starting the next step. `--status` prints every gate's open
              requirements: what the run has done, and what remains.
 
+When the input declares no dimensions, the ones proposed in the current log entry's `Dimensions` line
+(`proposed: `<name>` — values: `<a>`, `<b>`; ...`) are checked in their place.
+
 It also prints, without failing: each cluster's in-degree leaders within the pool and role coverage, anchors that are
-not an in-degree leader, the `source` tally, and pool papers still waiting for a cluster.
+not an in-degree leader, the `source` tally, how many coreset and pool papers have an arXiv ID, and pool papers still
+waiting for a cluster. Notes also flag clusters that trade papers with no bridge yet, while G3 is not yet required, and
+papers both rejected and in the pool.
 
 Surveys written before the coreset structure (no `## Clusters` section) get only the integrity checks that apply to
 them, and no gates. Exit status 2 is a usage error.
@@ -192,6 +197,7 @@ def check_coreset(table, dims, layout, failures, notes):
                         f"or leave the row `abstract` (docs/verification.md): {snip[:8]}")
     tally = {k: sources.count(k) for k in sorted(set(sources) & allowed)}
     print(f"source:  {tally}")
+    print(f"arXiv:   {sum(1 for i in unique if ARXIV_ONLY.match(i))} of {len(unique)} coreset papers have an arXiv ID")
 
     if layout == "coreset" and rows:
         share = sources.count("abstract") / len(rows)
@@ -202,7 +208,8 @@ def check_coreset(table, dims, layout, failures, notes):
                 failures.append(f"Coreset table lacks required column(s): {missing}")
             extra = [c for c in h if c not in CORESET_COLUMNS and c != "source" and c not in dims]
             if extra:
-                notes.append(f"Coreset column(s) {extra} are not dimensions declared in the input; values unchecked")
+                notes.append(f"Coreset column(s) {extra} are not dimensions, declared in the input or proposed in the "
+                             f"log; values unchecked")
 
     header = rows[0][0] if rows else []
     for i, n in [(i, n) for i, n in enumerate(header) if n in dims]:
@@ -270,7 +277,7 @@ def read_pool(secs, clusters, failures):
             failures.append(f"pool {pid}: cluster {cl!r} is not a known cluster")
         pool_cluster[pid] = cl
         cites[pid] = set(BARE_ID.findall(c[h.index("cites")])) if "cites" in h else set()
-    print(f"pool:    {len(pool_cluster)} papers")
+    print(f"pool:    {len(pool_cluster)} papers, {sum(1 for p in pool_cluster if ARXIV_ONLY.match(p))} with an arXiv ID")
     return set(pool_cluster), pool_cluster, cites, titles
 
 
@@ -478,6 +485,15 @@ def check_output(output, coreset_ids, abstract, layout, targets, failures, notes
     for aid, lines in sorted(unmarked.items()):
         failures.append(f"output cites abstract-sourced {aid} without an [abstract-only] marker "
                         f"(line {', '.join(map(str, sorted(set(lines))))})")
+    # The reverse: a marker that follows no citation marks nothing. The legend before the first section is exempt.
+    covered = {mk.end() for m in list(LINK.finditer(output)) + list(BARE_ID.finditer(output))
+               if (mk := MARKED.match(output, m.end()))}
+    body = output.find("\n## ")
+    stray = sorted({output.count("\n", 0, m.start()) + 1 for m in re.finditer(r"\[abstract-only\]", output)
+                    if m.end() not in covered and 0 <= body < m.start()})
+    if stray and layout == "coreset":
+        failures.append(f"output has an [abstract-only] marker that follows no cited paper ID (line "
+                        f"{', '.join(map(str, stray))})")
     if risky and "[abstract-only]" not in output.split("\n## ")[0]:
         failures.append("output cites abstract-sourced papers but has no legend for [abstract-only] "
                         "before its first section")
@@ -517,6 +533,14 @@ def main(argv):
     secs = sections(survey)
     layout = "coreset" if "Clusters" in secs else "legacy"
     print(f"layout:  {layout}")
+    # Without declared dimensions, the pass proposes them in its `Dimensions` line, which is then read the same way.
+    proposed = layout == "coreset" and not dims
+    if proposed:
+        import gates
+        entries = gates.log_entries(secs.get("Retrieval log", ""))
+        dims = gates.proposed_dimensions(" ".join(entries[-1]["lines"].get("Dimensions", []))) if entries else {}
+        if dims:
+            print(f"dimensions: proposed in the log: {', '.join(dims)}")
 
     if layout == "coreset":
         found = [s for s in section_order(survey) if s in SURVEY_SECTIONS]
@@ -553,10 +577,13 @@ def main(argv):
 
     if layout == "coreset":
         import gates
-        ctx = gates.Ctx(topic, secs, structure, rows, coreset_ids, abstract, output, dims, steering, targets)
+        ctx = gates.Ctx(topic, secs, structure, rows, coreset_ids, abstract, output, dims, steering, targets, proposed)
         g_fail, g_notes = gates.run(ctx, int(gate[1]) if gate else None, status)
         failures += g_fail
         notes += g_notes
+        # Only now is every failure known: integrity, gates and history alike.
+        if gate and not failures:
+            notes.append(f"{gate} passed: add `{gate} <today>` to the log's `Gates` line")
     elif gate or status:
         failures.append("gates apply only to surveys in the coreset layout")
 

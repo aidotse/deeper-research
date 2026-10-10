@@ -5,6 +5,7 @@ __pycache__/
 
 # Local, per-machine settings
 .claude/settings.local.json
+.claude/worktrees/
 .serena/project.local.yml
 
 # Full texts fetched from arXiv by tools/fulltext.py. Third-party text, and

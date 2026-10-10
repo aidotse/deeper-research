@@ -13,6 +13,9 @@ from graph import parse
 from check import link
 
 T, DATE = os.environ.get("ZZ_GATE_TOPIC") or f"zz-gate-{os.getpid()}", "2026-10-09"
+# The claims the two dissent rows quote; their full texts contain them, and their evidence quotes them.
+DISSENT = ["accuracy falls when the chain is truncated early in our experiments",
+           "we find no gain from longer reasoning on these tasks"]
 SOURCE = "reasoning-legacy"   # the legacy survey; its pool, clustering and fringe data seed the fixture
 src, dst = ROOT / f"graphs/{SOURCE}", ROOT / f"graphs/{T}"
 
@@ -65,9 +68,9 @@ def build():
             used.add(f["id"]); fringe_ids.append(f["id"])
             rows[a[f["id"]]].append((f["id"], "fringe", "carries an idea no other row has", "full-text"))
     take("c1", "anchor"); take("c1", "frontier", src_="abstract"); take("c1", "frontier")
-    take("c1", "dissent", 'reports "accuracy falls when the chain is truncated early" against the cluster')
+    d1 = take("c1", "dissent", f'reports "{DISSENT[0]}" against the cluster')
     take("c2", "anchor"); take("c2", "frontier", src_="abstract")
-    take("c2", "dissent", 'finds "no gain from longer reasoning on these tasks" against the cluster')
+    d2 = take("c2", "dissent", f'finds "{DISSENT[1]}" against the cluster')
     take("c2", "bridge:three", "applies the cluster's method to the other's question")
     for c in ("c3", "c4"):
         take(c, "anchor"); take(c, "frontier")
@@ -116,7 +119,7 @@ def build():
 - **Clustering rationale:** The level is stable and the two high clusters are long-standing.
 - **Clusters:** 6 (2 high, 2 medium, 2 low); halted for review: no; not yet reviewed
 - **Dimensions:** declared in the input
-- **Dissent searches:** one: "fails to" -> found | two: "does not" -> found
+- **Dissent searches:** one: "fails to" -> found: {d1} | two: "does not" -> found: {d2}
 - **Coreset:** {len(all_rows)} rows
 - **Demotions:** none
 - **Late papers:** none
@@ -153,6 +156,7 @@ def build():
     (ROOT / f"surveys/{T}.md").write_text(survey)
     ev = dst / "evidence"; ev.mkdir(); ft = dst / "fulltext"; ft.mkdir()
     verified = [p for p in all_rows if p not in abstract]
+    claim = {d1: DISSENT[0], d2: DISSENT[1]}
     for i, p in enumerate(verified):
         name = p.replace("/", "_").replace(":", "_")
         # Every verified row quotes its fetched full text. In the first, hyphenation and wrapping differ from the quote.
@@ -160,11 +164,13 @@ def build():
         (ft / f"{name}.txt").write_text(
             "# 3 Method\n\nWe propose a method that does a thing, and we assume a fixed compute budget.\n\n"
             "# 4 Results\n\nOn GSM8K the method " + ("im-\nproves" if hyphen else "improves") + " accuracy by two points "
-            "over the baseline at equal compute, and the gain holds across all model sizes we tested.\n")
+            "over the baseline at equal compute, and the gain holds across all model sizes we tested.\n"
+            + (f"\n# 5 Analysis\n\nUnlike earlier work, {claim[p]}.\n" if p in claim else ""))
         body = ('- `method summary`, `evidence`, `measures`, `elicitation`, `pressure` — full-text, 3 Method — "We propose '
                 'a method that does a thing, and we assume a fixed compute budget"\n'
                 '- `result` — full-text, 4 Results — "the method improves accuracy by two points ... the gain holds '
-                'across all model sizes"\n')
+                'across all model sizes"\n'
+                + (f'- `selected because` — full-text, 5 Analysis — "{claim[p]}"\n' if p in claim else ""))
         (ev / f"{name}.md").write_text(f"# Evidence: {p}\n\n" + body)
     shutil.copy(ROOT / f"inputs/{SOURCE}.md", ROOT / f"inputs/{T}.md")
     bib = "".join(f"@misc{{k{i},\n  " + (f"corpusid = {{{p.split(':')[1]}}}" if p.startswith("CorpusId") else f"eprint = {{{p}}}")
@@ -195,7 +201,7 @@ A tension ({cite[2]}).
 
 1. {cite[3]} — start here.
 """)
-    return dict(verified=verified, abstract=abstract, rows=all_rows, changed=changed, fr1=fr1, fr2=fr2, names=names, a=a)
+    return dict(verified=verified, dissent=[d1, d2], abstract=abstract, rows=all_rows, changed=changed, fr1=fr1, fr2=fr2, names=names, a=a)
 
 
 def clean():

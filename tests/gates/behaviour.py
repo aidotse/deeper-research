@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 from build import build, clean, autoclean, ROOT, T
-from faults import sub, resub, S, G, O, I, first_row, run
+from faults import sub, resub, S, G, O, I, first_row, run, no_declared_dimensions, PROPOSED
 
 def fails(out): return sorted(set(re.findall(r"FAIL  G\d (g\d\.[a-z0-9-]+)", out)))
 def head(out): return next(l for l in out.splitlines() if l.startswith("gates:"))
@@ -112,15 +112,92 @@ check("history: verified cell changed with a Corrections entry passes", not any(
 hf = history_of(committed_text.replace(arow, arow.replace("| does a thing |", "| does another thing |"), 1))
 check("history: an abstract-sourced row may be rewritten", not any("verified rows changed" in x for x in hf), str(hf))
 
-# 6b evidence: full text absent -> note, not failure
+# 6b evidence: full text absent -> a note in the plain check, a failure under --gate (a fresh clone has no full texts)
 f = build(); import shutil; shutil.rmtree(G / "fulltext")
-code, out = run("--gate", "G5")
-check("evidence: missing full text is a note, not a failure", code == 0 and "not checked verbatim" in out, out)
+code, out = run()
+check("evidence: missing full text is a note in the plain check", code == 0 and "not checked verbatim" in out, out)
+code, out = run("--gate", "G4")
+check("evidence: missing full text fails --gate G4", code == 1 and "g4.evidence" in fails(out), out)
 
 # 6c a `snippet` source is not allowed in the coreset layout (it remains valid in legacy surveys, case 8)
 f = build(); S.write_text(re.sub(r"\| full-text \|$", "| snippet |", S.read_text(), count=1, flags=re.M))
 code, out = run()
 check("a `snippet` source fails in the coreset layout", code == 1 and "which is not a source" in out, out)
+
+# 6d --gate never says "passed" while failing, whatever the failure (here: integrity, a bib entry gone)
+f = build(); bib = ROOT / f"bib/{T}.bib"; bib.write_text(re.split(r"(?=@misc\{)", bib.read_text(), maxsplit=2)[-1])
+code, out = run("--gate", "G4")
+check("--gate with an integrity failure: exit 1, no `passed` note", code == 1 and "G4 passed" not in out, out)
+
+# 6e a pending halt keeps the safety net: an empty cell still fails the plain check
+f = build(); sub(S, "- **Halts:** none", "- **Halts:** H2 — a query failed twice — pending"); sub(S, "| accuracy |", "|  |")
+code, out = run()
+check("pending halt: the safety net still requires what was reached", code == 1 and "g3.cells" in fails(out), out)
+
+# 6f a survey with no pass yet: --gate G0 fails on the missing entry, --status reports
+f = build(); S.write_text(f"# Survey: {T}\n\n" + "".join(f"## {s}\n\n" for s in chk.SURVEY_SECTIONS))
+O.unlink(); (ROOT / f"bib/{T}.bib").unlink()
+code, out = run("--gate", "G0")
+check("no log entry: --gate G0 fails on g0.entry", code == 1 and "g0.entry" in fails(out), out)
+code, out = run("--status")
+check("no log entry: --status prints the gates", "G0 ready" in out, out)
+
+# 6g a pass the user ended at a halt needs only the gates it declared, once closed
+def halted_at_step_3(tokens=True):
+    f = build(); t = S.read_text()
+    for lab in ["Clustering", "Clustering rationale", "Clusters", "Dissent searches", "Coreset", "Demotions",
+                "Late papers", "Coverage test", "Probes", "Corrections to existing rows", "Tokens", "Halts", "Ended"]:
+        t = re.sub(rf"^- \*\*{re.escape(lab)}:\*\*.*\n(?:  .*\n)*", "", t, flags=re.M)
+    t = re.sub(r"(## Clusters\n\n)(?:\|.*\n)+", r"\1", t); t = re.sub(r"(## Coreset\n\n)(?:.*\n)*?(?=## Pool)", r"\1", t)
+    t = re.sub(r"(\| [^\n]*\]\([^)]*\) \| [^|]* \| )[a-z]+( \|)", r"\1\2", t)
+    end = (("- **Tokens:** step 1: 80k, step 2: 250k\n" if tokens else "")
+           + "- **Halts:** H4 — no structure in the pool — user decided to stop, 2026-10-09\n- **Ended:** halted (H4)\n")
+    t = t.replace("- **Gates:** G0 2026-10-09", "- **Gates:** G0 2026-10-09, G1 2026-10-09")
+    S.write_text(t.replace("\n## Clusters", end + "\n## Clusters", 1)); O.unlink(); (ROOT / f"bib/{T}.bib").unlink()
+halted_at_step_3()
+code, out = run()
+check("halted pass with the user's decision: only the declared gates", code == 0 and "ended at H4" in out, out)
+halted_at_step_3(tokens=False)
+code, out = run()
+check("halted pass without its `Tokens` line is not closed", code == 1 and "not closed" in out, out)
+
+# 6h an explicit "no rejections" record replaces rejected.md
+f = build(); (G / "rejected.md").unlink(); sub(S, 'queries "test-time compute"', 'queries "test-time compute"; rejected: none')
+code, out = run("--gate", "G5")
+check("`rejected: none` in `Expansion` satisfies g1.rejected", code == 0, out)
+
+# 6i a proposed cluster the recluster overruled does not block convergence
+f = build(); sub(S, "new\n  clusters: none", "new\n  clusters: none (proposed agent memory, not formed)")
+code, out = run("--gate", "G5")
+check("an overruled cluster proposal still converges", code == 0, out)
+
+# 6j dimensions proposed in the log are read like declared ones: checked values and evidence
+f = build(); no_declared_dimensions(f, PROPOSED + "; `pressure` — values: `none`, `prompt-level`")
+code, out = run("--gate", "G5")
+check("proposed dimensions: a complete pass passes", code == 0 and "proposed in the log" in out, out)
+sub(S, "| capability |", "| speed |")
+code, out = run()
+check("proposed dimensions: a value outside the proposed set fails", code == 1 and "not an allowed value" in out, out)
+
+# 6k trading clusters without a bridge are noted while rows are drafts, before G3 is required
+f = build(); t = S.read_text()
+for lab in ["Dissent searches", "Coreset", "Coverage test", "Ended"]:
+    t = re.sub(rf"^- \*\*{re.escape(lab)}:\*\*.*\n(?:  .*\n)*", "", t, flags=re.M)
+t = re.sub(r"\| full-text \|$", "| abstract |", t, flags=re.M)
+S.write_text(t); S.write_text(t.replace(first_row("bridge:three") + "\n", "", 1)); O.unlink()
+code, out = run()
+check("a trading pair without a bridge is noted before G3", "run the Bridges row" in out, out)
+
+# 6l an [abstract-only] marker after no citation fails; one after a cited abstract-sourced paper does not
+f = build(); sub(O, "That length helps", "That length helps [abstract-only]")
+code, out = run()
+check("a free-standing [abstract-only] marker fails", code == 1 and "follows no cited paper ID" in out, out)
+
+# 6m a pool paper also in rejected.md is noted
+f = build()
+(G / "rejected.md").write_text((G / "rejected.md").read_text() + f"| [{f['rows'][0]}]({chk.link(f['rows'][0])}) | 2026-10-09 | x y |\n")
+code, out = run()
+check("a rejected paper in the pool is noted", "both rejected" in out, out)
 
 # 7 assign.py reject
 f = build()
