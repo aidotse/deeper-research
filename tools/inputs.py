@@ -4,10 +4,14 @@
 Usage: python3 tools/inputs.py <topic>
 
 Prints what the tools take from the input — the declared dimensions with their allowed values, the `Clustering`
-steering, and the coreset's targets — and exits 1 if the input breaks the format in docs/formats.md: an unknown section,
-a missing `Topic`, a dimension without values, an unknown `Clustering` field or value, or a `Coreset Spec` bullet that is
-neither a target nor a `drop`. A typo such as `review: before-coreset` would
-otherwise silently skip the halt it asks for.
+steering, and the coreset's targets — and exits 1 if the input breaks the format in docs/formats.md: an unknown,
+repeated or wrongly levelled section (sections are `##` headings), a missing or empty `Topic`, a dimension without
+values, an unknown `Clustering` field or value, a `Coreset Spec` bullet that is neither a target nor a `drop`, or no
+targets left after the drops. A typo such as `review: before-coreset` would otherwise silently skip the halt it asks
+for.
+
+A bullet is any list item: `-`, `*`, `+` or numbered (`1.`, `1)`). mdformat rewrites `*` and `+` as `-`, so the input
+must read the same before and after it; a numbered item is a list item too, and mdformat keeps it numbered.
 
 `tools/check.py` and `tools/graph.py` import `read_input` for the dimensions, and `tools/cluster.py` for the
 `granularity` steering; `tools/check.py` imports `read_targets` for the output's sections.
@@ -26,38 +30,50 @@ DERIVED = ["Questions", "Reading"]  # always in the output, never targets
 
 # A dimension: a top-level bullet `- **`name`** — values: `a`, `b` or `c`. Any prose after.`
 DIM = re.compile(r"^- \*\*`([a-z0-9][a-z0-9-]*)`\*\*")
-VALUES = re.compile(r"values:\s*((?:`[^`]+`(?:\s*,\s*|\s+or\s+|\s+and\s+|,\s*or\s+)?)+)")
+# The separators include the Oxford comma: "`a`, `b`, or `c`" is {a, b, c}.
+VALUES = re.compile(r"values:\s*((?:`[^`]+`(?:\s*,\s*(?:(?:or|and)\s+)?|\s+(?:or|and)\s+)?)+)")
 # A Clustering field: a top-level bullet `- `key`: value`.
 FIELD = re.compile(r"^- `([^`]+)`:\s*(.*)$")
 # An added target: a top-level bullet `- **`Name`** — what the output must say about it`.
 TARGET = re.compile(r"^- \*\*`([^`]+)`\*\*")
+# A list item's marker: `-`, `*`, `+`, or a number with `.` or `)`. Bullets are read as if marked `-`.
+ITEM = re.compile(r"^(?:[-*+]|\d{1,9}[.)])\s+")
+HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 
 
 def sections(text):
-    out, name, buf = {}, None, []
+    """Return ({name: lines}, problems). A repeated section is a problem; its lines are kept, after the first's."""
+    out, problems, name = {}, [], None
     for line in text.splitlines():
-        if line.startswith("## "):
-            if name is not None:
-                out[name] = buf
-            name, buf = line[3:].strip(), []
-        elif name is not None:
-            buf.append(line)
-    if name is not None:
-        out[name] = buf
-    return out
+        h = HEADING.match(line)
+        if h and len(h.group(1)) == 2:
+            name = h.group(2)
+            if name in out:
+                problems.append(f"input: section `## {name}` appears more than once; merge them into one")
+            out.setdefault(name, [])
+            continue
+        if h and h.group(2) in SECTIONS:
+            # A known section at the wrong level would otherwise be read as prose in the section before it.
+            problems.append(f"input: `{line.strip()}` is a level-{len(h.group(1))} heading; sections are `##` "
+                            f"headings, as in `## {h.group(2)}`")
+        if name is not None:
+            out[name].append(line)
+    return out, problems
 
 
 def bullets(lines):
     """Top-level bullets, each joined with its wrapped continuation lines (but not its nested bullets)."""
     out, cur = [], None
     for line in lines:
-        if line.startswith("- "):
-            cur = [line]
+        m = ITEM.match(line)
+        if m:
+            cur = ["- " + line[m.end():]]
             out.append(cur)
-        elif cur is not None and line.startswith("  ") and not line.lstrip().startswith("- ") and line.strip():
-            cur.append(line.strip())
         elif not line.strip():
             cur = None
+        elif cur is not None and not ITEM.match(line.lstrip()):
+            # An indented continuation, or a lazy one at column 0: mdformat indents both, so both must read the same.
+            cur.append(line.strip())
     return [" ".join(b) for b in out]
 
 
@@ -66,12 +82,14 @@ def read_input(topic):
     path = ROOT / "inputs" / f"{topic}.md"
     if not path.exists():
         return None, None, [f"inputs/{topic}.md does not exist"]
-    secs, problems = sections(path.read_text()), []
+    secs, problems = sections(path.read_text())
     for name in secs:
         if name not in SECTIONS:
             problems.append(f"input: unknown section `## {name}`; known: {', '.join(sorted(SECTIONS))}")
     if "Topic" not in secs:
-        problems.append("input: no `## Topic` section")
+        problems.append("input: no `## Topic` section (sections are `##` headings)")
+    elif not any(line.strip() for line in secs["Topic"]):
+        problems.append("input: the `## Topic` section is empty")
 
     dims = {}
     for b in bullets(secs.get("Dimensions", [])):
@@ -99,8 +117,9 @@ def read_input(topic):
             problems.append(f"input: unknown `Clustering` field `{key}`; known: {', '.join(sorted(CLUSTERING))}")
             continue
         plain = value.replace("`", "").strip()
-        if key == "granularity" and not (plain in ("coarser", "finer") or plain.isdigit()):
-            problems.append(f"input: `granularity` is `coarser`, `finer` or a number of clusters, not {plain!r}")
+        if key == "granularity" and not (plain in ("coarser", "finer") or (plain.isdigit() and int(plain) > 0)):
+            problems.append(f"input: `granularity` is `coarser`, `finer` or a number of clusters above 0, "
+                            f"not {plain!r}")
         if key == "review" and plain != "before coreset":
             problems.append(f"input: `review` can only be `before coreset`, not {plain!r}")
         if key == "alignment":
@@ -119,7 +138,8 @@ def read_targets(topic):
     if not path.exists():
         return list(DEFAULT_TARGETS), []
     targets, problems = list(DEFAULT_TARGETS), []
-    for b in bullets(sections(path.read_text()).get("Coreset Spec", [])):
+    # Section problems are read_input's to report; reporting them here too would print them twice.
+    for b in bullets(sections(path.read_text())[0].get("Coreset Spec", [])):
         m, f = TARGET.match(b), FIELD.match(b)
         if m:
             name = m.group(1).strip()
@@ -134,8 +154,13 @@ def read_targets(topic):
                 else:
                     problems.append(f"input: `drop` names {name!r}, which is not a default target")
         else:
+            # Prose is allowed as a paragraph, or nested under a target; a top-level bullet that is neither form
+            # is more likely a mistyped target than prose, so it fails rather than being dropped.
             problems.append(f"input: `Coreset Spec` bullet is neither a target (``- **`Name`** — ...``) nor a "
-                            f"`drop`: {b[:60]!r}")
+                            f"`drop`; write prose as a paragraph or nested under a target: {b[:60]!r}")
+    if not targets:
+        problems.append("input: `Coreset Spec` drops every target and adds none, so the coverage test would check "
+                        "nothing")
     return targets, problems
 
 
