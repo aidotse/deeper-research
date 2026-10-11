@@ -1,11 +1,19 @@
 # Disposition of the audit of 2026-10-09
 
-What happened to each finding of `.audits/2026-10-09/docs-full-spec.md`, by ID. The audit defines the findings, and
-`.audits/2026-10-09/remediation-plan.md` says what is done in what order (and defines the `R` items, raised after the
-audit). This file says what was actually done, and it is the place to look when auditing a run.
+## How to read this document
 
-Remediation also surfaces issues the audit did not list. Those are defined here, in the first section, with their own ID
-prefix, the problem and the suggested remediation, and are then treated like any other finding.
+This file says what was actually done about each finding of `.audits/2026-10-09/docs-full-spec.md`, by ID. The audit
+defines the findings. `.audits/2026-10-09/remediation-plan.md` says what is done in what order, and defines the `R`
+items, raised after the audit. This file is the place to look when auditing a run. The procedure is `docs/audits.md`.
+
+The sections, in order:
+
+- "Phase 5: handed to a simulation audit": what the next session inherits. Start here if you are picking up the runs.
+- "Issues found during remediation": issues the audit did not list, each defined with a `P` ID, a tag, the problem and
+  the suggested remediation, then treated like any other finding.
+- "By phase" and "Commits": from each phase to its commits and IDs.
+- "Watch in the first run": judgement calls only real data will settle, and findings left open on purpose.
+- The outcome entries, then "Pending": the IDs not yet handled, with their phase.
 
 Each outcome entry gives:
 
@@ -15,9 +23,42 @@ Each outcome entry gives:
 - how it was verified;
 - what to watch in a real run.
 
-The entries are ordered by ID, in the audit's sections, then `R` and `P`. To read by phase instead, use "By phase"
-below. Update the file as each phase lands, in the same commit. An ID not yet handled is listed only under "Pending",
-with its phase.
+The entries are ordered by ID, in the audit's sections, then `R` and `P`. This file predates `docs/audits.md`, which
+orders them by phase; to read by phase here, use "By phase". The file was updated as each phase landed, in the same
+commit.
+
+## Phase 5: handed to a simulation audit
+
+Phase 5, the runs, will not be run inside this remediation. Phases 3 and 4 showed why: three tabletops and one
+simulation, each followed by a round of fixes, did not converge. So Phase 5 becomes a separate simulation audit, as
+`docs/audits.md` ("Simulation audits") defines it (user, 2026-10-11). It runs the pass one segment at a time, each
+segment ending at a gate, and iterates each segment until a blind run of it is clean, before moving on. A next session
+starts it, with this file as its input.
+
+What it inherits from this audit:
+
+- `Watch in the first run`, below: the judgement calls, and the third tabletop's open findings. Each says where it would
+  show.
+- The fixes no simulation has tested: `P15`–`P35`, in particular the simplified Revise and `g4.counted-rows`; the
+  appendix step of verification (`R4`); and the return to step 3.
+- The measurements Phase 5 was to take, each recorded in the entry of the ID it measures: verification tokens per row
+  (`R6`, against the 26k per row the spec plans with); the `T3` agreement rate; the `T2` faithfulness rate; the coverage
+  radius per round (`T4`); and the tokens per dispatch, against the 2–2.5M per pass in `docs/process.md`.
+- The `R4` replication, pending: see "Watch in the first run".
+
+The topics, as proposed to the user (2026-10-11), each needing an input the user writes:
+
+1. A narrow new topic, for the segment iterations: a pool of about 50–150 papers and a coreset of about 15–25 rows.
+2. `reasoning`, as the first confirmation run: a whole pass, unsteered, from `inputs/reasoning.md`. It answers the
+   question Phase 5 was set: which of `reasoning-legacy`'s output claims a coreset of about 50 rows reproduces, and
+   which it loses.
+3. A wide topic, as a second confirmation run, to find the pool size at which screening cost, outside services or the
+   tools stop being practical. The pools so far are under 200 papers.
+
+Open before it starts:
+
+- How the blind runner is launched, so that it can dispatch real agents (`docs/audits.md`, "Roles"); `UNVERIFIED`.
+- The roadmap's "How a previous survey's papers enter the pool", if an input lists an earlier survey as `Context`.
 
 ## Issues found during remediation
 
@@ -89,8 +130,8 @@ Asta) was imagined. It was steered through two coverage rounds, the first not co
 Revise. It reached `F1` and `--gate G5` passed. About 200k tokens, on 2026-10-10. It found no `blocker`, 12 `guess` and
 9 `minor`; its full report, with the run log, is `.audits/2026-10-09/phase4-simulation.md`. Three recur from the third
 tabletop of Phase 3, left unfixed then by agreement (marked `recurs`). All were fixed without simulating again (user,
-2026-10-10): the tool bugs and one-line gaps as suggested, and Revise simplified rather than patched; Phase 5's smoke
-pass is their test. Tags as above.
+2026-10-10): the tool bugs and one-line gaps as suggested, and Revise simplified rather than patched; the simulation
+audit that replaces Phase 5 is their test. Tags as above.
 
 - `P15` — `guess`. Revise is "done when `tools/check.py` passes again", but the plain check passed right after round 1,
   before any counted paper was a coreset row; only `G5` checks that. Suggested: once a `Coverage test` line exists, the
@@ -148,7 +189,7 @@ pass is their test. Tags as above.
 | 2 | `d600a69`, `4d8e9a2`, `46d9dfd`, `4dc8dff`, `cda762a`, `f99ec2c`, `c43ba0c` | `C1`–`C6`, `C8`, `C9`, `M1`–`M6`, `M11`, `M12`, `M14`–`M19`, `S6`, `A9`, `T5`, `T9`, `R2`, `R3`; the code side of `C10`, `M20`, `S1`, `S2`, `S4`, `S15`; `T8` in part |
 | 3 | `558e816`, and "Remediation phase 3: a second tabletop" | `W1`–`W4`, `S5`, `S7`, `S9`–`S12`, `S14`, `A1`–`A8`, `R1`, `P1`–`P14`; the doc side of `C10`, `S1`, `S2`, `S4`, `S15`; the code side of `S10` and `A2`; `T8` in part |
 | 4 | `bec71d7`, and "Remediation phase 4: the simulation's fixes" | TODO 1 (the third tabletop's blocker); `T2`, `T3`, `T4`, `T6`, `R4`, the tool half of `A3`; `T8` in part; `P15`–`P35` |
-| 5 | pending | `R6`, and `Z1` in practice |
+| 5 | handed to a simulation audit (see "Phase 5: handed to a simulation audit") | `R6`, and `Z1` in practice |
 | after the run | pending | `Z6`, `C7`, `M7`, `M8`, `S8`, `S13`, `T7`, `W3` step 2, `M20`'s hidden route, `R5`, the rest of `T8` |
 
 ## Commits
@@ -216,6 +257,15 @@ These are judgement calls whose effect only real data will show. When auditing t
   verification method gained a step: read the appendix sections a result turns on. That step was added after the
   measurement and is itself untested; watch whether it raises tokens per row, and whether evidence files cite
   appendices. The measurement's limits are in `docs/experiments.md`: one reference reader, not blind scoring, 8 papers.
+
+- `R4`, the replication: pending, for the simulation audit's `G4` segment. `R4`'s recall figures (arm `A` 90%, arm `B`
+  84%) rest on a reference reading of 8 papers. The token figures rest on 27 rows per arm. Per paper, `A` ranged from
+  75% to 100% and `B` from 78% to 93%, and `A` beat `B` on 7 of 8. So the choice of method is fairly safe, but the 90%
+  could be several points off. The replication: the auditor reads about 8 more coreset rows' full texts in full, chosen
+  at random and on another topic than `reasoning-legacy`, and records its findings before opening their evidence files.
+  Then it scores the production Verification rows against them, as in `graphs/reasoning-legacy/r4/compare.md`. This
+  doubles the reference sample, and tests the production method with its new appendix step, rather than the experiment's
+  arm `A`. About 250k tokens of reading. Its result goes in `R4`'s entry.
 
 - The viewer has never been rendered in a browser. Headless Chromium could not start here, so both the Phase 1 changes
   (panels removed with `Z3` and `Z5`) and the `R3` colour mode were checked in node only. Open
@@ -622,7 +672,8 @@ The third run's findings, 17 in all (1 `blocker`, 8 `guess`, 8 `minor`):
 
 ## Z — simplifications
 
-- `Z1` — adopted as the plan's principle "Not everything before the run". It is carried out by Phase 5.
+- `Z1` — adopted as the plan's principle "Not everything before the run". It is carried out by the simulation audit that
+  replaces Phase 5.
 - `Z2` — adopted, `532e697`:
   - A row's `source` is `full-text` or `abstract`; `snippet` stays valid only in legacy surveys.
   - `G4` fails evidence quoted from a snippet.
@@ -731,7 +782,7 @@ rows are gone, and the step-3 and step-4 rows serve both cases (user's decision,
 
 - `P14` — fixed: the plan report does not block; the user can stop the pass, or change the dimensions in the input.
   Phase 4's simulation, fixed in the commit after `bec71d7` (user, 2026-10-10: fix the tool bugs and one-line gaps,
-  simplify Revise, no third simulation; Phase 5's smoke pass is the test). Faults 79 → 84, behaviours 44 → 48.
+  simplify Revise, no third simulation; the runs are the test). Faults 79 → 84, behaviours 44 → 48.
 
 - `P15` — fixed, as suggested: `g4.counted-rows` (moved from `g5.changed-in-coreset`) fails from a coverage round on
   until every counted paper is a coreset row verified from the full text or marked `(uncheckable: ...)`. So the plain
@@ -784,8 +835,8 @@ rows are gone, and the step-3 and step-4 rows serve both cases (user's decision,
 
 ## Pending
 
-- Phase 5: the smoke pass and the `reasoning` rerun; their findings go in this file as `P` items, defined at the top
-  with tags and suggested fixes, and their measurements in the entries they measure (`R6`, `T2`, `T3`, `T4`, `R4`).
-- Phase 5: `R6`, and `Z1` in practice.
+- Phase 5, handed to a simulation audit (see "Phase 5: handed to a simulation audit"): `R6`; the measurements for `T2`,
+  `T3` and `T4`; the `R4` replication; `Z1` in practice. Its findings go in its own directory's documents, not in this
+  file. Its measurements of this audit's IDs are copied into their entries here.
 - After the run: `Z6`, `C7`, `M7`, `M8`, `S8`, `S13`, `T7`, `W3` step 2, `M20`'s hidden route, `R5`, and the rest of
   `T8`.

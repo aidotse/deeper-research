@@ -1,8 +1,20 @@
 # Remediation plan for the audit of 2026-10-09
 
+## How to read this document
+
 This plan is for the findings in `.audits/2026-10-09/docs-full-spec.md`. The IDs (`C1`, `M4`, …) are that audit's, and
 each issue's evidence, rationale and remediation are there. This file says only what is done, in what order, and why in
-that order. What was actually done, per ID, is in `.audits/2026-10-09/disposition.md`.
+that order. What was actually done, per ID, is in `.audits/2026-10-09/disposition.md`. The procedure is
+`docs/audits.md`.
+
+The sections, in order:
+
+- "Principles": the rules that set the order of the work.
+- "Decisions taken", in two rounds, and "Items raised after the audit": the user's answers to the audit's open
+  questions, and the `R` items, defined here.
+- The phases, 0 to 5, each ending with a status line. Phase 5 was handed to a separate simulation audit.
+- "After the run": what is deferred on purpose.
+- "Index: where each audit ID goes": from every ID to its phase.
 
 ## Principles
 
@@ -357,6 +369,11 @@ records its findings before opening their evidence files, and scores the Verific
 `graphs/reasoning-legacy/r4/compare.md`. This tests the production method (with its new appendix step) rather than the
 experiment's arm `A`, and doubles the reference sample. About 250k tokens of the main session's reading.
 
+Status, 2026-10-11: handed to a separate simulation audit (user). Phases 3 and 4 did not converge on whole-run tabletops
+and simulations, so the runs go one gate-ended segment at a time, each iterated until a blind run of it is clean, as
+`docs/audits.md` ("Simulation audits") defines. This section is kept as the brief it inherits. The handover, with the
+proposed topics, is in `.audits/2026-10-09/disposition.md`, "Phase 5: handed to a simulation audit".
+
 ## After the run
 
 These items are deferred deliberately. Each matters only on a second pass of a topic, or should be shaped by what the
@@ -394,7 +411,7 @@ run shows.
 | `R1` | Phase 3 (the step-5 row), used in Phase 5 |
 | `P1`–`P14` (found by Phase 3's tabletops; defined in the disposition) | Phase 3 |
 | `P15`–`P35` (found by Phase 4's simulation; defined in the disposition) | Phase 4 |
-| `R6` | Phase 5 |
+| `R6` | Phase 5, handed to a simulation audit |
 | `R5` | after the run, if needed |
 | `Z1` | the plan as a whole; `T7` after the run |
 | `Z6`, `C7`, `M7`, `M8`, `S8`, `S13`, `T7` | after the run |

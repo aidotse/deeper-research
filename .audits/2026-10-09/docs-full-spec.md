@@ -1,5 +1,24 @@
 # Audit: the full spec, blind (2026-10-09)
 
+## How to read this document
+
+This is a blind audit of the whole spec and code, written on 2026-10-09. It lists issues only; it does not plan or
+decide. What is done about each issue, and in what order, is in `.audits/2026-10-09/remediation-plan.md`; what was
+actually done is in `.audits/2026-10-09/disposition.md`. The procedure is `docs/audits.md`.
+
+The sections, in order:
+
+- "Scope and method": what was read, how, and the status values each issue carries.
+- "Executive summary, in the manner of a reviewer": the short version, for a reader new to the repo.
+- "Part (a)": whether the development direction is right.
+- "Part (b)": the issues, by dimension: `C`, `M`, `S`, `W`, `A`, `T` and `Z`. Each issue has an ID, its evidence, why it
+  matters, a suggested remediation, an effort and a status. Issues marked `(V)` bear on verification.
+- "The verification concept, in one place": the `(V)` issues, link by link.
+- "Part (c)": what had to be fixed before the first end-to-end run, and how to run it.
+- "Checked and found to hold", and an appendix.
+
+Line numbers refer to the files as they stood on 2026-10-09, and many have since moved.
+
 ## Scope and method
 
 This audit is blind to earlier ones. It did not read `.audits/`, `docs/roadmap.md` or any git history (log, diff, blame,

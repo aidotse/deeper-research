@@ -57,6 +57,7 @@ not apply.
 | `docs/gates.md` | main session, human reviewers | before planning a pass, and when reviewing one |
 | `docs/tooling.md` | all; `survey-pass`, the sections its brief lists | before running anything in `tools/` |
 | `docs/external_services.md` | all; `survey-pass`, the sections its brief lists | before the first call to Asta, WebSearch or any outside service, and at the preflight check |
+| `docs/audits.md` | main session | only when the user asks for an audit, or for the remediation of one |
 | `docs/responses.md` | all | never separately: it is imported below |
 | `docs/experiments.md` | human reviewers only | not instructions; skip it |
 | `docs/vs_deep_research.md` | human reviewers only | not instructions; skip it |
