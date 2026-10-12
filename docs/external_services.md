@@ -65,10 +65,13 @@ Rules for calling them:
 - `IDs` — pass arXiv papers as `ARXIV:<id>`, for example `ARXIV:2106.15928`, and other papers by their corpus ID,
   `CorpusId:<n>`, as it is. Semantic Scholar IDs and DOIs also work. A paper's canonical ID is defined in
   `docs/formats.md` ("Paper IDs").
-- `Fields` — every paper tool returns only `title` unless `fields` asks for more. `snippet_search` has no `fields`
-  parameter: it returns passages. Ask for what the decision needs and no more. `abstract` is what screening reads;
-  `references` and `citations` return whole lists and are long; `tldr` is a cheap one-line summary. Every returned field
-  enters the agent's context, so this is the main lever on screening cost.
+- `Fields` — `fields` trims what a paper tool returns: a field not asked for is mostly left out, though some tools add
+  `authors` and `openAccessPdf` unasked. `snippet_search` has no `fields` parameter: it returns passages. Ask for what
+  the decision needs and no more. To add or reject a paper with `tools/assign.py`, ask for `externalIds`, which holds
+  its arXiv ID and corpus ID: by default a tool identifies a paper only by Semantic Scholar's own `paperId`, which
+  `tools/assign.py` does not take. `abstract` is what screening reads; `references` and `citations` return whole lists
+  and are long; `tldr` is a cheap one-line summary. Every returned field enters the agent's context, so this is the main
+  lever on screening cost.
 - `Dates` — `publication_date_range` restricts by publication date, for example `2025-06:` for June 2025 onward. Use it
   to keep recent work represented. `snippet_search` has no publication filter. Its `inserted_before` restricts by the
   date a paper entered the index, which is not the same thing.

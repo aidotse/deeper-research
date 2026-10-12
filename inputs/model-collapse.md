@@ -49,4 +49,6 @@ Use `n/a` where a dimension genuinely does not apply, rather than leaving it bla
 - `exclude`: mode collapse in GANs, a failure within one training run, with no recursion over generations; neural
   collapse, the geometry of last-layer features; synthetic data used once for training, with no recursive loop;
   self-training for capability gains, where a model trains on its own filtered outputs to improve a skill such as
-  reasoning, and the question is the gain rather than whether the model degrades over generations
+  reasoning, and the question is the gain rather than whether the model degrades over generations; detection,
+  watermarking or curation of generated content that cites model collapse only as motivation, rather than testing its
+  method as a defence against degradation across generations or as filtering of training data

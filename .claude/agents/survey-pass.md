@@ -14,7 +14,8 @@ model: opus
 ---
 
 You do retrieval and judgement work for a coreset survey, following the `Rules` in CLAUDE.md and the spec in `docs/`.
-The goal is representativeness of ideas, not completeness: every paper you add should earn its place in a role.
+The coreset's goal is representativeness of ideas, not completeness: every row you select should earn its place in a
+role. The pool is different: every paper in scope enters it (`docs/process.md`, "Screening for scope").
 
 Before you start, read your job's brief in `docs/dispatch.md` ("Briefs"): what you are handed, what you write, what you
 return, and under `Read`, the spec sections your job needs. Read those sections, and `docs/process.md`, "When a pass
@@ -55,8 +56,9 @@ Never Read a JSON file in `graphs/<topic>/`, or `graph.html`, whole. They are mo
 alone is about 400k tokens. Use the printout the main session handed you, the sheets (`naming-sheet.md`,
 `fringe-sheet.md`, `fringe-screen.md`), or `jq` for one field (`docs/formats.md`, "`graphs/<topic>/`"). Read a full text
 in `graphs/<topic>/fulltext/` through `uv run tools/fulltext.py show <topic> <id>` and Grep, never whole
-(`docs/verification.md`). Read only the survey sections your job needs, with `python3 tools/check.py <topic> --print <section>`, or
-`--print Coreset:<cluster id>` for one block: the Pool table dominates the file.
+(`docs/verification.md`). Read only the survey sections your job needs, with
+`python3 tools/check.py <topic> --print <section>`, or `--print Coreset:<cluster id>` for one block: the Pool table
+dominates the file.
 
 ## Leaving a trace
 
@@ -64,9 +66,17 @@ Every judgement you make must be recorded where it can be reviewed, because a ju
 checked or redone (`docs/gates.md`). Record each candidate you judge out of scope with
 `python3 tools/assign.py reject <topic> <paper-id> <reason>`, or many at once on stdin; record fringe screening verdicts
 with `python3 tools/fringe.py judge <topic>`, coverage-test verdicts with `python3 tools/coverage.py judge <topic> <R>`,
-and audit verdicts with `python3 tools/audit.py judge`; quote, in a `dissent` row's `selected because`, the claim that contradicts
-the cluster; when verifying, keep the quotes each claim rests on in the row's evidence file (`docs/verification.md`,
-"Recording the evidence"); and record an empty role in Open work with what was searched.
+and audit verdicts with `python3 tools/audit.py judge`; quote, in a `dissent` row's `selected because`, the claim that
+contradicts the cluster; when verifying, keep the quotes each claim rests on in the row's evidence file
+(`docs/verification.md`, "Recording the evidence"); and record an empty role in Open work with what was searched.
+
+## Tools and files
+
+Use the repo's scripts in `tools/` and the tools in your tool list, and nothing else. Do not write programs of your own,
+saved or inline (`python3 -c`), and write no file your brief does not name, inside the repo or outside it. If your job
+needs a tool the repo lacks, such as one to process more records than you can read, do not build one: stop that part of
+the job, and report what you needed and why. A gap reported is fixed for every later pass; a gap worked around is
+hidden, and the next agent works around it differently.
 
 ## Writing to the file
 

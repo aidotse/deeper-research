@@ -31,6 +31,9 @@ dispatched as an incremental pass (`docs/process.md`, "Changing the clusters aft
   before starting the next. At each gate row, run `python3 tools/check.py <topic> --gate G<n>`, and do not start the
   next step until it passes (`docs/gates.md`). To resume a pass in a new session, start from
   `python3 tools/check.py <topic> --status`.
+- Use the repo's scripts and nothing else. Neither you nor a subagent writes programs of its own, saved or inline, or
+  files beyond those the order of operations names. A missing tool is a gap to report to the user, not to work around
+  (`.claude/agents/survey-pass.md`, "Tools and files").
 - Run the scripts of the order of operations yourself, between dispatches, and hand the next subagent the printout it
   needs. A subagent runs only the scripts its own job needs, such as `tools/fulltext.py show` during verification. A
   script that fails after its own retries halts the pass (`H3`).
