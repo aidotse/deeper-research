@@ -39,12 +39,13 @@ dispatched as an incremental pass (`docs/process.md`, "Changing the clusters aft
   replaces the computed cluster ids with names. A pass's log entry is written as the pass goes; a line may be updated
   until the pass ends, never after. The one exception is `Gates`, which takes `G5` after `Ended`, since `G5` checks
   `Ended`.
-- After every dispatch, follow the "After every dispatch" row. Append the dispatch's tokens to `Tokens`, from the usage
-  it reports, so that a halt or a lost session does not lose them. If it added pool rows, fetch them first:
-  `python3 tools/pool.py <topic>` until step 3 is done, `uv run tools/assign.py late <topic>` after it. Paste the `Pool`
-  line the fetch prints. Only then run `python3 tools/check.py <topic>`, while you still know which agent caused any
-  damage. After an agent that changed the coreset, run `python3 tools/bib.py <topic>` first, since the check compares
-  the two. A failure the agent cannot fix halts the pass (`H9`).
+- After every dispatch, follow the "After every dispatch" row. Append the dispatch's tokens to `Tokens`, as the harness
+  returns them with the result (`docs/formats.md`, "1. Retrieval log"), so that a halt or a lost session does not lose
+  them. If it added pool rows, fetch them first: `python3 tools/pool.py <topic>` until step 3 is done,
+  `uv run tools/assign.py late <topic>` after it. Paste the `Pool` line the fetch prints. Only then run
+  `python3 tools/check.py <topic>`, while you still know which agent caused any damage. After an agent that changed the
+  coreset, run `python3 tools/bib.py <topic>` first, since the check compares the two. A failure the agent cannot fix
+  halts the pass (`H9`).
 - Subagents may run in parallel **only on disjoint sections of the survey**. Cluster blocks partition the Coreset table
   naturally, so parallel verification or selection work splits by cluster. The pool is a single table, so only one agent
   writes to it at a time. Group the clusters into a few blocks per agent, spreading the `high` ones, which cost the

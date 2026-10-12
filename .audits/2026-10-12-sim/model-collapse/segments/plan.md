@@ -146,3 +146,59 @@ Sizes, in bytes, before → after, for these fixes: `docs/formats.md` 35424 → 
 
 First judged converged, and tagged `sim-checkpoint-model-collapse-plan` (commit `ed53e80`). Reopened on 2026-10-12 by
 the decision above: `E6`, `E9`, `E10` and `E11` are `guess` findings, so their fixes need a rerun. Another iteration.
+
+## Iteration 3
+
+### Run
+
+- `Runner` — headless `claude -p`, session `082e5454-8cba-4808-9083-92befcf7534c`. Prompt: `runs/plan-3.prompt.md`.
+  Steering: none.
+- `From` — commit `cf124b2`, with the starting state restored: no files for the topic.
+- `Cost` — 19 turns, 441 s, $1.27. One dispatch, `survey-pass` "Preflight": `subagent_tokens` 35731, 13 tool uses, 349
+  s, of which about 300 s were spent waiting on one WebSearch query (gaps of 90, 61 and 151 s, from the agent's
+  transcript).
+- `Raw report` — `runs/plan-3.md`; JSON result `runs/plan-3.json`.
+- `Outcome` — Plan, `tools/preflight.py` (exit 0), the Preflight agent (all checks `ok`), `--gate G0`, which passed. The
+  auditor's own `--gate G0` passes. Nothing written outside the topic's files. The `ls -R` listing of `.git` directory
+  names recurs; no history read.
+- `The last round's fixes` — all four showed as intended: the title is the input's own (`E7`);
+  `Tokens: Preflight: 35731`, written without hesitation (`E10`); only Plan's three lines (`E11`); the Preflight report
+  checked against the line on disk and by the plain check, as `docs/dispatch.md` now says (`E9`). `E6` was not
+  exercised: no halt.
+
+### Findings
+
+- `E12` — `guess`. The order of the log entry's lines. Plan writes three of the template's lines, so later lines
+  (`Preflight`, `Tokens`, `Gates`) must be slotted in somewhere, and the docs do not say whether the template's order
+  holds. The runner kept the template's order; another might append. The check accepts either. Showed at `Plan` and
+  every later write to the entry.
+- `E13` — `guess`. Where a dispatch's token count comes from. `docs/dispatch.md` and `docs/formats.md` say "from the
+  usage it reports", but the Preflight agent reported that it cannot see its own usage. The runner used the
+  `subagent_tokens` figure the Agent tool returned. Iteration 2's runner did the same without remarking on it.
+- `E14` — `minor`, as the runner tagged it. On a first pass, whether `Open work` is left empty or carries its six
+  headings with no items. `docs/formats.md` answers it ("On a first pass the main session writes them empty"), and the
+  runner left it empty, but the answer sits in another section than "5. Open work".
+
+Watch, not a finding: WebSearch took about 300 s for one query in the Preflight dispatch. Orient, in `pool`, depends on
+WebSearch.
+
+Spot check: the `Dimensions` line against the input. 1 instance, 1 checked, 0 wrong.
+
+### Fixes
+
+The gate suites pass after them: 84 of 84, 49 of 49.
+
+- `E12` — `docs/formats.md`, "1. Retrieval log": an entry's lines keep the template's order, so a line written later is
+  put in its place.
+- `E13` — `docs/formats.md`, the `Tokens` line, and `docs/dispatch.md`'s rule after every dispatch: the count is the one
+  the harness returns with the agent's result (in Claude Code, the Agent tool's `subagent_tokens`), since an agent
+  cannot see its own.
+- `E14` — `docs/formats.md`, "5. Open work": a heading is written with its first item, so the section is empty until
+  there is one. Fixed without another run, as a `minor`.
+
+Sizes, in bytes, before → after: `docs/formats.md` 35581 → 35880; `docs/dispatch.md` 18764 → 18824.
+
+### Result
+
+Another iteration: `E12` and `E13` are `guess` findings. Neither comes from the last round's fixes, whose effects all
+showed as intended, so the rule to stop patching does not apply.

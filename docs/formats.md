@@ -181,7 +181,7 @@ Nor can one without a SPECTER2 embedding, which clustering needs. Record either 
 
 ### 1. Retrieval log
 
-One entry per pass, in date order:
+One entry per pass, in date order. An entry's lines keep the order below, so a line written later is put in its place:
 
 ```text
 ### Pass YYYY-MM-DD
@@ -269,8 +269,9 @@ What some lines need, beyond their form:
   `none (proposed <which>, not formed)`.
 - `Judgement audit` — printed from the three audit sheets (`docs/process.md`, "Auditing the judgements"), and pasted as
   printed: `tools/check.py` recomputes it.
-- `Tokens` — one entry per dispatch, appended when it returns, from the usage it reports: the brief's name, and its
-  scope if it ran on part of the work, such as `Selection c1+c2`, without commas or colons, then the tokens, without
+- `Tokens` — one entry per dispatch, appended when it returns, from the token count the harness returns with the agent's
+  result (in Claude Code, the Agent tool's `subagent_tokens`), since an agent cannot see its own: the brief's name, and
+  its scope if it ran on part of the work, such as `Selection c1+c2`, without commas or colons, then the tokens, without
   thousands separators, for example `Preflight: 4k, Orient: 81k, Selection c1+c2: 64200`.
 - `Halts` and `Waivers` are written as `none` when the entry is created, so that a pass that met neither says so. A
   halt's `<what happened>` is one sentence: the failure as printed, and the rows it left undone.
@@ -356,7 +357,8 @@ What is known to be outstanding, so that work survives a session ending mid-pass
 Keep it current as work proceeds. A subagent that leaves something outstanding must record it here before finishing, not
 only in its report to the main session: reports live in one session's context and are lost when it ends. An agent
 running in parallel with others returns its items under `Open work:` instead, and the main session writes them (as for
-the log). An item is removed once it is done: a verified row leaves `Rows needing verification`, for example.
+the log). A heading is written with its first item, so the section is empty until there is one. An item is removed once
+it is done: a verified row leaves `Rows needing verification`, for example.
 
 What goes under each heading:
 
