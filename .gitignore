@@ -21,6 +21,10 @@ graphs/*/graph.html
 graphs/*/naming-sheet.md
 graphs/*/fringe-sheet.md
 
+# Checkpoint copies of files the repo ignores, kept by a simulation audit
+# (docs/audits.md, "Starting states"); regenerable.
+.audits/*-sim/*/segments/runs/checkpoints/
+
 # Editors and OS
 .DS_Store
 *.swp

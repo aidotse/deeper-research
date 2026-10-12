@@ -120,8 +120,31 @@ Two pieces are now part of every pass, with their rates in the log's `Judgement 
 judgements"). The rest above is still a proposal. Prerequisite, done: the traces the audits sample (rejections recorded
 by `tools/assign.py reject`, dissent rows quoting their contradiction). Also done: each verified row's evidence, kept in
 `graphs/<topic>/evidence/` (2026-10-09), so that the cheapest audit, whether a quote supports its cell, needs no new
-search. Pilot it on the fresh coreset run, and adopt it into `docs/gates.md` once the agreement rates of a real pass are
-known.
+search.
+
+`G3` comes first, because it is the last point before verification spends more than half the pass, and today nothing
+checks a judgement before then. The plan, decided with the user on 2026-10-12:
+
+- `Pilot` — not part of the simulation audit's main run, and not in the spec. Once the simulation has passed as it
+  stands, restore the converged `coreset` checkpoint (`sim-checkpoint-<topic>-coreset`) and run the pilot from it, as a
+  steered branch (`docs/audits.md`, "Steered branches"). The auditor dispatches a fresh `survey-pass` agent. It
+  re-judges every `dissent` row (does the paper contradict its cluster's central claim?) and the alignment rating of
+  every `high` cluster, from the abstracts and the Clusters table, without seeing the rows' quotes. The auditor compares
+  the agent's verdicts with its own: for the `dissent` rows, those of the segment's spot check; for the alignment
+  ratings, which no spot check covers, verdicts it records before reading the agent's. The catch: a converged checkpoint
+  holds no `dissent` row the auditor judged wrong, so on its own it can show the agent's false alarms but never a catch.
+  So the auditor first plants two or three `dissent` rows it knows do not contradict their cluster, and records which.
+  The runner never sees the audit, so the pilot measures whether a blind agent judges well, not whether a runner can
+  carry out the step from the docs. Record the agreement rates, the planted rows caught, and the cost.
+- `Adopt` — only after the pilot: a step-4 row in `docs/process.md`, a brief in `docs/dispatch.md`, a log line in
+  `docs/formats.md`, a `tools/audit.py` subcommand, and a `G3` requirement that the audit was judged in full. Then
+  `docs/audits.md` follows: the `coreset` segment's `steps` gain the audit, and its spot check re-checks the pass's own
+  verdicts, as `coverage` does with the faithfulness sample. The segment still ends at `--gate G3`.
+- `Open: measure or repair` — the step-7 audits measure and never repair. At `G3` the dissent rows are few enough to
+  check every one, so the audit could also send a row judged not to contradict its cluster back to Selection, before
+  verification is spent on it. Decide with the pilot's disagreement rate in hand.
+
+The other gates' audits (`G1` screening, `G5` coverage verdicts) wait for the `G3` pilot's result.
 
 ### Pool recall
 
