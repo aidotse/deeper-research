@@ -2,9 +2,9 @@
 
 ## How to read this document
 
-This plan is for the findings in `.audits/2026-10-09/docs-full-spec.md`. The IDs (`C1`, `M4`, …) are that audit's, and
-each issue's evidence, rationale and remediation are there. This file says only what is done, in what order, and why in
-that order. What was actually done, per ID, is in `.audits/2026-10-09/disposition.md`. The procedure is
+This plan is for the findings in `.audits/2026-10-09-spec/docs-full-spec.md`. The IDs (`C1`, `M4`, …) are that audit's,
+and each issue's evidence, rationale and remediation are there. This file says only what is done, in what order, and why
+in that order. What was actually done, per ID, is in `.audits/2026-10-09-spec/disposition.md`. The procedure is
 `docs/audits.md`.
 
 The sections, in order:
@@ -128,7 +128,7 @@ place them.
   `check.py reasoning-legacy` exits 0.
 
 Status, 2026-10-09: done. What was done, per ID, with its judgement calls and caveats, is in
-`.audits/2026-10-09/disposition.md`.
+`.audits/2026-10-09-spec/disposition.md`.
 
 ## Phase 1: simplify
 
@@ -159,7 +159,7 @@ Done when: the test suites pass; `check.py reasoning` still exits 0 on the legac
 scratch copy of `reasoning` still chooses about 6 clusters.
 
 Status, 2026-10-09: done. What was done, per ID, with its judgement calls and caveats, is in
-`.audits/2026-10-09/disposition.md`.
+`.audits/2026-10-09-spec/disposition.md`.
 
 ## Phase 2: correctness, by file group
 
@@ -233,7 +233,7 @@ Done when, for the whole phase: every finding above is fixed with a test where o
 correctly.
 
 Status, 2026-10-10: done. What was done, per ID, with its judgement calls and caveats, is in
-`.audits/2026-10-09/disposition.md`.
+`.audits/2026-10-09-spec/disposition.md`.
 
 ## Phase 3: spec coherence
 
@@ -310,7 +310,7 @@ Done when: a fresh tabletop run of a first pass, as in the audit, finds no stall
 an agent, blind to this plan.
 
 Status, 2026-10-10: done. What was done, per ID, with its judgement calls and caveats, is in
-`.audits/2026-10-09/disposition.md`, including what the tabletops found and how each finding was handled. Three
+`.audits/2026-10-09-spec/disposition.md`, including what the tabletops found and how each finding was handled. Three
 tabletops ran (20, 14 and 17 findings). The third did not converge; by agreement, its findings moved to the
 disposition's "Watch in the first run" unfixed, and Phase 4 proceeds.
 
@@ -341,7 +341,7 @@ Done when: each tool runs on the gate fixture, the briefs that use them name the
 method.
 
 Status, 2026-10-10: done. TODO 1, `T2`, `T3`, `T4`, `T6`, the tool half of `A3` and `R4` are in, per ID in
-`.audits/2026-10-09/disposition.md`. `R4` decided the reading method: the section reader alone, plus a step for
+`.audits/2026-10-09-spec/disposition.md`. `R4` decided the reading method: the section reader alone, plus a step for
 appendices; no locator. A blind simulation of step 7 to `G5` on the gate fixture finished the pass and found 21 issues
 (`P15`–`P35`, none blocking), recorded in the disposition. By the user's decision they were fixed without simulating
 again, Revise being simplified rather than patched; Phase 5's smoke pass is their test.
@@ -358,10 +358,10 @@ again, Revise being simplified rather than patched; Phase 5's smoke pass is thei
 
 In both runs, measure verification tokens per row (`R6`), and run the batch fetch before verification (`R1`).
 
-Record what the runs find in `.audits/2026-10-09/disposition.md`, as for Phases 3 and 4: every spec bug, improvisation,
-tool failure or surprise as a `P` item defined at the top, with its tag and suggested fix; and every measurement (`R6`,
-the `T3` agreement rate, the `T2` faithfulness rate, the coverage radius per round) in the entry of the ID it measures,
-with what it implies for the estimates in the spec.
+Record what the runs find in `.audits/2026-10-09-spec/disposition.md`, as for Phases 3 and 4: every spec bug,
+improvisation, tool failure or surprise as a `P` item defined at the top, with its tag and suggested fix; and every
+measurement (`R6`, the `T3` agreement rate, the `T2` faithfulness rate, the coverage radius per round) in the entry of
+the ID it measures, with what it implies for the estimates in the spec.
 
 Replicating `R4` (proposed, 2026-10-10). `R4`'s recall figures rest on a reference reading of 8 papers. In the rerun,
 the main session reads the full texts of about 8 more coreset rows, chosen at random and on a different topic's papers,
@@ -372,7 +372,7 @@ experiment's arm `A`, and doubles the reference sample. About 250k tokens of the
 Status, 2026-10-11: handed to a separate simulation audit (user). Phases 3 and 4 did not converge on whole-run tabletops
 and simulations, so the runs go one gate-ended segment at a time, each iterated until a blind run of it is clean, as
 `docs/audits.md` ("Simulation audits") defines. This section is kept as the brief it inherits. The handover, with the
-proposed topics, is in `.audits/2026-10-09/disposition.md`, "Phase 5: handed to a simulation audit".
+proposed topics, is in `.audits/2026-10-09-spec/disposition.md`, "Phase 5: handed to a simulation audit".
 
 ## After the run
 

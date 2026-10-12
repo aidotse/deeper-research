@@ -30,9 +30,9 @@ requirement per row.
 
 The first real pass, run end to end on `reasoning`, as a measured simulation of the whole method: what goes to plan and
 what does not. It runs as a simulation audit (`docs/audits.md`): a narrow topic first, iterated segment by segment, then
-`reasoning` as a confirmation run, then a wide topic. The handover is in `.audits/2026-10-09/disposition.md`, "Phase 5:
-handed to a simulation audit". The legacy survey is now `reasoning-legacy`, and `inputs/reasoning.md` is the input for
-the rerun.
+`reasoning` as a confirmation run, then a wide topic. The handover is in `.audits/2026-10-09-spec/disposition.md`,
+"Phase 5: handed to a simulation audit". The legacy survey is now `reasoning-legacy`, and `inputs/reasoning.md` is the
+input for the rerun.
 
 - `Measure` — pool size against coreset size, per cluster and in total; tokens per dispatch against the estimates in the
   order of operations (`docs/process.md`); every gate failure and halt, and what resolved it; every place the main

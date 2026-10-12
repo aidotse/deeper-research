@@ -3,8 +3,8 @@
 ## How to read this document
 
 This is a blind audit of the whole spec and code, written on 2026-10-09. It lists issues only; it does not plan or
-decide. What is done about each issue, and in what order, is in `.audits/2026-10-09/remediation-plan.md`; what was
-actually done is in `.audits/2026-10-09/disposition.md`. The procedure is `docs/audits.md`.
+decide. What is done about each issue, and in what order, is in `.audits/2026-10-09-spec/remediation-plan.md`; what was
+actually done is in `.audits/2026-10-09-spec/disposition.md`. The procedure is `docs/audits.md`.
 
 The sections, in order:
 

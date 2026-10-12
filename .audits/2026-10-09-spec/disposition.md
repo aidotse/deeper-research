@@ -2,9 +2,10 @@
 
 ## How to read this document
 
-This file says what was actually done about each finding of `.audits/2026-10-09/docs-full-spec.md`, by ID. The audit
-defines the findings. `.audits/2026-10-09/remediation-plan.md` says what is done in what order, and defines the `R`
-items, raised after the audit. This file is the place to look when auditing a run. The procedure is `docs/audits.md`.
+This file says what was actually done about each finding of `.audits/2026-10-09-spec/docs-full-spec.md`, by ID. The
+audit defines the findings. `.audits/2026-10-09-spec/remediation-plan.md` says what is done in what order, and defines
+the `R` items, raised after the audit. This file is the place to look when auditing a run. The procedure is
+`docs/audits.md`.
 
 The sections, in order:
 
@@ -128,10 +129,10 @@ history) played the main session of a pass on a scratch copy of the gate fixture
 played each brief itself. Every script ran, and full texts were fetched from arXiv; only outside retrieval (WebSearch,
 Asta) was imagined. It was steered through two coverage rounds, the first not converging, with a recency candidate and a
 Revise. It reached `F1` and `--gate G5` passed. About 200k tokens, on 2026-10-10. It found no `blocker`, 12 `guess` and
-9 `minor`; its full report, with the run log, is `.audits/2026-10-09/phase4-simulation.md`. Three recur from the third
-tabletop of Phase 3, left unfixed then by agreement (marked `recurs`). All were fixed without simulating again (user,
-2026-10-10): the tool bugs and one-line gaps as suggested, and Revise simplified rather than patched; the simulation
-audit that replaces Phase 5 is their test. Tags as above.
+9 `minor`; its full report, with the run log, is `.audits/2026-10-09-spec/phase4-simulation.md`. Three recur from the
+third tabletop of Phase 3, left unfixed then by agreement (marked `recurs`). All were fixed without simulating again
+(user, 2026-10-10): the tool bugs and one-line gaps as suggested, and Revise simplified rather than patched; the
+simulation audit that replaces Phase 5 is their test. Tags as above.
 
 - `P15` — `guess`. Revise is "done when `tools/check.py` passes again", but the plain check passed right after round 1,
   before any counted paper was a coreset row; only `G5` checks that. Suggested: once a `Coverage test` line exists, the

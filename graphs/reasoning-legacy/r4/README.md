@@ -1,7 +1,7 @@
 # R4: how much targeted reading misses
 
-An experiment, not part of a pass (`.audits/2026-10-09/remediation-plan.md`, `R4`; results in `docs/experiments.md`).
-Each of the 27 `abstract`-sourced rows of `reasoning-legacy` is verified against its full text,
+An experiment, not part of a pass (`.audits/2026-10-09-spec/remediation-plan.md`, `R4`; results in
+`docs/experiments.md`). Each of the 27 `abstract`-sourced rows of `reasoning-legacy` is verified against its full text,
 `graphs/reasoning-legacy/fulltext/<id>.txt`, by up to three arms:
 
 - `A` — a strong agent reading by the section reader (`uv run tools/fulltext.py show reasoning-legacy <id>`) and Grep;
