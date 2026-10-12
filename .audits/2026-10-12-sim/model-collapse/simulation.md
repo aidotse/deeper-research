@@ -55,7 +55,7 @@ A second launch, made only to check the trust setting, was denied by the auditor
 
 | segment | status | iterations | `E` IDs (by tag) | docs touched, size before → after | checkpoint |
 | -- | -- | -- | -- | -- | -- |
-| `plan` | open | 1 | it. 1: `E1`–`E8` (1 `blocker`, 2 `guess`, 1 `silent`, 4 `minor`) | it. 1: `docs/audits.md` 33033 → 34095 B, `tools/preflight.py` 2891 → 3279 B, `tools/gates.py` 54399 → 54355 B | — |
+| `plan` | converged | 2 | it. 1: `E1`–`E8` (1 `blocker`, 2 `guess`, 1 `silent`, 4 `minor`); it. 2: `E7` recurs, `E9` (2 `minor`) | it. 1: `docs/audits.md` 33033 → 34095 B, `tools/preflight.py` 2891 → 3279 B, `tools/gates.py` 54399 → 54355 B; it. 2: `docs/formats.md` 35393 → 35424 B | `sim-checkpoint-model-collapse-plan` |
 | `pool` | not started | 0 | — | — | — |
 | `clusters` | not started | 0 | — | — | — |
 | `coreset` | not started | 0 | — | — | — |
@@ -74,6 +74,16 @@ None yet.
 
 - `plan`, iteration 1: 18 turns, 174 s, $0.84; 885k tokens counted cumulatively, 814k of them cache reads; no
   dispatches. Halted at the preflight, so not yet a full segment.
+- `plan`, iteration 2: 18 turns, 206 s, $1.05; one dispatch.
+- `Tokens per dispatch`, what the figure means: the Agent tool's `subagent_tokens` is the agent's final context size,
+  not a cumulative count. For the Preflight agent it was 34215, and its last turn's context 33650 (from its transcript).
+  So it is the unit the spec's `Tokens` line and estimates use. This settles what the 2026-10-09 audit left `UNVERIFIED`
+  (`Z2`: "what those include").
+- `The fixed cost of a dispatch`: the Preflight agent's context was 17.8k before its first tool call (system prompt,
+  agent definition, `CLAUDE.md`, tool schemas). Reading its brief's sections added about 11k, and the five checks and
+  the edit about 4k. The spec estimates "under 5k" for this dispatch, about 7 times too low. Implication: every estimate
+  in the order of operations should include about 18k per dispatch plus the brief's reading. This matters most for the
+  small, frequent dispatches. To fold into the roadmap's "Token accounting" item once more dispatches are measured.
 
 To take, each against the spec's figure (from the 2026-10-09 audit's IDs):
 
@@ -109,4 +119,8 @@ would show.
 
 ## Pending and watch
 
-None yet.
+- `Aborted launch`, 2026-10-12 14:3x: the first launch of `plan` iteration 2 stopped after 28 s on the account's usage
+  limit (`api_error: usage_limit_reached`, HTTP 429), before writing anything. Not an iteration and not a finding; its
+  JSON is kept as `segments/runs/plan-2-aborted.json`. `runner.sh run` now prints such an API error plainly, since the
+  JSON's `subtype` still read `success`. A long segment that meets the limit midway loses its iteration, and restarts
+  from its checkpoint.

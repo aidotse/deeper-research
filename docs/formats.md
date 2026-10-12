@@ -145,10 +145,11 @@ or not. A list of values may end in "or" or "and", with or without a comma befor
 ## `surveys/<topic>.md`
 
 The factual cache for a topic, and the only input to its output `outputs/<topic>.md`. It contains five sections, in this
-order, and nothing else: under a `# ` title, the `##` headings `Retrieval log`, `Clusters`, `Coreset`, `Pool` and
-`Open work`. On a first pass the main session writes them empty; `tools/assign.py add` writes the Pool table's header
-with its first row. This section describes only the *formatting*. What the pool and coreset are for is in
-`docs/coresets.md`; how each section is produced, including roles and sizing, is in `docs/process.md`.
+order, and nothing else: under a `# ` title, the input's own if it has one, the `##` headings `Retrieval log`,
+`Clusters`, `Coreset`, `Pool` and `Open work`. On a first pass the main session writes them empty; `tools/assign.py add`
+writes the Pool table's header with its first row. This section describes only the *formatting*. What the pool and
+coreset are for is in `docs/coresets.md`; how each section is produced, including roles and sizing, is in
+`docs/process.md`.
 
 It is descriptive about the papers: no judgements of quality or importance. Selection is the exception. Choosing a
 coreset is a judgement, so each coreset row records why it was chosen (`Coreset` section), and the `Clusters` section

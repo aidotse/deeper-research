@@ -56,7 +56,7 @@ dimensions, and the line reads `declared in the input`.
 ### Fixes
 
 All approved by the user, 2026-10-12. The gate suites pass after them: `tests/gates/faults.py` 84 of 84,
-`tests/gates/behaviour.py` 49 of 49. Commit: see "Status" in `simulation.md`.
+`tests/gates/behaviour.py` 49 of 49. Commit `8ac973a`.
 
 - `E1` — `tools/preflight.py` tries an unreachable service twice, 90 s each, before it counts as failed; the docstring
   says so. Run for real afterwards: every check `ok`.
@@ -82,3 +82,43 @@ Sizes, in bytes, before → after: `docs/audits.md` 33033 → 34095 (`E8`, and t
 ### Result
 
 Another iteration: `E1` was a `blocker`, and `E4` a `silent` finding. Iteration 2 reruns from the same starting state.
+
+## Iteration 2
+
+### Run
+
+- `Runner` — headless `claude -p`, session `d3ff2474-0ee7-4ecb-9d09-7a557c9d8f62`. Prompt: `runs/plan-2.prompt.md`, the
+  template after `E2`'s fix. Steering: none. A first launch, at 14:3x, stopped on the account's usage limit before doing
+  anything (`runs/plan-2-aborted.json`); this run is the relaunch, after the reset.
+- `From` — commit `8ac973a`, with the starting state restored: no files for the topic.
+- `Cost` — 18 turns, 206 s, $1.05. One dispatch, `survey-pass` "Preflight": `subagent_tokens` 34215, 16 tool uses, 114
+  s.
+- `Raw report` — `runs/plan-2.md`; JSON result `runs/plan-2.json`.
+- `Outcome` — Plan, `tools/preflight.py` (exit 0), the Preflight agent (all five checks `ok`), then `--gate G0`, which
+  passed. The auditor's own `--gate G0` passes. Nothing written outside the topic's files. The runner again reports that
+  its first `ls -R`, rewritten by the user-level RTK hook, listed directory names inside `.git`; it read no history.
+
+### Findings
+
+The runner tagged four items `guess`. Two are settled by the spec, so they are not findings: the `Tokens` entry's scope
+(`docs/formats.md`'s own example is `Preflight: 4k`), and which lines Plan writes (the `writes` column is "the only
+authority", `docs/process.md`, and the runner followed it). The other two:
+
+- `E7` recurs — `minor`. The two runners chose different titles: `# Survey: model collapse`, then `# Model collapse`.
+  Two runners differing is a `guess` by definition, but no outcome turns on the title.
+- `E9` — `minor`. `docs/dispatch.md` says not to take an agent's report at face value "where it matters", with no rubric
+  for which reports matter. For the Preflight report the runner checked only that the line on disk matches the report
+  and passes the check; another might have repeated a call. The plain check is the right level here.
+
+Spot check: the `Dimensions` line against the input. 1 instance, 1 checked, 0 wrong.
+
+### Fixes
+
+- `E7` — fixed now, as a `minor`, without another run: `docs/formats.md`, "`surveys/<topic>.md`", says the `#` title is
+  the input's own, if it has one. 35393 → 35424 bytes.
+- `E9` — not fixed: the check already covers the Preflight line, and a rubric would only add text.
+
+### Result
+
+Converged: no `blocker`, `guess` or `silent` finding after the last fix. Checkpoint
+`sim-checkpoint-model-collapse-plan`.
