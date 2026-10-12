@@ -212,11 +212,6 @@ A simulation audit starts from the latest spec audit: `Part (c): readiness for t
 `Watch in the next run` / `Pending` in the disposition, and the remediation plan's proposed fixes for the
 simulation-relevant issues.
 
-Open before the first simulation audit: how the runner is launched. The method assumes a blind runner that dispatches
-real `survey-pass` agents, and whether that can be done is `UNVERIFIED` ("Roles", below). Settle it first, and state the
-answer in each topic's `simulation.md`, under "How to read this document". If only the fallback works, the hand-over
-between the main session and its agents goes untested, and the audit must say so.
-
 ### Segments
 
 A whole pass run at once accumulates errors. A wrong screening verdict shapes the clusters, the clusters shape
@@ -286,10 +281,9 @@ Per topic, in `.audits/<YYYY-MM-DD>-sim/<topic>/`:
 
 - `simulation.md`, the summary and index. A fresh session reads it first. It holds, in order:
 
-  - `How to read this document`, including any open risk, such as how the runner is launched;
-  - the user's decisions: the topic and what it is for (narrow, confirmation or wide; see "Topics"), the budget, and how
-    the runner is launched. A decision that applies to every topic is taken in the first topic's file, and the later
-    ones link to it;
+  - `How to read this document`, including any open risk;
+  - the user's decisions: the topic and what it is for (narrow, confirmation or wide; see "Topics"), and the budget. A
+    decision that applies to every topic is taken in the first topic's file, and the later ones link to it;
   - a status table, per segment: open, converged or not started; the iterations so far; each iteration's `E` IDs and
     their count by tag; the size of the specs / docs its fixes touched, before and after; and the checkpoint's tag;
   - `Found ahead of their segment`: see below;
@@ -343,13 +337,25 @@ the user a spec audit of that area, with its three documents.
   auditor decides them, and records each decision as steering, so that it is not mistaken for the spec working. A
   decision that would change the audit's plan goes to the real user.
 
-How the runner is launched. The preferred way is a separate, headless Claude Code session (`claude -p`), working in a
-scratch copy of the repo from which `.audits/`, `docs/roadmap.md` and `docs/audits.md` are removed. Some mitigation to
-retrieving these from git history is also required. Such a session can dispatch real `survey-pass` agents, as a main
-session does. Whether it can be launched from the auditor's session, and dispatch subagents of its own, is `UNVERIFIED`;
-the first simulation audit settles it. The fallback is a subagent that plays each brief itself. That tests the docs, but
-not the hand-over between the main session and its agents. Either way, blindness to git history holds by instruction
-only, and the runner reports any breach.
+How the runner is launched. The runner is a separate, headless Claude Code session (`claude -p`), which the auditor
+launches with `.audits/runner.sh`. It works in a scratch copy of the repo, `/tmp/deeper-research-sim`. The copy leaves
+out `.audits/`, `docs/roadmap.md`, `docs/audits.md` and `tests/`, and has a one-commit git history of its own, so the
+repo's history is not there to read. The runner dispatches real `survey-pass` agents, as a main session does, so the
+hand-over between the main session and its agents is tested too (smoke test, 2026-10-12). The real repo sits on the same
+disk, so blindness to it holds by instruction only. The runner reports any breach, and `runner.sh collect` lists every
+file it wrote outside its topic.
+
+Each iteration runs `runner.sh build` after restoring the checkpoint, then `runner.sh run <prompt> <out.json>`, then
+`runner.sh collect <topic>`, which copies the topic's files back into the repo. The prompt is built from
+`.audits/runner-prompt.md`. It names the rows to run and where to stop, gives the steering, and asks for the report
+below. It says nothing else about the audit. A halt ends the run with its decision pending. The auditor's decision goes
+in as steering, by `runner.sh run` with the session's id, which resumes the session.
+
+Two setup steps are the user's to make or approve, once per machine. Why the user's: they widen what an agent may do, so
+an agent does not take them on its own. The scratch directory is marked as a trusted workspace (`hasTrustDialogAccepted`
+in `~/.claude.json`), so that the project's settings and hooks apply in the copy. And an allow rule for
+`.audits/runner.sh run` goes in `.claude/settings.local.json`, since a session that launches another needs explicit
+permission.
 
 The runner's report lists every place it stalled, guessed, improvised or met a tool failure. Each comes with the
 checklist row, the tag it would give, and what it did instead. The report also gives the halts and how they were
