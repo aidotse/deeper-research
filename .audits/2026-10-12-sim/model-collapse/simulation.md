@@ -41,6 +41,9 @@ All by the user, 2026-10-12.
   rerun: it writes the title and the log's `Gates`, `Preflight`, `Dimensions`, `Tokens`, `Halts` and `Waivers` lines,
   and none of them reads `exclude`. Since a checkpoint includes the input, the tag `sim-checkpoint-model-collapse-plan`
   moved from `1f90b53` to the commit that narrows the input.
+- `Input narrowed again`, during the spec audit of step 2 (its `A5`) — `exclude` gains detection, watermarking and
+  curation papers that cite model collapse only as motivation. `plan` is again not rerun, for the same reason, and the
+  checkpoint tag moved again, to the commit that records this.
 - `Expansion screening` (`E18`), after `pool` iteration 1 — option B, the traversal by script onto a screening sheet, as
   the fringe routes already do, with each screening dispatch capped at about 100 candidates (option A). Option C,
   rejecting from the title alone, is left out, to see first what screening costs without it. The code gets an
