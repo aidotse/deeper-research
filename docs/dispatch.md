@@ -57,9 +57,10 @@ dispatched as an incremental pass (`docs/process.md`, "Changing the clusters aft
   limits, on timeouts — and partial work on disk beats complete work lost.
 - A subagent's report that starts with `STOP:` is a halt (`docs/process.md`, "When a pass ends"). Tell the user what
   halted and why, wait for their decision, and record it in the log's `Halts` line.
-- Do not take a subagent's report at face value where it matters. Reports have overstated what a paper showed. Check the
-  row against the report. When writing the output, check each claim against the rows it cites and their evidence files
-  (`docs/process.md`, step 6).
+- Do not take a subagent's report at face value. Check that what it wrote on disk matches what it reports, and run the
+  plain check ("After every dispatch"). Where it reports on a paper, check the row against the report: reports have
+  overstated what a paper showed. When writing the output, check each claim against the rows it cites and their evidence
+  files (`docs/process.md`, step 6).
 
 ## Briefs
 

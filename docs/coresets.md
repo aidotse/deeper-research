@@ -33,7 +33,7 @@ this:
 | -- | -- |
 | unlabelled data points | the pool |
 | points chosen for labelling | the coreset |
-| labelling a point, which is expensive | verifying a row, about 10k tokens each |
+| labelling a point, which is expensive | verifying a row, tens of thousands of tokens each |
 | the model trained on the labels | the output written from the rows |
 | every point near a chosen point | every idea in the pool represented by a row |
 
@@ -58,8 +58,8 @@ three reasons:
   stopping point, only an arbitrary one.
 - `It dilutes` — every extra paper takes attention from the themes and pivots an analysis turns on. A survey of 200
   papers in which 20 carry the argument is harder to use than a survey of 40 in which all of them do.
-- `It cannot be verified` — verification to publication grade costs about 10k tokens per row. That is affordable for 50
-  rows, not for 500. A small set is what makes every row trustworthy.
+- `It cannot be verified` — verification to publication grade costs tens of thousands of tokens per row. That is
+  affordable for 50 rows, not for 500. A small set is what makes every row trustworthy.
 
 ## Pool and coreset
 

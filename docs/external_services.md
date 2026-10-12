@@ -174,8 +174,7 @@ frontier, the field's vocabulary, OpenReview, lab blogs, system cards, release n
 
 The preflight check runs at the start of every pass, before step 1. It is done by a `survey-pass` agent dispatched for
 it alone (`docs/dispatch.md`, "Briefs"), and its outcome is the `Preflight` line of the pass's retrieval-log entry. It
-costs a few calls and a few thousand tokens. What it buys is that no pass runs on a missing service without the user
-knowing.
+costs a few calls. What it buys is that no pass runs on a missing service without the user knowing.
 
 Every check below must pass. If any fails, the pass halts (`H1` in `docs/process.md`, "When a pass ends"): the agent
 returns a `STOP:` report, and the main session tells the user. The one exception is a Graph API 429, which counts as

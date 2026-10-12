@@ -254,9 +254,9 @@ step is costly. That serves the first property, but not always the other three. 
   branches ("Steered branches"). A fault found in work that step 7 reruns, such as a Revise row verified wrongly, is a
   fault of the brief that did the work. Its fix reopens that brief's segment, as any fix to an earlier segment does.
 - `verification` iterates on a subset. It is more than half the cost of a pass, at about 26k tokens per row
-  (`docs/process.md`, "Order of operations"), and each row is verified on its own. So when the segment opens, the
-  auditor draws a random subset of about 5–8 rows, covering every role present if it can, and records it in the
-  segment's file. Each iteration verifies only those rows: the runner is told which rows, as steering, runs step 5's
+  (`docs/experiments.md`, "Reading a paper for verification"), and each row is verified on its own. So when the segment
+  opens, the auditor draws a random subset of about 5–8 rows, covering every role present if it can, and records it in
+  the segment's file. Each iteration verifies only those rows: the runner is told which rows, as steering, runs step 5's
   rows for them alone, and does not run the gate. Once the subset has converged, the whole segment runs once from the
   same checkpoint, up to `--gate G4`, as its confirmation. A `blocker`, `guess` or `silent` finding in that run adds the
   rows that showed it to the subset, and the segment iterates again. A confirmation run (see "Topics") runs the segment
@@ -403,9 +403,11 @@ Issues are tagged with the following:
   because nothing in a real pass would flag it. See section below for assessing `silent` findings.
 - `minor` — wording or findability.
 
-A segment converges when one run after the last fix has no `blocker`, `guess` or `silent` finding. A `minor` finding is
-fixed without another run. The catch: one clean run is weak evidence, because agents vary from run to run. The
-confirmation runs below are the second test.
+A segment converges when one run after the last fix has no `blocker`, `guess` or `silent` finding. A `guess` the runner
+reports stays a `guess`, even where the spec already answers it: an answer the runner could not find is not findable
+enough, and only a rerun shows that the fix made it so. A `minor` finding is a wording or findability problem the
+auditor finds that did not change what the runner did. It is fixed without another run. The catch: one clean run is weak
+evidence, because agents vary from run to run. The confirmation runs below are the second test.
 
 Fixes simplify where they can. Each added rule can collide with the rules already there, which is how fix rounds fail to
 converge. So:
@@ -469,10 +471,12 @@ The user writes an input for each topic. Three kinds serve different ends:
 
 ### What to record
 
-Per run: tokens per dispatch, wall-clock time, the outside calls made, and the pool and coreset sizes. Per segment: each
-quantity the spec estimates, against what the run measured. Examples are verification tokens per row in `verification`,
+Per run: tokens per dispatch, wall-clock time, the outside calls made, the list-price cost the run reports, and the pool
+and coreset sizes. Per segment: the costs and rates it measured, such as verification tokens per row in `verification`,
 and the judgement-audit rates and the coverage radius per round in `coverage`. Measurements go in `simulation.md`, each
-with what it implies for the spec's estimates.
+with the model that ran it, since costs depend on the model. The spec carries no cost estimates, since a stale estimate
+misleads and no rule decides by one. Once the audit ends, the calibrated figures go to `docs/experiments.md`, for human
+reviewers.
 
 These are data for correcting the spec's estimates, never limits. A run is not stopped for what it costs. Tokens and
 dollars both make poor limits: cache reads count a context again on every turn, models are priced differently, and usage

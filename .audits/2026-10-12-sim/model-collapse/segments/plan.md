@@ -112,13 +112,37 @@ authority", `docs/process.md`, and the runner followed it). The other two:
 
 Spot check: the `Dimensions` line against the input. 1 instance, 1 checked, 0 wrong.
 
+Added on 2026-10-12, after the user's decision that a `guess` the runner reports stays a `guess`, even where the spec
+already answers it (now in `docs/audits.md`, "Iterating a segment"). The text above is left as written. Under that rule:
+
+- `E10` — `guess`. The `Tokens` entry's scope: `docs/formats.md` asks for "the brief's name and its scope", and the
+  runner could not tell what to write for a brief with no scope, though the example shows `Preflight: 4k`.
+- `E11` — `guess`. Which lines Plan writes: the runner wondered whether to add empty placeholders for the entry's other
+  lines. The `writes` column settles it, and `G0` forbids placeholders, but the runner could not be sure.
+- `E9`, above, is a `guess`, not a `minor`: the runner tagged it so, and it improvised the level of checking.
+- `E6`, of iteration 1, is a `guess` too, for the same reason; it was left unfixed there.
+
 ### Fixes
 
 - `E7` — fixed now, as a `minor`, without another run: `docs/formats.md`, "`surveys/<topic>.md`", says the `#` title is
   the input's own, if it has one. 35393 → 35424 bytes.
-- `E9` — not fixed: the check already covers the Preflight line, and a rubric would only add text.
+- `E9` — first left unfixed; after the decision above, fixed: `docs/dispatch.md` now says to check that what an agent
+  wrote on disk matches its report and to run the plain check, and, where it reports on a paper, to check the row.
+- `E10` — `docs/formats.md`, the `Tokens` line: "the brief's name, and its scope if it ran on part of the work".
+- `E11` — `docs/process.md`, the Plan row's `writes`: "no other line, since each is written by the row that owns it".
+- `E6` — `docs/formats.md`: a halt's `<what happened>` is one sentence, the failure as printed and the rows it left
+  undone. Untested until a run meets a halt.
+
+Also, by the user's decision of 2026-10-12: the spec's cost estimates are deleted (`docs/process.md`'s `tokens` column,
+its planning figure and its rule to report a pass over or under the estimate; the stale figures in
+`docs/verification.md`, `docs/coresets.md` and `docs/external_services.md`). Calibrated figures go to
+`docs/experiments.md` once the audit ends. The gate suites pass: 84 of 84, 49 of 49.
+
+Sizes, in bytes, before → after, for these fixes: `docs/formats.md` 35424 → 35581; `docs/dispatch.md` 18642 → 18764;
+`docs/process.md` 75704 → 74311; `docs/audits.md` 34095 → 34608; `docs/verification.md` 10901 → 10745;
+`docs/coresets.md` 12317 → 12339; `docs/external_services.md` 15359 → 15333.
 
 ### Result
 
-Converged: no `blocker`, `guess` or `silent` finding after the last fix. Checkpoint
-`sim-checkpoint-model-collapse-plan`.
+First judged converged, and tagged `sim-checkpoint-model-collapse-plan` (commit `ed53e80`). Reopened on 2026-10-12 by
+the decision above: `E6`, `E9`, `E10` and `E11` are `guess` findings, so their fixes need a rerun. Another iteration.

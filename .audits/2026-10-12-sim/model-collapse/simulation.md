@@ -55,7 +55,7 @@ A second launch, made only to check the trust setting, was denied by the auditor
 
 | segment | status | iterations | `E` IDs (by tag) | docs touched, size before → after | checkpoint |
 | -- | -- | -- | -- | -- | -- |
-| `plan` | converged | 2 | it. 1: `E1`–`E8` (1 `blocker`, 2 `guess`, 1 `silent`, 4 `minor`); it. 2: `E7` recurs, `E9` (2 `minor`) | it. 1: `docs/audits.md` 33033 → 34095 B, `tools/preflight.py` 2891 → 3279 B, `tools/gates.py` 54399 → 54355 B; it. 2: `docs/formats.md` 35393 → 35424 B | `sim-checkpoint-model-collapse-plan` |
+| `plan` | open | 2 | it. 1: `E1`–`E8` (1 `blocker`, 2 `guess`, 1 `silent`, 4 `minor`; `E6` later retagged `guess`); it. 2: `E7` recurs, `E9`–`E11` (3 `guess`, 1 `minor`) | it. 1: `docs/audits.md` 33033 → 34095 B, `tools/preflight.py` 2891 → 3279 B, `tools/gates.py` 54399 → 54355 B; it. 2: `docs/formats.md` 35393 → 35581 B, `docs/dispatch.md` 18642 → 18764 B, `docs/process.md` 75704 → 74311 B, `docs/audits.md` 34095 → 34608 B, and three docs shortened (cost estimates deleted) | `sim-checkpoint-model-collapse-plan` at `ed53e80`, to move on convergence |
 | `pool` | not started | 0 | — | — | — |
 | `clusters` | not started | 0 | — | — | — |
 | `coreset` | not started | 0 | — | — | — |
@@ -71,6 +71,8 @@ the topic.
 None yet.
 
 ## Measurements
+
+All on `claude-opus-5-5`. Dollar figures are list-price equivalents, as the runs report them, not what the user pays.
 
 - `plan`, iteration 1: 18 turns, 174 s, $0.84; 885k tokens counted cumulatively, 814k of them cache reads; no
   dispatches. Halted at the preflight, so not yet a full segment.

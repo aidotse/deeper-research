@@ -95,9 +95,10 @@ and 9 months ago, clustered by the full method (measure, then level) and matched
 
 ### Token accounting
 
-The `Tokens` log line is appended after every dispatch (`docs/process.md`, the "After every dispatch" row), but has
-never been filled. After the fresh coreset run, replace the estimates in the order of operations with measured figures,
-including what reading the spec sections costs each dispatch.
+The spec no longer carries cost estimates (user, 2026-10-12): a stale one misleads, and no rule decided by one. The
+`Tokens` log line still records each dispatch's usage. The simulation audit of 2026-10-12 measures costs per dispatch,
+with the model that ran them (`.audits/2026-10-12-sim/model-collapse/simulation.md`, "Measurements"). Once it ends, put
+the calibrated figures in `docs/experiments.md`, for human reviewers, noting that they depend on the model.
 
 ## Proposals to discuss
 

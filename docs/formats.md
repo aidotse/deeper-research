@@ -269,10 +269,11 @@ What some lines need, beyond their form:
   `none (proposed <which>, not formed)`.
 - `Judgement audit` — printed from the three audit sheets (`docs/process.md`, "Auditing the judgements"), and pasted as
   printed: `tools/check.py` recomputes it.
-- `Tokens` — one entry per dispatch, appended when it returns, from the usage it reports: the brief's name and its
-  scope, without commas or colons, then the tokens, without thousands separators, for example
-  `Preflight: 4k, Orient: 81k, Selection c1+c2: 64200`.
-- `Halts` and `Waivers` are written as `none` when the entry is created, so that a pass that met neither says so.
+- `Tokens` — one entry per dispatch, appended when it returns, from the usage it reports: the brief's name, and its
+  scope if it ran on part of the work, such as `Selection c1+c2`, without commas or colons, then the tokens, without
+  thousands separators, for example `Preflight: 4k, Orient: 81k, Selection c1+c2: 64200`.
+- `Halts` and `Waivers` are written as `none` when the entry is created, so that a pass that met neither says so. A
+  halt's `<what happened>` is one sentence: the failure as printed, and the rows it left undone.
 - `Ended` — `finished (F1)` or `halted (<id>)`, then the measured numbers: the last round's K of N and its bound, the
   radius (max and p90) that round's sheet records, the number of rounds, and the coreset's rows, for example
   `finished (F1); round 2: 0 of 12, bound 26%; radius 0.45, p90 0.22; 2 rounds; 54 rows`.

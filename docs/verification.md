@@ -125,8 +125,7 @@ Each row ends in exactly one of three states:
 
 **Verifying the whole coreset** is this operation applied to every row of the coreset. It is safe to run at any time:
 verified rows are cheap to re-check and cannot be made worse, and the operation is resumable. Dispatch it in disjoint
-cluster blocks. Expect roughly 10k tokens per row. That figure comes from earlier passes that verified from snippets;
-reading from the full text has not yet been measured.
+cluster blocks.
 
 ## Probes
 
