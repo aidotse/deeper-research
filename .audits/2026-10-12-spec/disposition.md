@@ -43,8 +43,8 @@ verified, and what to watch.
 - `E16`, `E17` — `fixed`, `ac34b92`. A new section of `.claude/agents/survey-pass.md`, "Tools and files": only the
   repo's scripts and the agent's own tools, no programs of its own, saved or inline, no file its brief does not name,
   and a missing tool is reported, not built. The same rule for the main session in `docs/dispatch.md`, "Rules for the
-  main session". Watch: whether a runner with no tool for a job now stalls and reports, as intended, in `pool` iteration
-  2\.
+  main session". Watch: in `pool` iteration 2, whether a runner with no tool for a job now stalls and reports, as
+  intended.
 
 Both gate suites pass after the phase: 84 of 84 faults, 49 of 49 behaviours.
 
