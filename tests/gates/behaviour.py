@@ -72,6 +72,12 @@ sub(S, "- **Halts:** none", "- **Halts:** H13 — review before coreset — user
 code, out = run("--gate", "G5")
 check("H13 with a decision satisfies g2.review", code == 0, out)
 
+# 5b H1 recorded does not stand in for the preflight: a continued pass still needs the line, or a waiver
+f = build(); resub(S, r"^- \*\*Preflight:\*\*.*\n", "")
+sub(S, "- **Halts:** none", "- **Halts:** H1 — arXiv API unreachable — user continued, 2026-10-12")
+code, out = run("--gate", "G0")
+check("H1 with a decision does not satisfy g0.preflight", code == 1 and "g0.preflight" in fails(out), out)
+
 # 6 history via a fake HEAD
 import gates
 f = build()

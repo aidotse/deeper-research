@@ -1,0 +1,84 @@
+# Segment `plan`
+
+Step 0: Plan, the two preflight rows, and `--gate G0` (`docs/audits.md`, "Segments"). Starting state: commit `e02faa0`,
+with no survey, output, bib or graphs files for the topic. Spot check (`docs/audits.md`, "Spot checks per segment"): the
+plan's dimensions against the input.
+
+## Iteration 1
+
+### Run
+
+- `Runner` — headless `claude -p`, by `.audits/runner.sh run`, session `b3cb32d8-c302-4021-b0a7-25b61d665d62`. Prompt:
+  `runs/plan-1.prompt.md`. Steering: none.
+- `From` — commit `7fcf6eb` (the setup), whose topic state is that of `e02faa0`.
+- `Cost` — 18 turns, 174 s, $0.84. Tokens: 885k counted cumulatively (814k of them cache reads, 62k cache writes, 9k
+  output); no dispatches. Outside calls: none by the runner; `tools/preflight.py` made its own requests.
+- `Raw report` — `runs/plan-1.md`; JSON result `runs/plan-1.json`.
+- `Outcome` — the runner ran Plan, then `tools/preflight.py`, which exited 1 on
+  `arXiv failed (API unreachable (TimeoutError), HTML 200)`. It recorded `H1`, decision `pending`, and stopped. It did
+  not dispatch the Preflight agent and did not run `--gate G0`.
+- `Written outside the topic` (`runner.sh collect`): `.serena/` (the user-level Serena MCP server, started in the copy)
+  and `tools/__pycache__/`. Neither is the runner's doing. The runner reports one accidental breach: its `ls -R`,
+  rewritten by the user-level RTK hook, listed the names of directories inside `.git`. It read no history.
+
+### Findings
+
+- `E1` — `blocker`. `tools/preflight.py` tries each service once, with a 60 s timeout (`tools/preflight.py:32`), and
+  halts the pass on a slow but working service. The arXiv export API answered `200` to the auditor after 61 s, 46 s and
+  14 s, on three calls made within minutes of the run. The only other user of that API, `tools/bib.py`, retries
+  transient failures (`tools/bib.py:59-63`). So the preflight is stricter than what it guards. Showed at
+  `Preflight: scripts`.
+- `E2` — `guess`, in the audit's own setup, not the spec. The runner's prompt said to stop "once Gate `G0` has run,
+  whether it passed or not", and also to stop at a halt. The runner took the halt as the more specific instruction and
+  did not run the gate. Source: `.audits/runner-prompt.md`, which has no case for a halt before the segment's end.
+- `E3` — `guess`. Nothing says whether a failing preflight may be rerun before halting. The runner did not rerun it, so
+  as not to override the halt; another runner might have retried once. Same root as `E1`. Showed at
+  `Preflight: scripts`.
+- `E4` — `silent`. `g0.preflight` passes whenever `H1` appears in `Halts`, whatever its decision
+  (`tools/gates.py:215-217`, `r_preflight`). Once a user decides to continue past `H1`, `G0` passes with no `Preflight`
+  line, and the Asta tools and WebSearch are never checked. Nothing in a pass would flag it, which goes against the
+  preflight's purpose (`docs/external_services.md`, "Preflight": "no pass runs on a missing service without the user
+  knowing"). The runner noticed it only by reading the gate code, beyond its rows, after `--status` listed
+  `G0 ready passed` with no `Preflight` line.
+- `E5` — `minor`. When `tools/preflight.py` fails, its printout has nowhere to go. The row's `writes` says it goes to
+  the next row, and the Preflight agent writes the whole `Preflight` line, but the pass halts before that row. The
+  runner kept the printout in the `H1` entry.
+- `E6` — `minor`. The `Halts` form, `<id> — <what happened> — pending`, does not say how much "what happened" holds. The
+  runner tagged it `guess`; retagged, since its entry is complete and no outcome turns on it.
+- `E7` — `minor`. The survey's `#` title text is not specified (`docs/formats.md`, "`surveys/<topic>.md`": "under a `#`
+  title"). The runner copied the legacy survey's form. Any title is valid and the check ignores it.
+- `E8` — `minor`, in `docs/audits.md`. The `plan` spot check names "the plan's dimensions and recency window", but
+  `Recency window` is written by Orient, at step 1 (`docs/process.md`, "Order of operations"), in the `pool` segment.
+
+Spot check: the `Dimensions` line against the input. 1 instance, 1 checked, 0 wrong: the input declares three
+dimensions, and the line reads `declared in the input`.
+
+### Fixes
+
+All approved by the user, 2026-10-12. The gate suites pass after them: `tests/gates/faults.py` 84 of 84,
+`tests/gates/behaviour.py` 49 of 49. Commit: see "Status" in `simulation.md`.
+
+- `E1` — `tools/preflight.py` tries an unreachable service twice, 90 s each, before it counts as failed; the docstring
+  says so. Run for real afterwards: every check `ok`.
+- `E2` — `.audits/runner-prompt.md`: stop once the segment's end is reached, "or earlier at a halt".
+- `E3` — fixed by `E1`: the script handles a slow service itself, so the runner needs no rule on rerunning it.
+- `E4` — deleted the `H1` exemption from `r_preflight` (`tools/gates.py`, 2 lines). A pass ended at `H1` does not need
+  `G0` anyway (`docs/gates.md`, "Halts and waivers"). A pass the user continues past `H1` runs the Preflight agent, and
+  a check that still fails is waived by the user through `Waivers`, which the spec already provides. New behaviour test
+  5b in `tests/gates/behaviour.py`: `H1` with a decision and no `Preflight` line fails `g0.preflight`. It fails on the
+  old code and passes on the new.
+- `E5` — fixed by `E4`: a continued pass runs the Preflight agent, which writes the `Preflight` line with the script's
+  half.
+- `E6`, `E7` — not fixed: no outcome turns on them, and a rule would only add text.
+- `E8` — `docs/audits.md`: the `plan` spot check is the dimensions alone; the recency window moves to `pool`'s.
+
+Also changed, as audit setup and not findings: `runner.sh collect` no longer lists `.serena/` and `__pycache__/`; and,
+by the user's decision of 2026-10-12, the budget is replaced by runaway limits (`docs/audits.md`, "Limits"), built into
+`runner.sh run`.
+
+Sizes, in bytes, before → after: `docs/audits.md` 33033 → 34095 (`E8`, and the limits, which replace the budget);
+`tools/preflight.py` 2891 → 3279; `tools/gates.py` 54399 → 54355.
+
+### Result
+
+Another iteration: `E1` was a `blocker`, and `E4` a `silent` finding. Iteration 2 reruns from the same starting state.

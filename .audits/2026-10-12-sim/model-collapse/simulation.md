@@ -32,13 +32,10 @@ All by the user, 2026-10-12.
   50–150 papers and a coreset of about 15–25 rows; the pool size is `UNVERIFIED` until `pool` runs. Input:
   `inputs/model-collapse.md`, drafted by the auditor and adopted by the user unchanged (commit `e02faa0`). Its seed IDs,
   `2305.17493` and `2404.01413`, were checked against Semantic Scholar.
-- `Budget` — per iteration of a segment, in tokens: `plan` 0.4M; `pool` 1.5M; `clusters` 0.6M; `coreset` 0.6M;
-  `verification` 0.5M per subset iteration and 1.5M for its whole-segment confirmation; `output` 0.4M; `coverage` 0.8M.
-  A cap of 20M for the topic. The auditor stops and reports when a run passes 1.5 times its segment's budget. The basis:
-  about twice the estimates in `docs/process.md`, "Order of operations", for a pool of about 100 and a coreset of about
-  20, plus 150–250k for the runner's spec reading per segment. The count is the runner session's own usage plus the
-  `subagent_tokens` the Agent tool reports per dispatch. The headless run also reports its cost in dollars, recorded
-  under "Measurements".
+- `Limits` — the defaults (`docs/audits.md`, "Limits"): 3 hours of wall-clock time and 300 runner turns per run. They
+  replace a token budget, first set and then dropped the same day: cache reads count a context again on every turn,
+  models are priced differently, and usage may be on a subscription, so neither tokens nor dollars measure what a run
+  costs the user. Costs are recorded as measurements only.
 - `Runner` — a headless `claude -p` session in a blind scratch copy, `/tmp/deeper-research-sim`, marked as a trusted
   workspace in `~/.claude.json` (backup `~/.claude.json.bak-2026-10-12`), so that the project's settings and hooks
   apply.
@@ -58,7 +55,7 @@ A second launch, made only to check the trust setting, was denied by the auditor
 
 | segment | status | iterations | `E` IDs (by tag) | docs touched, size before → after | checkpoint |
 | -- | -- | -- | -- | -- | -- |
-| `plan` | not started | 0 | — | — | — |
+| `plan` | open | 1 | it. 1: `E1`–`E8` (1 `blocker`, 2 `guess`, 1 `silent`, 4 `minor`) | it. 1: `docs/audits.md` 33033 → 34095 B, `tools/preflight.py` 2891 → 3279 B, `tools/gates.py` 54399 → 54355 B | — |
 | `pool` | not started | 0 | — | — | — |
 | `clusters` | not started | 0 | — | — | — |
 | `coreset` | not started | 0 | — | — | — |
@@ -75,7 +72,10 @@ None yet.
 
 ## Measurements
 
-None yet. To take, each against the spec's figure (from the 2026-10-09 audit's IDs):
+- `plan`, iteration 1: 18 turns, 174 s, $0.84; 885k tokens counted cumulatively, 814k of them cache reads; no
+  dispatches. Halted at the preflight, so not yet a full segment.
+
+To take, each against the spec's figure (from the 2026-10-09 audit's IDs):
 
 - tokens per dispatch, and per segment, against the order of operations' estimates;
 - verification tokens per row (`R6`), against 26k;

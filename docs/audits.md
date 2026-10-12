@@ -282,8 +282,9 @@ Per topic, in `.audits/<YYYY-MM-DD>-sim/<topic>/`:
 - `simulation.md`, the summary and index. A fresh session reads it first. It holds, in order:
 
   - `How to read this document`, including any open risk;
-  - the user's decisions: the topic and what it is for (narrow, confirmation or wide; see "Topics"), and the budget. A
-    decision that applies to every topic is taken in the first topic's file, and the later ones link to it;
+  - the user's decisions: the topic and what it is for (narrow, confirmation or wide; see "Topics"), and any limits
+    other than the defaults ("Limits"). A decision that applies to every topic is taken in the first topic's file, and
+    the later ones link to it;
   - a status table, per segment: open, converged or not started; the iterations so far; each iteration's `E` IDs and
     their count by tag; the size of the specs / docs its fixes touched, before and after; and the checkpoint's tag;
   - `Found ahead of their segment`: see below;
@@ -429,8 +430,9 @@ wrong an estimate of the error rate. Each check records how many instances there
 it found wrong. We also check randomly because checking all instances in cases where there are many could potentially be
 more costly than the audit itself.
 
-- `plan`, all: the plan's dimensions and recency window, against the input.
-- `pool`, about ten verdicts each way, in scope and out: screening verdicts, against the input's topic and exclusions.
+- `plan`, all: the plan's dimensions, against the input.
+- `pool`, about ten verdicts each way, in scope and out: screening verdicts, against the input's topic and exclusions;
+  and the recency window, against the input.
 - `clusters`, all clusters: each cluster's name and definition, against the papers in its section of the naming sheet.
 - `coreset`, all rows: each role against its definition, and each `dissent` quote against the paper's abstract.
 - `verification`, every row of the subset, and on the segment's confirmation about five rows from outside it: verified
@@ -472,5 +474,20 @@ quantity the spec estimates, against what the run measured. Examples are verific
 and the judgement-audit rates and the coverage radius per round in `coverage`. Measurements go in `simulation.md`, each
 with what it implies for the spec's estimates.
 
-`simulation.md` may record a budget per segment and per confirmation run. When a run goes well over it, the auditor
-stops and reports to the user.
+These are data for correcting the spec's estimates, never limits. A run is not stopped for what it costs. Tokens and
+dollars both make poor limits: cache reads count a context again on every turn, models are priced differently, and usage
+may be on a subscription.
+
+### Limits
+
+What a limit guards against is a runner that loops or hangs. So `runner.sh run` bounds each run by two measures of the
+run itself, both set at about three times what a normal run should take:
+
+- `Wall-clock time`, 3 hours by default, by `timeout`. This is the main limit, because it catches everything, including
+  an agent that loops within one of the runner's turns, and a hung outside call.
+- `The runner's turns`, 300 by default, by `claude -p --max-turns`. It counts the runner's own turns only, not its
+  agents'.
+
+A segment that needs other values sets them per run, and `simulation.md` records them. When a limit trips, the iteration
+ends there. Nothing else is lost, since the segment restarts from its checkpoint. The trip is itself a finding: the
+auditor reads the partial state and the session's transcript to find where the runner went round in circles.

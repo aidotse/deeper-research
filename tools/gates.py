@@ -213,8 +213,6 @@ def r_dimensions(c):
 
 
 def r_preflight(c):
-    if "H1" in c.halts:
-        return None
     if (m := need_lines(c, "Preflight")):
         return m
     bad = []

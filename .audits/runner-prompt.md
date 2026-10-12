@@ -1,8 +1,8 @@
 You are the main session of a literature survey pass on the topic `{TOPIC}`, in this repository. Follow `CLAUDE.md` and
 the docs it points you to, as a main session would.
 
-This run is one part of a pass. Run the order of operations in `docs/process.md` {ROWS}, and stop once {END}. Do not
-start the row after it.
+This run is one part of a pass. Run the order of operations in `docs/process.md` {ROWS}, and stop once {END}, or earlier
+at a halt (see below). Do not start the row after it.
 
 Setup notes:
 

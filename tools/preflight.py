@@ -5,8 +5,9 @@ Asta key (docs/external_services.md, "Preflight").
 Usage: python3 tools/preflight.py
 
 Prints one line per check and the matching part of the retrieval log's `Preflight` line, and exits 1 if any check
-fails, which halts the pass (H1). A Graph API 429 counts as reachable: it means busy, and the scripts retry. The Asta
-tools and WebSearch are checked by the `survey-pass` agent, since only an agent can call them.
+fails, which halts the pass (H1). An unreachable service is tried twice, 90 s each, before it counts as failed. A
+Graph API 429 counts as reachable: it means busy, and the scripts retry. The Asta tools and WebSearch are checked by
+the `survey-pass` agent, since only an agent can call them.
 
 Each request is one small unauthenticated GET or POST for a public paper; no key or user identifier is sent.
 """
@@ -25,16 +26,20 @@ PAPER = "2106.15928"
 HEADERS = {"User-Agent": "deeper-research preflight"}
 
 
-def status(url, data=None):
+def status(url, data=None, tries=2):
+    """The HTTP status, or why the service could not be reached. A slow service gets a second try: the arXiv API
+    has been seen to take over 60 s to answer and still answer 200."""
     req = urllib.request.Request(url, data=data, headers=dict(HEADERS, **({"Content-Type": "application/json"}
                                                                           if data else {})))
-    try:
-        with urllib.request.urlopen(req, timeout=60) as r:
-            return r.status
-    except urllib.error.HTTPError as e:
-        return e.code
-    except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
-        return f"unreachable ({type(e).__name__})"
+    for attempt in range(tries):
+        try:
+            with urllib.request.urlopen(req, timeout=90) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            if attempt == tries - 1:
+                return f"unreachable ({type(e).__name__}, {tries} tries)"
 
 
 def main():

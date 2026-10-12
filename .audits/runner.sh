@@ -8,12 +8,16 @@
 #                                       launch a headless Claude Code session in the copy, with the prompt file on
 #                                       stdin and the fixed tool allowlist below; its JSON result goes to <out.json>.
 #                                       With a session id, resume that session instead, e.g. with a halt's decision.
+#                                       Limits (docs/audits.md, "Limits"): LIMIT_TIME (default 3h, for timeout) and
+#                                       LIMIT_TURNS (default 300, the runner's own turns), set in the environment.
 #   runner.sh collect <topic>           after a run: list every file the runner wrote or deleted in the copy, then
 #                                       copy the topic's files back into the repo (survey, output, bib, graphs).
 #                                       A change outside them is a finding; it is listed, never copied back.
 set -euo pipefail
 REPO="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 SCRATCH="${SCRATCH:-/tmp/deeper-research-sim}"
+LIMIT_TIME="${LIMIT_TIME:-3h}"
+LIMIT_TURNS="${LIMIT_TURNS:-300}"
 
 # What a pass's main session and its agents need, and nothing else. A call outside it is denied, and
 # shows in the runner's report as a tool failure.
@@ -46,7 +50,13 @@ run)
   mkdir -p "$(dirname "$OUT")"
   cd "$SCRATCH"
   # --allowedTools takes several values, so the prompt goes on stdin, never as an argument after it
-  claude -p --output-format json "${RESUME[@]}" --allowedTools "$ALLOWED" < "$PROMPT" > "$OUT" || true
+  CODE=0
+  timeout "$LIMIT_TIME" claude -p --output-format json --max-turns "$LIMIT_TURNS" "${RESUME[@]}" \
+    --allowedTools "$ALLOWED" < "$PROMPT" > "$OUT" || CODE=$?
+  if [ "$CODE" = 124 ]; then
+    echo "LIMIT: wall-clock time ($LIMIT_TIME) reached; the run was stopped. Its session's transcript is the record."
+    exit 2
+  fi
   python3 - "$OUT" <<'EOF'
 import json, sys
 try:
@@ -55,13 +65,17 @@ except ValueError:
     sys.exit(f"no JSON result in {sys.argv[1]}")
 keys = ("session_id", "subtype", "is_error", "num_turns", "duration_ms", "total_cost_usd")
 print(" ".join(f"{k}={d.get(k)}" for k in keys))
+if d.get("subtype") == "error_max_turns":
+    print("LIMIT: the runner's turns reached their limit; the run was stopped.")
 EOF
   ;;
 collect)
   TOPIC="${2:?usage: runner.sh collect <topic>}"
   cd "$SCRATCH"
   # every file written since the build, ignored files included; deletions show in git status
-  CHANGED="$(find . -path ./.git -prune -o -type f -newer .git/HEAD -print | sed 's#^\./##' | sort)"
+  # .serena/ and __pycache__/ are written by the user-level Serena server and by Python, not by the runner
+  CHANGED="$(find . \( -path ./.git -o -path ./.serena -o -name __pycache__ \) -prune -o -type f -newer .git/HEAD -print |
+    sed 's#^\./##' | sort)"
   echo "written in the copy since the build:"
   echo "${CHANGED:-none}" | sed 's/^/  /'
   echo "deleted:"
@@ -79,7 +93,7 @@ collect)
   echo "copied the topic's files back to $REPO"
   ;;
 *)
-  sed -n '2,13p' "$0"
+  sed -n '2,15p' "$0"
   exit 1
   ;;
 esac
