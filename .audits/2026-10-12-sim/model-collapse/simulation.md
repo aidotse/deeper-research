@@ -56,7 +56,7 @@ A second launch, made only to check the trust setting, was denied by the auditor
 | segment | status | iterations | `E` IDs (by tag) | docs touched, size before → after | checkpoint |
 | -- | -- | -- | -- | -- | -- |
 | `plan` | converged | 4 | it. 1: `E1`–`E8` (1 `blocker`, 2 `guess`, 1 `silent`, 4 `minor`; `E6` later retagged `guess`); it. 2: `E7` recurs, `E9`–`E11` (3 `guess`, 1 `minor`); it. 3: `E12`–`E14` (2 `guess`, 1 `minor`); it. 4: none | it. 1: `docs/audits.md` 33033 → 34095 B, `tools/preflight.py` 2891 → 3279 B, `tools/gates.py` 54399 → 54355 B; it. 2: `docs/formats.md` 35393 → 35581 B, `docs/dispatch.md` 18642 → 18764 B, `docs/process.md` 75704 → 74311 B, `docs/audits.md` 34095 → 34608 B, and three docs shortened (cost estimates deleted); it. 3: `docs/formats.md` 35581 → 35880 B, `docs/dispatch.md` 18764 → 18824 B | `sim-checkpoint-model-collapse-plan` |
-| `pool` | not started | 0 | — | — | — |
+| `pool` | open | 1 (cut off by the usage limit) | it. 1: `E15`–`E20` (1 `blocker`, 4 `guess`, 1 `silent`) | — | — |
 | `clusters` | not started | 0 | — | — | — |
 | `coreset` | not started | 0 | — | — | — |
 | `verification` | not started | 0 | — | — | — |
@@ -81,6 +81,8 @@ All on `claude-opus-5-5`. Dollar figures are list-price equivalents, as the runs
   on one WebSearch query.
 - `plan`, iteration 4: 22 turns, 244 s, $1.16; one dispatch, Preflight 39077 tokens, 149 s.
 - `plan`, the Preflight dispatch across iterations 2–4: 34215, 35731 and 39077 tokens; 114, 349 and 149 s.
+- `pool`, iteration 1, cut off by the usage limit after 56 min, 15 runner turns, $14.31: Orient 157053 tokens, 17 min;
+  Expand cut off at a context of 448k after 187 turns, 38 min, about 1490 candidates screened.
 - `Tokens per dispatch`, what the figure means: the Agent tool's `subagent_tokens` is the agent's final context size,
   not a cumulative count. For the Preflight agent it was 34215, and its last turn's context 33650 (from its transcript).
   So it is the unit the spec's `Tokens` line and estimates use. This settles what the 2026-10-09 audit left `UNVERIFIED`

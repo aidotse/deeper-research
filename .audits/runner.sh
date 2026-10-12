@@ -67,7 +67,7 @@ keys = ("session_id", "subtype", "is_error", "num_turns", "duration_ms", "total_
 print(" ".join(f"{k}={d.get(k)}" for k in keys))
 if d.get("api_error"):
     print(f"API ERROR: {d.get('api_error')} ({d.get('api_error_status')}): {d.get('result')}")
-    print("Not a finding: the run did not get to work. Rerun the same iteration once the error clears.")
+    print(f"The run stopped on it after {d.get('num_turns')} turns. Collect and review what it did before rebuilding the copy.")
 if d.get("subtype") == "error_max_turns":
     print("LIMIT: the runner's turns reached their limit; the run was stopped.")
 EOF
