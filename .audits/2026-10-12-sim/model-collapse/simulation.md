@@ -44,7 +44,8 @@ All by the user, 2026-10-12.
 - `Expansion screening` (`E18`), after `pool` iteration 1 — option B, the traversal by script onto a screening sheet, as
   the fringe routes already do, with each screening dispatch capped at about 100 candidates (option A). Option C,
   rejecting from the title alone, is left out, to see first what screening costs without it. The code gets an
-  independent review by a separate agent. A spec audit of step 2 before the change is under discussion.
+  independent review by a separate agent. A scoped spec audit of step 2 comes first, by the user's choice:
+  `.audits/2026-10-12-spec/`.
 - `Runner` — a headless `claude -p` session in a blind scratch copy, `/tmp/deeper-research-sim`, marked as a trusted
   workspace in `~/.claude.json` (backup `~/.claude.json.bak-2026-10-12`), so that the project's settings and hooks
   apply.
