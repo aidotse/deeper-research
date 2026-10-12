@@ -7,8 +7,8 @@ at a halt (see below). Do not start the row after it.
 Setup notes:
 
 - `docs/roadmap.md` is absent on purpose. Skip it, and do not create or update it.
-- Work only inside this directory. Do not read git history (log, diff, show, blame), and do not read files outside this
-  directory. If you do either, even by accident, say so in your report.
+- Work only inside this directory. Do not read git history (log, diff, show, blame), nor list `.git/`, and do not read
+  files outside this directory. If you do either, even by accident, say so in your report.
 - No user is available during the run. On a halt, or on any decision the docs leave to the user, record it in the form
   the docs give, with the decision `pending`, then stop and write your report. You will be resumed with the decision.
 - Steering for this run: {STEERING}

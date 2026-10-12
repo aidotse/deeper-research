@@ -202,3 +202,43 @@ Sizes, in bytes, before → after: `docs/formats.md` 35581 → 35880; `docs/disp
 
 Another iteration: `E12` and `E13` are `guess` findings. Neither comes from the last round's fixes, whose effects all
 showed as intended, so the rule to stop patching does not apply.
+
+## Iteration 4
+
+### Run
+
+- `Runner` — headless `claude -p`, session `17113f02-677d-418a-93e5-4fe746e46e2f`. Prompt: `runs/plan-4.prompt.md`.
+  Steering: none.
+- `From` — commit `5bab2a0`, with the starting state restored: no files for the topic.
+- `Cost` — 22 turns, 244 s, $1.16. One dispatch, `survey-pass` "Preflight": `subagent_tokens` 39077, 15 tool uses, 149
+  s.
+- `Raw report` — `runs/plan-4.md`; JSON result `runs/plan-4.json`.
+- `Outcome` — Plan, `tools/preflight.py` (exit 0; the Graph API answered 429, which counts as reachable), the Preflight
+  agent (all checks `ok`), `--gate G0`, which passed. The auditor's own `--gate G0` passes. Nothing written outside the
+  topic's files.
+- `The last round's fixes` — `E12`: the lines are in the template's order. `E13`: `Tokens: Preflight: 39077`, from
+  `subagent_tokens`, with no doubt raised. `E14`: `Open work` left empty, with no doubt raised.
+
+### Findings
+
+No `blocker`, `guess` or `silent` finding. The runner tagged four `minor` items; none is a spec finding:
+
+- It retyped the preflight printout into the brief instead of pasting it, made a slip, and corrected it before sending.
+  The spec already asks for the printout verbatim (`docs/dispatch.md`, the Preflight brief), so this is the runner's own
+  error.
+- The plain check fails on `g0.preflight` right after Plan. All four runners noticed and went on correctly; the check's
+  message names the missing line, and the Plan row's `done when` asks only for `tools/inputs.py`.
+- Its first `ls -R`, rewritten by the user-level RTK hook, listed directory names inside `.git`, as in every run so far.
+  A setup matter: the prompt template now asks the runner not to list `.git/`.
+- The Graph API's 429 counted as reachable, as `H1`'s definition says.
+
+Spot check: the `Dimensions` line against the input. 1 instance, 1 checked, 0 wrong.
+
+### Fixes
+
+None to the spec. `.audits/runner-prompt.md`: "do not read git history (log, diff, show, blame), nor list `.git/`".
+
+### Result
+
+Converged: no `blocker`, `guess` or `silent` finding after the last fix. Checkpoint
+`sim-checkpoint-model-collapse-plan`, moved from `ed53e80` to the commit that records this iteration.
