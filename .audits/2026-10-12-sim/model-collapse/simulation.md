@@ -36,6 +36,15 @@ All by the user, 2026-10-12.
   replace a token budget, first set and then dropped the same day: cache reads count a context again on every turn,
   models are priced differently, and usage may be on a subscription, so neither tokens nor dollars measure what a run
   costs the user. Costs are recorded as measurements only.
+- `Input narrowed`, after `pool` iteration 1 — `exclude` gains self-training for capability gains, which "borderline is
+  in" let into the pool (169 papers against the 50–150 expected, before the relevance searches had run). `plan` is not
+  rerun: it writes the title and the log's `Gates`, `Preflight`, `Dimensions`, `Tokens`, `Halts` and `Waivers` lines,
+  and none of them reads `exclude`. Since a checkpoint includes the input, the tag `sim-checkpoint-model-collapse-plan`
+  moved from `1f90b53` to the commit that narrows the input.
+- `Expansion screening` (`E18`), after `pool` iteration 1 — option B, the traversal by script onto a screening sheet, as
+  the fringe routes already do, with each screening dispatch capped at about 100 candidates (option A). Option C,
+  rejecting from the title alone, is left out, to see first what screening costs without it. The code gets an
+  independent review by a separate agent. A spec audit of step 2 before the change is under discussion.
 - `Runner` — a headless `claude -p` session in a blind scratch copy, `/tmp/deeper-research-sim`, marked as a trusted
   workspace in `~/.claude.json` (backup `~/.claude.json.bak-2026-10-12`), so that the project's settings and hooks
   apply.

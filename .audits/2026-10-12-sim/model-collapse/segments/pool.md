@@ -75,7 +75,8 @@ Spot checks:
 
 ### Fixes
 
-Pending: `E18` needs a decision from the user, and `E15`–`E17`, `E19` and `E20` turn on it.
+Decided by the user: option B with A's cap, and the input narrowed (`simulation.md`, "Decisions"). Pending: whether a
+spec audit of step 2 comes first, then the change itself.
 
 ### Result
 
