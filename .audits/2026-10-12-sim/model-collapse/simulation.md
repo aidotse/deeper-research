@@ -69,7 +69,7 @@ A second launch, made only to check the trust setting, was denied by the auditor
 | segment | status | iterations | `E` IDs (by tag) | docs touched, size before → after | checkpoint |
 | -- | -- | -- | -- | -- | -- |
 | `plan` | converged | 4 | it. 1: `E1`–`E8` (1 `blocker`, 2 `guess`, 1 `silent`, 4 `minor`; `E6` later retagged `guess`); it. 2: `E7` recurs, `E9`–`E11` (3 `guess`, 1 `minor`); it. 3: `E12`–`E14` (2 `guess`, 1 `minor`); it. 4: none | it. 1: `docs/audits.md` 33033 → 34095 B, `tools/preflight.py` 2891 → 3279 B, `tools/gates.py` 54399 → 54355 B; it. 2: `docs/formats.md` 35393 → 35581 B, `docs/dispatch.md` 18642 → 18764 B, `docs/process.md` 75704 → 74311 B, `docs/audits.md` 34095 → 34608 B, and three docs shortened (cost estimates deleted); it. 3: `docs/formats.md` 35581 → 35880 B, `docs/dispatch.md` 18764 → 18824 B | `sim-checkpoint-model-collapse-plan` |
-| `pool` | open | 1 (cut off by the usage limit) | it. 1: `E15`–`E20` (1 `blocker`, 4 `guess`, 1 `silent`) | — | — |
+| `pool` | open | 2 (it. 1 cut off by the usage limit) | it. 1: `E15`–`E20` (1 `blocker`, 4 `guess`, 1 `silent`); it. 2: `E21`–`E33` (1 `blocker`, 7 `guess`, 1 `silent`, 4 `minor`; `E22`, `E32` in the harness) | it. 1: the step 2 spec audit's (`.audits/2026-10-12-spec/disposition.md`); it. 2: `tools/expand.py`, bulk search (`0195322`) | — |
 | `clusters` | not started | 0 | — | — | — |
 | `coreset` | not started | 0 | — | — | — |
 | `verification` | not started | 0 | — | — | — |
@@ -145,3 +145,10 @@ would show.
   JSON is kept as `segments/runs/plan-2-aborted.json`. `runner.sh run` now prints such an API error plainly, since the
   JSON's `subtype` still read `success`. A long segment that meets the limit midway loses its iteration, and restarts
   from its checkpoint.
+- `E22`, the runner's allowlist not enforced: the user's to look into. Until then the runner's report is how the audit
+  sees a reach outside the spec's tools; in `pool` iteration 2 it reported every one itself (`E31`).
+- `E32`, legs that end with the work intact: a usage limit mid-dispatch, or `claude -p` exiting while the runner waits
+  for an agent's notification. Resume the session with a prompt that only restates the state, and count the legs as
+  one iteration.
+- `pool` iteration 3: watch whether the reconcile row (`E25`) settles the boundary kinds the iteration 2 report lists,
+  and what showing whole abstracts (`E26`) costs per screening agent.

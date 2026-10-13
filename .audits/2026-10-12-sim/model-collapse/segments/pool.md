@@ -100,6 +100,39 @@ Not converged: the fixes go to iteration 2.
   minutes, while `/paper/{id}` and `/paper/search/bulk` answered 200. The user chose to wait for the search endpoint
   and resume the session (2026-10-13), rather than switch to bulk search or wait for the Semantic Scholar key. A
   background probe tries it every 5 minutes for up to 2 hours; the decision goes in by `runs/pool-2-resume.prompt.md`.
+- `Second leg` — the session resumed with the fix for `E21` (below) at 17:22, reread the two sections, recorded the
+  decision in `Halts`, and reran `collect`. It finished in 4.5 min: the 32 saved traversals were kept, the 17 theme
+  searches ran on the bulk endpoint. 9 of the 17 searches, and 2 of the batch calls fetching abstracts, met 429s that
+  `tools/net.py`'s retries absorbed, at most 4 retries for one call. 1,302 new candidates went onto the sheet; left out were 64 already in the pool, 7 rejected
+  earlier and 3 duplicates of another record. The runner then dispatched 14 "Screening" agents at once, in ranges of
+  100 rows, and the account's usage limit cut the run off 10 s later. The agents had made 3 or 4 reads each and written
+  no verdict. `runs/pool-2b.json` holds only the error, since the cut came in the run's last turn.
+- `Theme matches` — kept of matched, from `collect`'s output: "model collapse" 50 of 931, "model autophagy" 50 of 114,
+  "iterative retraining" 50 of 105, "knowledge collapse" 24, "self-consuming generative models" 12, "recursive
+  retraining" 8, "self-consuming training loops" 6, "AI autophagy" 5, "strong model collapse" 2, "accumulating real
+  and synthetic data" 1, "networked self-consuming generative models" 1; and none for 6 themes: "synthetic data
+  verification model collapse", "curated self-consuming retraining", "machine-generated text detection model collapse",
+  "model collapse scaling laws", "linguistic diversity decline synthetic text", "recursive training diffusion models".
+  Orient wrote these themes before the brief asked for phrases as papers write them, so this run does not test that
+  instruction.
+- `Third leg` — resumed after the limit reset, with `runs/pool-2c.prompt.md`: the interruption, and that no verdict
+  was written; carry on from the screening row. The runner dispatched 14 "Screening" agents again, in ranges that
+  partition the sheet (1–100 to 1201–1300, and 1301–1302), and all 14 judged their rows in about 6 min. The headless
+  session then ended: its turn closed while it waited for the last agent's notification, and `claude -p` exits when a
+  turn ends (`runs/pool-2c.json`).
+- `Fourth leg` — `runs/pool-2d.prompt.md`: the session had ended, the last agent was done; carry on. `add-expand` added
+  134 papers (pool 205) and reported one paper judged `no` on the sheet but in the pool, `2308.07462`, through a second
+  record; a re-judging "Screening" agent kept the `no`, and the runner halted on `H12`, `pending`.
+- `Decision` — the auditor decided `H12` as steering, 2026-10-13: keep the paper, by "borderline is in"; the re-judging
+  agent had called the `yes` defensible too (`runs/pool-2e.prompt.md`).
+- `Fifth leg` — the runner recorded the decision, judged row 1015 `yes` itself as the decision's record, fetched the
+  pool, ran the fringe routes (120 candidates, two blind "Screening" agents of 60 rows, 19 in scope), fetched again,
+  and ran `G1`: passed. The pool is 224 papers, 177 with an arXiv ID. The auditor reran `--gate G1` and the plain check
+  in the repo after `runner.sh collect`: both pass, with one note of near-identical titles.
+- `Cost` — the session's `total_cost_usd` is $24.13 over five legs, about 46 min of running. Dispatches: Orient 183098
+  tokens; 14 expansion "Screening" agents of 33562–90594 tokens (final contexts 62k–89k; the notifications' own figures,
+  130k–264k, count something else, `UNVERIFIED` what); the re-judge 48291; two fringe agents 63324 and 66568. The 14
+  agents killed by the limit reported no tokens. The raw report: `runs/pool-2-report.md`.
 
 ### Findings
 
@@ -124,7 +157,69 @@ Not converged: the fixes go to iteration 2.
   allowlist is how the audit sees a runner reach outside the spec's tools, as a tool failure in its report. Fix: the
   user's, since it concerns permissions; reported to the user.
 
-More findings follow once the run ends.
+- `E23` — `minor`. The runner's screening ranges overlapped: it dispatched rows 1201–1302 and also 1301–1302, so two
+  agents owned rows 1301 and 1302 at once. The brief tells each agent that other agents own the other rows. `judge`
+  holds a lock, so the cost is a duplicated judgement, last write kept, not a corrupted sheet. The docs say blocks of
+  at most 100 rows but not that the ranges partition the sheet. Seen in the second leg, before the cutoff; the third
+  leg's dispatch partitioned the sheet correctly.
+- `E24` — `silent`. `collect` drops a second record of one paper only when the titles match exactly
+  (`tools/expand.py`, the `keep` and `sheet_titles` tests, by `title_key`). Records whose titles differ by a word reach
+  the sheet as separate rows, are judged separately, and can be judged both ways. Here: `2308.07462` at rows 965 (`yes`)
+  and 1015 (`no`), which became `H12`, a user decision about what is really one paper; `2305.16960` at rows 978 and
+  1016 (both `no`, harmless); and "Multilingual Arbitrage" (`2408.14960`, row 827, `no`) against "Multilingual
+  Arbitration" (row 996, no arXiv ID, `yes`), now a pool row whose other record was judged out. The plain check notes a
+  fourth pair already in the pool, `2505.21677` and `CorpusId:278959832`. Nothing in the run flagged the first three.
+- `E25` — `guess`. Screening in parallel ranges settles the same scope boundary differently from range to range. The
+  runner listed the kinds with rows on both sides: loops with no retraining (a text corpus or retrieval index fed with
+  generated text); studies of how much text is AI-generated; "knowledge collapse" of human knowledge, one of Orient's own
+  themes; synthetic data used once but studied for degradation; iterated learning; performative prediction (about 30
+  rows rejected as one call in 501–600, while `2607.15623`, row 1061, was let in). Each agent was consistent within its
+  range. The input's `Clustering` exclusions do not settle these kinds, and nothing reconciles ranges. The spot check
+  (below) found the inclusions it questions in exactly these kinds.
+- `E26` — `guess`. The sheet shows at most 700 characters of an abstract (`tools/screen.py`, `ABSTRACT_CHARS`), and 1,033
+  of the 1,077 abstracts here are longer (mean 1,308, median 1,282). The deciding sentence can fall past the cut: row
+  1061's tie to the topic, "data feedback loops in language modeling", is in its last sentence. The brief says to judge
+  "from its title and abstract" and names no lookup. Agents improvised: most fetched fuller abstracts or tldrs from
+  Asta, one ran `snippet_search`, two used WebSearch, and one tried WebFetch on OpenReview. On the fringe sheet this
+  partly unblinded 14 rows: Asta's reply carries an arXiv link, which gives the year away. Both fringe agents say no
+  verdict changed, `UNVERIFIED`.
+- `E27` — `guess`. Orient kept second records of pool papers out of the pool by writing them to `rejected.md`, with
+  reasons that begin "not out of scope": `CorpusId:271448069` (the Nature version of the seed `2305.17493`, which the
+  agent marks `UNVERIFIED`) and `CorpusId:282047062`. `docs/formats.md`, "Paper IDs", covers merging two pool rows, not
+  keeping a second record out. `rejected.md` now lists in-scope papers. Citers of the Nature version do not count
+  toward the seed's in-degree, `UNVERIFIED` how many.
+- `E28` — `guess`. The recency window's dates. The runner ended the window on the day the queries ran, 2026-10-13; the
+  pass is dated 2026-10-12, and `docs/process.md` says "the last six months" without saying up to which day. Orient
+  counted a paper as inside the window by its Semantic Scholar publication date, which left `2608.21366`, `2602.16601`
+  and `2503.03150` off the frontier list; all three are in the pool. The docs name no date to use.
+- `E29` — `guess`. "How a halt works", step 1, records what is outstanding in Open work, but none of Open work's fixed
+  headings fits the rows a halt leaves undone. The runner wrote them into each `Halts` sentence instead.
+- `E30` — `guess`. The `add-expand` row says a `no` for a pool paper "is re-judged on the sheet", not by whom, nor that
+  the re-judge may keep the `no`. The runner dispatched one "Screening" agent for the row and told it of the other
+  record; a re-judge that keeps the `no` leads to `H12`, as here. With `E24` fixed, the case arises only for a paper
+  whose second record no test catches.
+- `E31` — `minor`. The runner broke two reading rules: one inline `python3 -I -c` that read `expand.json`, and one
+  `git diff --stat` run by mistake. It kept the `Expansion` line in `/tmp/claude-1000/expansion-line.txt`, a file no row
+  names. The 301–400 agent used one read-only inline `awk`. The runner reported all of them itself. Runner and agents
+  otherwise used only the spec's tools: every verdict went through `judge`, by `printf`, in 1 to 4 batches per agent.
+- `E32` — `minor`, in the audit's harness. Twice a leg ended with no work lost but the run stopped: the account's usage
+  limit cut the second leg 10 s after a dispatch, and `claude -p` ended the third leg while the runner waited for a
+  notification. Each needed a resume prompt that only restated the state.
+- `E33` — `guess`. Orient treated Asta's "Title match not found" replies as empty results, not as errored queries.
+  `docs/external_services.md`, "Errored queries", does not say which they are.
+
+Spot checks:
+
+- Screening verdicts, a random sample (seed 20261013) of 10 `yes` and 10 `no` rows from a snapshot of the expansion
+  sheet, each judged by the auditor against the full abstract (from the sheet, or from Asta past the cut): 20 checked.
+  All 10 rejections are right; 5 of them were judged from the title alone (`(no abstract)`), rightly. 7 of the 10
+  inclusions are right (`2607.15623` only by its abstract's last sentence, past the cut). 3 are in `E25`'s kinds and
+  outside the `Topic` as written, though "borderline is in" can defend each: row 578, a single round of corrupted
+  training data with no loop, which the input excludes; row 896, a position paper on AI output feeding back into human
+  knowledge; row 655, LLM-generated text fed into a retrieval index, no model retrained.
+- The recency window against the input: 1 checked; its end date is `E28`.
+- Duplicates on the sheet: the arXiv IDs of all 1,302 candidates, by script: 2 pairs, plus the pair found by title
+  (`E24`).
 
 ### Fixes
 
@@ -138,3 +233,30 @@ More findings follow once the run ends.
   copied into the scratch copy, as steering (`runs/pool-2-resume.prompt.md`): the change cannot alter what Orient
   wrote, since only the collect row and those after it search.
 
+- `E22` — the user's; open.
+- `E25` — decided by the user, 2026-10-13: reconcile after screening, rather than voting. Voting averages out an
+  agent's misreading, but these splits come from a boundary the input leaves open, which three voters split as well, at
+  three times the cost. Proposed: a row after the screening, one agent that reads only the verdicts and reasons, groups
+  rows that turn on the same scope question, and flags each group judged both ways; each flagged group gets one
+  decision, with "borderline is in" breaking ties, applied through `judge`.
+- Proposed, awaiting the user:
+  - `E24` — `collect` treats records that share an arXiv ID or a corpus ID, or whose titles the plain check's test calls
+    near-identical, as one paper, before the sheet; the same test against the pool and `rejected.md`.
+  - `E26` — the sheet shows the whole abstract, and the brief says the sheet is all the agent reads: no lookups. This
+    also closes the unblinding on the fringe sheet. Cost: about 15k more tokens per 100-row range, `UNVERIFIED`.
+  - `E27` — the docs say a second record of a pool paper is never rejected: `collect`'s tests keep it off the sheet
+    (with `E24`), and one found in the pool is merged under `Corrections`. The two entries in this run's `rejected.md`
+    go with the iteration's state.
+  - `E28` — the docs say the window ends on the day the recency queries run, and that a paper's date is its first
+    arXiv version where it has one, else Semantic Scholar's publication date.
+  - `E29` — "How a halt works": the rows a halt leaves undone go in its `Halts` sentence, not Open work.
+  - `E30` — the `add-expand` row: a "Screening" agent re-judges the row, told of the pool record; a kept `no` is `H12`.
+  - `E33` — `docs/external_services.md`: "Title match not found" is an empty result, not an error.
+  - `E23`, `E31` — no spec change: `E23` did not recur, and the runner reported `E31` itself. `E32` — no change; a
+    resume prompt that restates the state is enough.
+
+### Result
+
+Not converged: `E24` is `silent` and `E25`–`E30`, `E33` are `guess`. Confirmed fixed from iteration 1: `E16`–`E18`
+(every verdict through `judge`, no own scripts, contexts at 62k–89k against 448k), `E15` (abstracts on the sheet) and
+`E20` (the work is fixed by script). The fixes go to iteration 3, which runs the segment again from the checkpoint.
