@@ -250,12 +250,12 @@ What some lines need, beyond their form:
   only once it is in the pool; one that cannot enter goes to Open work's `Papers that could not enter the pool` instead.
 - `Expansion` — printed by `tools/assign.py add-expand` from `expand.json` and the screening sheet, and pasted as
   printed, replacing any earlier `Expansion` line of the pass: `tools/check.py` recomputes it. Each part is one
-  collection. A traversal names the paper it started from and, in brackets, how many papers it returned, with `not
-  found` for a paper Semantic Scholar does not know, and `capped` for a reference or citer list longer than the endpoint
-  pages to; each query is the theme, quoted, with its count. Then: how many unique papers the collection returned, how
-  many it left out and why, how many list entries had no paper ID, and how many of its candidates were screened, and
-  with what verdict. A targeted expansion adds a part that opens `targeted,`, naming the region by its first paper, or
-  by its theme when the region had no papers, and why it was expanded.
+  collection. A traversal names the paper it started from and, in brackets, how many papers it returned, with
+  `not found` for a paper Semantic Scholar does not know, and `capped` for a reference or citer list longer than the
+  endpoint pages to; each query is the theme, quoted, with its count. Then: how many unique papers the collection
+  returned, how many it left out and why, how many list entries had no paper ID, and how many of its candidates were
+  screened, and with what verdict. A targeted expansion adds a part that opens `targeted,`, naming the region by its
+  first paper, or by its theme when the region had no papers, and why it was expanded.
 - `Late papers` — `tools/assign.py late` prints the first form. After a recluster nothing prints it: the main session
   writes the second form, from `tools/cluster.py`'s `changes:` line.
 - `Fringe` — `left out` counts the in-scope candidates that have neither an arXiv ID nor a `CorpusId`, so could not be

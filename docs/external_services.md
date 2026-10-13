@@ -138,9 +138,8 @@ often, even to a single request. The scripts retry a 429, a 500, 502, 503 or 504
 a growing wait, up to eight attempts, so a 429 means busy, not down. A script that fails after all its retries halts the
 pass (`H3`). `tools/pool.py` and `tools/graph.py` save after every batch, so a rerun fetches only what is still missing.
 `tools/expand.py collect` asks for many papers per call, waits a second between calls, and saves after every batch and
-every search, so a
-busy spell costs a rerun, which resumes where it stopped, rather than the run. `tools/fringe.py collect` keeps no cache:
-a failed run is rerun whole, which takes a few minutes.
+every search, so a busy spell costs a rerun, which resumes where it stopped, rather than the run.
+`tools/fringe.py collect` keeps no cache: a failed run is rerun whole, which takes a few minutes.
 
 ## arXiv
 
@@ -216,14 +215,13 @@ Why every failure halts:
   abstracts is worse than none, because nothing downstream reveals the weakness.
 - `Snippet search` — without it, verification loses its fastest way to find a claim in a long paper, and probes lose
   their search over body text.
-- `Asta search and traversal` — without them orientation cannot resolve the papers it finds to their IDs, and
-  selection loses its dissent searches. A pass that carried on would fall back to WebSearch alone, which produces a
-  pool top-heavy with preprints and missing the methods they all cite; it has happened in this repo.
+- `Asta search and traversal` — without them orientation cannot resolve the papers it finds to their IDs, and selection
+  loses its dissent searches. A pass that carried on would fall back to WebSearch alone, which produces a pool top-heavy
+  with preprints and missing the methods they all cite; it has happened in this repo.
 - `WebSearch` — without it orientation cannot see the current frontier.
 - `The rest` — the Graph API runs expansion itself, from step 2, and every fetch after it; `uv` is needed later in the
-  pass; and a missing key changes Asta's limits. No failure
-  may lead to a silent fallback that compromises the quality or repeatability of a pass, and halting here is cheaper
-  than discovering the failure at step 5.
+  pass; and a missing key changes Asta's limits. No failure may lead to a silent fallback that compromises the quality
+  or repeatability of a pass, and halting here is cheaper than discovering the failure at step 5.
 
 The user decides whether to proceed. If they do, the log's `Halts` line records it, and the output's legend says what
 was missing.
