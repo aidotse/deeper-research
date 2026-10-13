@@ -106,9 +106,18 @@ silently drop a request; the full list is in `docs/formats.md` ("Rules the parse
   Semantic Scholar does not know or that has no SPECTER2 embedding, which clustering needs. It warns on a paper already
   in `rejected.md`, naming the rejection. Its last line names the next step: `tools/pool.py` before step 3, or
   `tools/assign.py late` after it, for the main session to run, pasting the `Pool` line it prints.
+- `python3 tools/assign.py add-expand <topic>` acts on the expansion screening sheet, for this pass's candidates only:
+  an earlier pass's verdicts were acted on then. It refuses while any of them has no row on the sheet, or no `yes` or
+  `no` with a reason of at least two words, and while the sheet has a row `expand.json` does not know. Each `yes` goes
+  through `add`, with its refusals; one already in the pool, by ID or by title, is skipped, and one with neither an
+  arXiv ID nor a `CorpusId` is listed for Open work. Each `no` is recorded in `rejected.md` with its reason, as `reject`
+  would. A `no` for a pool paper is not recorded but reported, since one of the two judgements is wrong: re-judge the
+  row, or ask the user (`H12`). It ends by printing the log's `Expansion` line, to paste in place of any earlier one of
+  the pass.
 - `python3 tools/assign.py add-fringe <topic>` adds the candidates marked `yes` on the fringe screening sheet, and
   prints the log's `Fringe` line. It refuses while any candidate is unjudged: with no row on the sheet, marked neither
-  `yes` nor `no` (a `maybe` included), or with a reason under two words. It uses the same test as `G1`.
+  `yes` nor `no` (a `maybe` included), or with a reason under two words. It uses the same test as `G1`. It also refuses
+  a row `fringe.json` does not know.
 - `python3 tools/assign.py clusters <topic>` writes each pool paper's computed cluster into the `cluster` column, under
   the name the Clusters table's `computed` column gives it.
 - `uv run tools/assign.py late <topic>` processes the late papers as one batch: it runs `tools/pool.py` in full, which
@@ -129,6 +138,71 @@ assigned by the nearest-cluster rule: 13 went to the cluster the full clustering
 `2402.03300`, was the top paper of its cluster in the full clustering, so a late paper's cluster is a good guess, not a
 certainty.
 
+## Expansion candidates
+
+`python3 tools/expand.py collect <topic>` runs step 2's traversals and searches by script, at no model cost. It reads
+the seeds, the frontier candidates and the themes from the latest pass's `Orientation` line. From the Graph API's batch
+endpoint, up to 500 papers a call, it takes the reference and citer lists of every seed and frontier candidate. A list
+shorter than the paper's own count is paged from the paper's references or citations endpoint instead, up to that
+endpoint's limit of about 10,000, where the traversal is marked `capped`. Then it runs one relevance search per theme,
+keeping the first 50 results; hyphens are sent as spaces, since the endpoint matches nothing on a hyphenated term. Last,
+it fetches the title, abstract and IDs of every candidate left, in batches.
+
+It leaves out a candidate already in the pool, by ID or by title; one in `rejected.md`; one already on the sheet, by ID
+or by title; a second record of another new candidate, by title, keeping the one with an arXiv ID; and one Semantic
+Scholar does not know. It records every source's full result, and what it left out and why, in
+`graphs/<topic>/expand.json`, one round per collection. It appends the rest to the screening sheet
+`graphs/<topic>/expand-screen.md`, one numbered row each (see "Screening sheets"). The sheet only grows: a row keeps its
+number and its verdict. A row from an earlier pass is left as it is: `collect` does not offer it again, and this pass's
+`add-expand` does not act on it. Whether a paper has the SPECTER2 embedding clustering needs is checked later, by
+`add-expand`, for the `yes` rows only.
+
+It saves its progress in `expand.json` after every batch and every search. If the Graph API stays busy past
+`tools/net.py`'s retries, it stops and says so, and the same command run again resumes where it stopped; a second
+failure halts the pass (`H3`). Rerunning a finished collection in the same pass replaces its record and appends only
+what is new, and any candidate of `expand.json` that has lost its row gets it back. A seed or frontier candidate
+Semantic Scholar does not know is warned about and recorded as `not found`: it belongs in Open work. When `Orientation`
+names neither seeds nor frontier candidates, it prints `STOP: H14`; when it names no themes, it refuses. Its last lines
+give the counts, and the next step: screening, then `add-expand`.
+
+`python3 tools/expand.py collect <topic> [--targeted <id>,...] --query "<theme>" --why "<why>"` is a targeted expansion,
+in step 3. It traverses backward from the papers given, which are the region's, and searches the theme. Without
+`--targeted`, for an expected theme with no cluster, it runs the search alone. Each is a round of its own in
+`expand.json`, keyed by its region and query.
+
+`python3 tools/expand.py judge <topic>` writes screening verdicts into the sheet (see "Screening sheets"). Then
+`python3 tools/assign.py add-expand <topic>` acts on them (see "Pool table").
+
+## Screening sheets
+
+Two sheets hold candidates for agents to screen for scope: `expand-screen.md`, written by `tools/expand.py collect`, and
+`fringe-screen.md`, written by `tools/fringe.py collect`. Each is a table, one row per candidate: its row number `#`,
+its Semantic Scholar ID `s2`, its title, up to 700 characters of its abstract, or `(no abstract)`, and the two columns
+the agent fills, `in scope` and `reason`. The fringe sheet is blind: shuffled, with the route and the year hidden.
+
+`python3 tools/expand.py judge <topic>` and `python3 tools/fringe.py judge <topic>` write verdicts into their sheet,
+from stdin: one `<s2><TAB>yes|no|maybe<TAB><reason>` per line, where `<s2>` is the row's `s2` cell. Both are one
+function, in `tools/screen.py`. It refuses the whole batch, writing nothing, if any line names an ID not on the sheet,
+gives a verdict other than `yes`, `no` or `maybe`, has no reason, gives a `yes` or `no` a reason of fewer than two
+words, or judges one row twice differently. A row judged again takes the new verdict. It holds a lock on the sheet while
+it reads and writes, so that agents judging disjoint row ranges may run at once; `tools/expand.py collect` takes the
+same lock to append. It prints how many verdicts it read and wrote, and how many rows are still unjudged. A `maybe`
+parks a row: it counts as unjudged until it becomes `yes` or `no`, for the add steps and for `G1` alike. Never edit a
+sheet by hand.
+
+To send the tab-separated lines without writing a program, use `printf`, which repeats its format for every three
+arguments, for example:
+
+```bash
+printf '%s\t%s\t%s\n' \
+  <s2> no "about image classification; the topic is language-model reasoning" \
+  <s2> yes "tests recursive training on generated text" \
+  | python3 tools/expand.py judge <topic>
+```
+
+Its count of rows still unjudged is for the whole sheet: other agents' ranges, and rows of earlier passes, included. To
+confirm your own range is done, read its rows again.
+
 ## Pool metadata
 
 `python3 tools/pool.py <topic>` fetches publication dates, citation counts, full reference lists and SPECTER2 embeddings
@@ -148,16 +222,16 @@ of fetch dates.
 of step 2. It needs no clustering: it seeds the `new` route from the frontier candidates of the latest pass's
 `Orientation` line, plus up to 10 pool papers most cited within the pool, and records the seeds in `fringe.json`. A
 frontier candidate not in the pool is skipped with a warning. It fetches the candidates' data into
-`graphs/<topic>/fringe.json`, and writes a blind screening sheet, `fringe-screen.md`, for a `survey-pass` agent:
-shuffled, with the route and the year hidden. A paper already in `rejected.md` is not collected. A rerun keeps the
-judgements already on the sheet.
+`graphs/<topic>/fringe.json`, and writes a blind screening sheet, `fringe-screen.md`, for screening agents: numbered,
+shuffled, with the route and the year hidden (see "Screening sheets"). A rerun rewrites and renumbers the whole sheet,
+so hand its rows out in ranges only after the last `collect`. A paper already in `rejected.md` is not collected, nor one
+whose title matches a pool paper's, which is most likely a second record of it; it prints how many it left out for each.
+A rerun keeps the judgements already on the sheet.
 
-`python3 tools/fringe.py judge <topic>` writes the agent's verdicts into the sheet, from stdin: one
-`<s2><TAB>yes|no|maybe<TAB><reason>` per line, where `<s2>` is the row's first cell. It refuses the whole batch if any
-line names an ID not on the sheet, gives another verdict, or has no reason. A `maybe` parks a row to come back to: it
-counts as unjudged until it becomes `yes` or `no`. Then `tools/assign.py add-fringe` adds the in-scope ones to the pool.
-`fringe.json` records each candidate's arXiv ID or, failing that, its `CorpusId`. A candidate without a SPECTER2
-embedding is dropped before the sheet, since no clustering could place it.
+`python3 tools/fringe.py judge <topic>` writes the agents' verdicts into the sheet (see "Screening sheets"). Then
+`tools/assign.py add-fringe` adds the in-scope ones to the pool. `fringe.json` records each candidate's arXiv ID or,
+failing that, its `CorpusId`. A candidate without a SPECTER2 embedding is dropped before the sheet, since no clustering
+could place it.
 
 `tools/cluster.py` writes each pool paper's fringe score to its report, and prints the highest. Step 4 chooses `fringe`
 rows from the fringe sheet (see "Sheets").
@@ -337,10 +411,11 @@ name is unique per run, so two runs never share files, and every file a run wrot
 crash. `faults.py` first confirms that the unmodified fixture passes `--gate G5`, since a fault is only caught if the
 baseline passes. It then injects at least one fault per gate requirement and confirms that its own requirement catches
 it. `behaviour.py` checks what single requirements cannot show: waivers, a pending halt, progress inferred mid-pass and
-by the safety net, the history checks, `tools/assign.py reject`, `tools/check.py --print`, and a coverage round through
-`tools/coverage.py`. The fixture's coverage sheet and audit sheets are written through the same tools' functions. Run
-both after any change to `tools/check.py` or `tools/gates.py`; each exits 1 on a miss. A change to a requirement comes
-with its test case, in the same commit.
+by the safety net, the history checks, `tools/assign.py reject`, `add-expand` and `add-fringe`, the screening sheets'
+`judge`, including two at once, `tools/expand.py collect` against a stand-in for the Graph API, the fringe routes' title
+match, `tools/check.py --print`, and a coverage round through `tools/coverage.py`. The fixture's coverage sheet and
+audit sheets are written through the same tools' functions. Run both after any change to `tools/check.py` or
+`tools/gates.py`; each exits 1 on a miss. A change to a requirement comes with its test case, in the same commit.
 
 ## Formatting
 

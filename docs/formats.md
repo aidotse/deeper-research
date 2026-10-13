@@ -51,7 +51,7 @@ What we want to research. This is a topic scoping exercise: the `Topic` is what 
 Optional. Individual items to condition the search on: core motivation, specific links to websites (e.g. with
 instructions on what to look for), seed papers, hand-written notes, open questions, a past `surveys/<other_topic>.md`,
 etc. Seed papers the input names enter the pool at step 1, and are listed in the `Orientation` line (`docs/process.md`,
-step 1).
+step 1). Other names the input gives the topic become themes in that line, which step 2 searches.
 
 ### `Coreset Spec`
 
@@ -191,8 +191,10 @@ One entry per pass, in date order. An entry's lines keep the order below, so a l
   Graph API ok | arXiv ok | uv ok | Asta key set
 - **Orientation (WebSearch):** "<exact query>", ...; themes: "<phrase>", ...; seeds from the input: none | <id>, ...;
   frontier candidates: <id>, ...
-- **Expansion:** backward from <id> (<n>), <id> (<n>), ...; forward from <id> (<n>), ...; queries "<exact query>"
-  (<n>), ...; targeted, <region, by one of its paper IDs> (<why>): <traversals and queries, as above>; stopped: <why>[; rejected: none]
+- **Expansion:** backward from <id> (<n>[, not found][, capped]), ...; forward from <id> (<n>), ...; queries "<theme>"
+  (<n>), ...; <u> unique, left out: in the pool <n>, rejected earlier <n>, on the sheet already <n>, another record <n>,
+  not found <n>; <n> without a paper ID; screened <m>: in scope <y>, rejected <z>[; targeted, <id> | "<theme>" (<why>):
+  <its traversals, queries and counts, as above>; ...]
 - **Errored queries:** none | "<query>" (429, failed after 3 retries; retried at the end of the step: ok | failed)
 - **Recency window:** <the window>, applied to the recency queries only
 - **Fringe:** collected YYYY-MM-DD: hidden H, new W candidates (U unique); in scope S; added to the pool A, of which
@@ -234,25 +236,26 @@ The `F1` and `H` IDs are defined in `docs/process.md`, "When a pass ends". Who w
 operations, column `writes` (`docs/process.md`): that column is the only authority on it. An agent running in parallel
 with others never writes the log; it returns its lines under `Log:`, and the main session writes them.
 
-Seven lines, or parts of them, are printed by scripts, ready to paste: the script half of `Preflight` by
+Eight lines, or parts of them, are printed by scripts, ready to paste: the script half of `Preflight` by
 `tools/preflight.py`, which the Preflight agent completes; `Pool` by `tools/pool.py`, which `tools/assign.py late` also
-runs; `Fringe` and `Late papers` by `tools/assign.py`; `Clustering` by `tools/cluster.py`; `Coverage test` by
-`tools/coverage.py line`; and `Judgement audit` by `tools/audit.py line`. Replace the computed cluster ids (`c1`, `c2`,
-…) with the Clusters table's ids, and each `<action taken>` with what was done. Every other number in the log comes from
-a script's printout or a tool's result, never from counting by hand.
+runs; `Expansion`, `Fringe` and `Late papers` by `tools/assign.py`; `Clustering` by `tools/cluster.py`; `Coverage test`
+by `tools/coverage.py line`; and `Judgement audit` by `tools/audit.py line`. Replace the computed cluster ids (`c1`,
+`c2`, …) with the Clusters table's ids, and each `<action taken>` with what was done. Every other number in the log
+comes from a script's printout or a tool's result, never from counting by hand.
 
 What some lines need, beyond their form:
 
-- `Orientation` — the themes are the phrases the field uses for its sub-topics, which step 2 searches. The seeds are the
-  papers the input names. A frontier candidate is listed only once it is in the pool; one that cannot enter goes to Open
-  work's `Papers that could not enter the pool` instead.
-- `Expansion` — each traversal names the paper it started from, its direction, and in brackets how many candidates it
-  gave to screen; each query is quoted verbatim, with its count. `tools/check.py` counts a frontier candidate as
-  traversed only in a part that opens with `backward`, `forward` or `both`, in the form `<id> (<n>)`. The bracket holds
-  the count and nothing else, and the part must not contain the word "not": a note belongs in a part of its own. A
-  targeted expansion adds its own part. `stopped` says why expansion ended (`docs/process.md`, "Screening for scope").
-  If no candidate was judged out of scope this pass, the line ends `; rejected: none`, in place of entries in
-  `rejected.md`.
+- `Orientation` — the themes are the phrases the field uses for its sub-topics, and every other name the input gives the
+  topic: step 2 searches each one, as written. The seeds are the papers the input names. A frontier candidate is listed
+  only once it is in the pool; one that cannot enter goes to Open work's `Papers that could not enter the pool` instead.
+- `Expansion` — printed by `tools/assign.py add-expand` from `expand.json` and the screening sheet, and pasted as
+  printed, replacing any earlier `Expansion` line of the pass: `tools/check.py` recomputes it. Each part is one
+  collection. A traversal names the paper it started from and, in brackets, how many papers it returned, with `not
+  found` for a paper Semantic Scholar does not know, and `capped` for a reference or citer list longer than the endpoint
+  pages to; each query is the theme, quoted, with its count. Then: how many unique papers the collection returned, how
+  many it left out and why, how many list entries had no paper ID, and how many of its candidates were screened, and
+  with what verdict. A targeted expansion adds a part that opens `targeted,`, naming the region by its first paper, or
+  by its theme when the region had no papers, and why it was expanded.
 - `Late papers` — `tools/assign.py late` prints the first form. After a recluster nothing prints it: the main session
   writes the second form, from `tools/cluster.py`'s `changes:` line.
 - `Fringe` — `left out` counts the in-scope candidates that have neither an arXiv ID nor a `CorpusId`, so could not be
@@ -432,19 +435,21 @@ output as finished: it lists every `abstract`-sourced paper the output cites.
 ## `graphs/<topic>/`
 
 The working files of a pass: everything the scripts compute that is too large, or too numeric, for the survey. Scripts
-write them, never agents, with these exceptions: the screening agent fills two columns of `fringe-screen.md`, through
-`tools/fringe.py judge`; the coverage-test agent fills the verdicts of `coverage-<R>.md`, through
-`tools/coverage.py judge`; the audit agents fill the audit sheets, through `tools/audit.py`; and the verifying agents
-write `evidence/` (`docs/verification.md`, "Recording the evidence"). Sizes are from `reasoning-legacy` (about 200 pool
-papers).
+write them, never agents, with these exceptions: the screening agents fill two columns of `expand-screen.md` and of
+`fringe-screen.md`, through `tools/expand.py judge` and `tools/fringe.py judge`; the coverage-test agent fills the
+verdicts of `coverage-<R>.md`, through `tools/coverage.py judge`; the audit agents fill the audit sheets, through
+`tools/audit.py`; and the verifying agents write `evidence/` (`docs/verification.md`, "Recording the evidence"). Sizes
+are from `reasoning-legacy` (about 200 pool papers).
 
 | file | what it holds | written by | read by | in git |
 | -- | -- | -- | -- | -- |
 | `pool.json` (1.6 MB) | per pool paper: date, citation count, full reference list, SPECTER2 embedding, fetch date | `tools/pool.py` (step 2, and inside `tools/assign.py late`) | every script that clusters, scores or draws the pool | yes |
 | `clusters.json` (140 KB) | the clustering report: levels, stability, the null curve, assignment, sub-clusters, fringe scores, diagnostics and notes, the match to the previous clustering, and late assignments | `tools/cluster.py` (step 3, and any recluster); `tools/assign.py late` and `remap` add to it | `tools/sheets.py`, `assign.py`, `check.py`, `graph.py` | yes |
 | `fringe.json` (1.3 MB) | the fringe candidates: route, metadata, references, embedding; the seeds of the `new` route | `tools/fringe.py collect` (step 2) | `tools/assign.py add-fringe` | yes |
-| `rejected.md` | the candidates judged out of scope in orientation and expansion: paper, date, reason | `tools/assign.py reject` (steps 1 and 2, targeted expansions) | reviewers; `tools/check.py` (`G1`) | yes: the judgements are part of the pass's record |
-| `fringe-screen.md` (120 KB, about 30k tokens) | the blind screening sheet: one row per candidate, shuffled, without its route or year, with the agent's `in scope` (`yes` or `no`; `maybe` while undecided) and `reason` | `tools/fringe.py collect` writes the rows, keeping earlier judgements on a rerun; the screening agent fills `in scope` and `reason` with `tools/fringe.py judge` (step 2) | `tools/assign.py add-fringe` | yes: the judgements are part of the pass's record |
+| `expand.json` | expansion's collections, one per round (the first, then each targeted expansion): every traversal's and search's full result, what was left out and why, and each candidate's title, abstract and IDs; while a collection is unfinished, its progress, so that a rerun resumes | `tools/expand.py collect` (step 2, and each targeted expansion) | `tools/assign.py add-expand`; `tools/check.py` (`G1`) | yes |
+| `expand-screen.md` (about 200 tokens a row) | expansion's screening sheet: one numbered row per candidate, with title and abstract, or `(no abstract)`, and the agent's `in scope` (`yes` or `no`; `maybe` while undecided) and `reason`. It only grows: a row keeps its number and verdict across collections | `tools/expand.py collect` appends the rows; the screening agents fill `in scope` and `reason` with `tools/expand.py judge` | `tools/assign.py add-expand`; `tools/check.py` (`G1`) | yes: the judgements are part of the pass's record |
+| `rejected.md` | the candidates judged out of scope in orientation and expansion: paper, date, reason | `tools/assign.py reject` (step 1, and any rejection outside the sheets); `tools/assign.py add-expand`, for each `no` on `expand-screen.md` | reviewers; `tools/expand.py` and `tools/fringe.py`, which do not collect a rejected paper again; `tools/check.py` (`G1`) | yes: the judgements are part of the pass's record |
+| `fringe-screen.md` (120 KB, about 30k tokens) | the blind screening sheet: one numbered row per candidate, shuffled, without its route or year, with the agent's `in scope` (`yes` or `no`; `maybe` while undecided) and `reason` | `tools/fringe.py collect` writes the rows, keeping earlier judgements on a rerun; the screening agents fill `in scope` and `reason` with `tools/fringe.py judge` (step 2) | `tools/assign.py add-fringe`; `tools/check.py` (`G1`) | yes: the judgements are part of the pass's record |
 | `naming-sheet.md` (about 3k tokens) | per computed cluster: size, stability, diagnostics and notes, most-cited papers, most recent papers with their citations per month, sub-clusters | `tools/sheets.py` (step 3) | the naming agent (step 3) and the selection agents (step 4) | no: regenerable |
 | `fringe-sheet.md` (about 1k tokens) | the highest fringe scores, with year, cluster, reference count, and whether the paper is a coreset row | `tools/sheets.py` (step 3) | the fringe-selection agent (step 4) | no: regenerable |
 | `coverage-<R>.md` | coverage-test round R: one row per sampled candidate, with how it was drawn, its verdict and the reason; the seed and the coreset's radius (see below) | `tools/coverage.py draw` (step 7); the verdicts and the recency-query rows by the coverage-test agent, with `tools/coverage.py judge` | the coverage-test agent; `tools/check.py` (`G5`); reviewers, auditors | yes: the judgements are part of the pass's record |
@@ -456,16 +461,18 @@ papers).
 | `history.json`, `match-simulation.json`, `recursive.json`, `fringe-analysis.json` | reports of experiments that are not part of a pass (`docs/experiments.md`) | the experiment scripts | people | yes |
 
 `pool.json` and `clusters.json` are what make the clustering reproducible offline, `fringe.json` with `fringe-screen.md`
-is the record of what the fringe routes found and how it was screened, `rejected.md` the record of what expansion
-screened out, the coverage sheets the record of every coverage-test verdict, the audit sheets the record of how often
-the judgements held, and `evidence/` the record behind each verified row; so all of them are committed.
+is the record of what the fringe routes found and how it was screened, `expand.json` with `expand-screen.md` the same
+for expansion, `rejected.md` the record of what orientation and expansion screened out, the coverage sheets the record
+of every coverage-test verdict, the audit sheets the record of how often the judgements held, and `evidence/` the record
+behind each verified row; so all of them are committed.
 
 **Never Read a JSON file here, or `graph.html`, whole.** They are mostly embeddings and numbers: `pool.json` alone is
 about 400k tokens. What an agent needs from them reaches it in three ways:
 
 - a script's printout, which the main session hands over with the job (`docs/dispatch.md`, "Briefs");
-- a sheet: `naming-sheet.md`, `fringe-sheet.md`, `fringe-screen.md`, `coverage-<R>.md` and the audit sheets. These are
-  written to be read whole;
+- a sheet: `naming-sheet.md`, `fringe-sheet.md`, `coverage-<R>.md` and the audit sheets, which are written to be read
+  whole; and the screening sheets, `expand-screen.md` and `fringe-screen.md`, which a screening agent reads only in its
+  own range of rows;
 - `jq`, for one field, never a whole record, which carries the embedding, for example
   `jq '.papers["2504.13837"] | {date, citations, reference_count}' graphs/<topic>/pool.json`.
 

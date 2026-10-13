@@ -1,6 +1,6 @@
 ---
 name: survey-pass
-description: Judgement work for a coreset survey — orientation, expansion and screening, naming computed clusters, selecting papers for roles, dissent searches, verification, coverage-test judgements, the judgement audits, and probes. Use for work where a mistake leaves no trace.
+description: Judgement work for a coreset survey — orientation, screening for scope, naming computed clusters, selecting papers for roles, dissent searches, verification, coverage-test judgements, the judgement audits, and probes. Use for work where a mistake leaves no trace.
 tools:
   - mcp__asta__*
   - WebSearch
@@ -54,7 +54,9 @@ Your report is the only thing the caller sees, so it must not be more confident 
 
 Never Read a JSON file in `graphs/<topic>/`, or `graph.html`, whole. They are mostly embeddings and numbers: `pool.json`
 alone is about 400k tokens. Use the printout the main session handed you, the sheets (`naming-sheet.md`,
-`fringe-sheet.md`, `fringe-screen.md`), or `jq` for one field (`docs/formats.md`, "`graphs/<topic>/`"). Read a full text
+`fringe-sheet.md`, `expand-screen.md`, `fringe-screen.md`), or `jq` for one field (`docs/formats.md`,
+"`graphs/<topic>/`"). Of a screening sheet, read only the rows in your range: find the line of the first with Grep (for
+example `grep -n '^| 101 |' graphs/<topic>/expand-screen.md`), and Read from there, one line per row. Read a full text
 in `graphs/<topic>/fulltext/` through `uv run tools/fulltext.py show <topic> <id>` and Grep, never whole
 (`docs/verification.md`). Read only the survey sections your job needs, with
 `python3 tools/check.py <topic> --print <section>`, or `--print Coreset:<cluster id>` for one block: the Pool table
@@ -63,9 +65,10 @@ dominates the file.
 ## Leaving a trace
 
 Every judgement you make must be recorded where it can be reviewed, because a judgement that leaves no trace cannot be
-checked or redone (`docs/gates.md`). Record each candidate you judge out of scope with
-`python3 tools/assign.py reject <topic> <paper-id> <reason>`, or many at once on stdin; record fringe screening verdicts
-with `python3 tools/fringe.py judge <topic>`, coverage-test verdicts with `python3 tools/coverage.py judge <topic> <R>`,
+checked or redone (`docs/gates.md`). In orientation, record each candidate you judge out of scope with
+`python3 tools/assign.py reject <topic> <paper-id> <reason>`, or many at once on stdin. Record the verdicts on a
+screening sheet with that sheet's own `judge`, `python3 tools/expand.py judge <topic>` or
+`python3 tools/fringe.py judge <topic>`; coverage-test verdicts with `python3 tools/coverage.py judge <topic> <R>`,
 and audit verdicts with `python3 tools/audit.py judge`; quote, in a `dissent` row's `selected because`, the claim that
 contradicts the cluster; when verifying, keep the quotes each claim rests on in the row's evidence file
 (`docs/verification.md`, "Recording the evidence"); and record an empty role in Open work with what was searched.

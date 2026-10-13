@@ -277,13 +277,10 @@ def add_fringe(topic):
                      "candidates screened")
     data = json.loads((d / "fringe.json").read_text())
     cands = data["candidates"]
-    rows = {}
-    for h, c, _, _ in table_rows((d / "fringe-screen.md").read_text()):
-        if h and h[0] == "s2" and "in scope" in h and "reason" in h and len(c) == len(h):
-            rows[c[0]] = (c[h.index("in scope")].strip().lower(), c[h.index("reason")].strip())
+    from screen import judged, verdicts
+    rows = verdicts((d / "fringe-screen.md").read_text())
     screened = {s: v for s, (v, _) in rows.items()}
     # The gate's own test (G1, fringe-screened): `yes` or `no` with a reason; blank or `maybe` is unjudged.
-    from screen import judged
     blank = [s for s, (v, r) in rows.items() if not judged(v, r)]
     if blank:
         sys.exit(f"{len(blank)} candidate(s) in fringe-screen.md have no `yes` or `no` judgement with a reason yet")

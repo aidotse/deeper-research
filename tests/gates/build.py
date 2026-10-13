@@ -32,9 +32,13 @@ def build():
     fr = json.loads((src / "fringe.json").read_text()); fr["collected"] = DATE
     sheet = (src / "fringe-screen.md").read_text().splitlines()
     pids = sorted(a)
-    yes_map, out, k = {}, [], 0
+    yes_map, out, k, n = {}, [], 0, 0
     for line in sheet:
         c = [x.strip() for x in line.strip().strip("|").split("|")]
+        if c and c[0] == "s2":   # the legacy sheet has no row numbers; the fixture's sheet has them, as collect writes
+            line = "| # " + line
+        elif c and c[0].startswith("--"):
+            line = "| -- " + line
         if len(c) >= 6 and re.fullmatch(r"[0-9a-f]{40}", c[0]):
             if k < 3:
                 pid = pids[k * 7]; k += 1
@@ -43,7 +47,8 @@ def build():
                 c[4], c[5] = "yes", "in scope"
             else:
                 c[4], c[5] = "no", "out of scope"
-            line = "| " + " | ".join(c[:6]) + " |"
+            n += 1
+            line = f"| {n} | " + " | ".join(c[:6]) + " |"
         out.append(line)
     (dst / "fringe-screen.md").write_text("\n".join(out) + "\n")
     (dst / "fringe.json").write_text(json.dumps(fr))

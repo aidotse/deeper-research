@@ -168,6 +168,27 @@ reasoning; about 91k tokens. Findings: eight, all fixed in phase 2, with tests.
 - `P12` — `other` (bug), found by the new rerun test. A rerun of a collection could append a second record of one of its
   own rows, since the title check did not see them. Fix: a rerun's own titles count as taken.
 
+### Writing the docs, 2026-10-13
+
+- `P13` — `gap`. The Screening brief hands each agent a range of row numbers, but only the expansion sheet had them.
+  The fringe sheet holds up to 120 rows at the default `--per-route 60`, over the cap of 100 per dispatch. Fix:
+  `tools/fringe.py collect` numbers its rows too, `add-fringe` reads the sheet by column name, and a behaviour test
+  checks the numbering.
+
+### The check of the docs against the code, 2026-10-13
+
+Run by a fresh agent that read the uncommitted docs and the code, about 160k tokens. Findings: twelve, none a blocker.
+Eleven were wording, fixed in the docs before the commit: a stale claim that expansion falls back to WebSearch without
+Asta; the plain check after a targeted expansion's screening, which fails until `add-expand` runs; the refusal for an
+`Orientation` line with no themes; when `collect` saves; `capped` in either direction; the sheet-wide count `judge`
+prints; the fringe sheet renumbered by a rerun; a theme-named region; the screening sheets not read whole; a `printf`
+example for `judge`, since agents may not write programs; and two refusals of the add steps. One is a gap in the code:
+
+- `P14` — `gap`. A row an earlier pass left on the expansion sheet is left out of every later collection, and this
+  pass's `add-expand` and `G1` act on this pass's rows only. So a row a halted pass left unjudged is never screened
+  again, and a `yes` that lacked an embedding is never retried. The docs now say so (`docs/tooling.md`, "Expansion
+  candidates"). Deferred with `S2`, which also turns on verdicts that outlive a pass: both bite only on a later pass.
+
 ## Remediations
 
 Effort is S, M or L. Each status is the audit's.

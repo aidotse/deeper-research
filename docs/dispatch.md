@@ -10,9 +10,9 @@ It writes to the survey only the new survey's empty sections, the empty coreset 
 work items its rows in the order of operations list, and the lines parallel agents return. Retrieval results stay in the
 subagents' contexts and never enter the main session.
 
-- `survey-pass` runs on a capable model and does work whose mistakes leave no trace: orientation, expansion and
-  screening, naming the computed clusters, selecting roles, dissent searches, verification, the coverage-test
-  judgements, and probes.
+- `survey-pass` runs on a capable model and does work whose mistakes leave no trace: orientation, screening for scope,
+  naming the computed clusters, selecting roles, dissent searches, verification, the coverage-test judgements, and
+  probes.
 - `survey-edit` runs on a cheaper model and does mechanical work that `tools/check.py` can catch: restructuring tables,
   moving rows between blocks to match the computed cluster assignment, regenerating the bib. Pool metadata is filled by
   `tools/pool.py`, not by an agent.
@@ -50,10 +50,12 @@ dispatched as an incremental pass (`docs/process.md`, "Changing the clusters aft
   coreset, run `python3 tools/bib.py <topic>` first, since the check compares the two. A failure the agent cannot fix
   halts the pass (`H9`).
 - Subagents may run in parallel **only on disjoint sections of the survey**. Cluster blocks partition the Coreset table
-  naturally, so parallel verification or selection work splits by cluster. The pool is a single table, so only one agent
-  writes to it at a time. Group the clusters into a few blocks per agent, spreading the `high` ones, which cost the
-  most. The log and Open work are shared too: agents running in parallel do not write them, but end their reports with
-  the lines meant for them, under `Log:` and `Open work:`, and you write those once all have returned.
+  naturally, so parallel verification or selection work splits by cluster. Group the clusters into a few blocks per
+  agent, spreading the `high` ones, which cost the most. The pool is a single table, so only one agent writes to it at a
+  time. Screening agents may run in parallel on disjoint row ranges of one screening sheet: they write only their rows'
+  verdicts, through the sheet's `judge`, which locks the sheet while it writes, and never the pool. The log and Open
+  work are shared too: agents running in parallel do not write them, but end their reports with the lines meant for
+  them, under `Log:` and `Open work:`, and you write those once all have returned.
 - Some work spans clusters and cannot be split: fringe selection, which is judged against the whole coreset; bridges,
   which join two clusters; and the coverage test, which reads the whole output. Run each once, by one agent, after the
   per-cluster work is done.
@@ -98,39 +100,34 @@ Read the survey itself one section at a time, with `python3 tools/check.py <topi
   - Read: `docs/external_services.md`, "Preflight"; `docs/formats.md`, "1. Retrieval log".
 - **Orient** (step 1). Hand over: the recency window, which is the time since the last pass, or six months on a first
   pass; on a later pass, the previous `Orientation` line. The agent runs WebSearch, screens each candidate for scope,
-  resolves the in-scope ones to their IDs, adds them with `tools/assign.py add`, and records the rest with
-  `tools/assign.py reject`. It adds the seed papers the input names. Writes: Pool rows; rejections; `Orientation`, with
-  the themes, the seeds and the frontier candidates; `Recency window`; `Errored queries`, `none` if none; Open work:
-  papers that could not enter the pool. Returns: why it stopped, and the candidates it was unsure about.
+  resolves the in-scope ones to their IDs, asking Asta for `externalIds`, adds them with `tools/assign.py add`, and
+  records the rest with `tools/assign.py reject`. It adds the seed papers the input names. Its themes are step 2's
+  search queries, so they include every other name the input gives the topic. Writes: Pool rows; rejections;
+  `Orientation`, with the themes, the seeds and the frontier candidates; `Recency window`; `Errored queries`, `none` if
+  none; Open work: papers that could not enter the pool. Returns: why it stopped, and the candidates it was unsure
+  about.
   - Read: `docs/process.md`, "Step 1: orient" and "Screening for scope"; `docs/external_services.md`, "WebSearch and
     WebFetch", "Tools, and when to use each" and "Rate limits and errors"; `docs/formats.md`, "Paper IDs", "1. Retrieval
     log" and "5. Open work"; `docs/tooling.md`, "Pool table".
-- **Expand** (step 2, and every targeted expansion). Hand over: nothing on a first expansion, since the themes, seeds
-  and frontier candidates are in `Orientation`; on a targeted expansion, the region instead, and why: a thin cluster,
-  `no stable level`, a missing expected cluster, or a new cluster the coverage test proposed. A region is handed over as
-  its section of `naming-sheet.md`, or as the theme and the candidates the coverage report gave. Its job is done when
-  the region's most-cited papers are traversed backward and its theme searched, under the stopping rule. The agent
-  traverses and searches through Asta, screens for scope, adds with `tools/assign.py add`, and records every rejection
-  with `tools/assign.py reject`, many at once on stdin if it likes. Writes: Pool rows; rejections; `Expansion`, naming
-  each traversal and query with its count and why it stopped, or, on a targeted expansion, adding a `targeted` part;
-  `Errored queries`, added to; Open work: papers that could not enter the pool. Returns: what was traversed and
-  searched, and `assign.py`'s refusals. One agent at a time, since it writes the pool.
-  - Read: `docs/process.md`, "Step 2: expand" and "Screening for scope"; `docs/external_services.md`, "Asta";
-    `docs/formats.md`, "Paper IDs", "1. Retrieval log" and "5. Open work"; `docs/tooling.md`, "Pool table".
-- **Fringe screening** (step 2). Hand over: the path `graphs/<topic>/fringe-screen.md`. The agent judges each row in or
-  out of scope from its title and abstract, as in expansion, without looking up its route, year or citations, which
-  would unblind it. It records verdicts with `tools/fringe.py judge`, in batches as it goes, and resolves every `maybe`
-  before it finishes. Writes: the `in scope` and `reason` cells. Returns: the rows it was unsure about.
-  - Read: `docs/process.md`, "Screening for scope" and "Fringe routes"; `docs/tooling.md`, "Fringe candidates".
+- **Screening** (step 2, and every targeted expansion). One agent per block of at most 100 rows, run in parallel. Hand
+  over: the sheet's path, `graphs/<topic>/expand-screen.md` or `graphs/<topic>/fringe-screen.md`, and the range of row
+  numbers (`#`) this agent owns. The agent reads the input's `Topic` and `Clustering` sections, which it screens
+  against, then judges each row in its range in or out of scope from its title and abstract, and records the verdicts
+  with the sheet's own `judge`, `tools/expand.py judge` or `tools/fringe.py judge`, in batches as it goes. It resolves
+  every `maybe` before it finishes, and touches no row outside its range. On the fringe sheet it screens blind: it does
+  not look up a paper's route, year or citations, which would unblind it. Writes: the `in scope` and `reason` cells of
+  its rows. Returns: the rows it was unsure about, and that every row in its range is judged, which it confirms by
+  reading them again: `judge`'s count of unjudged rows covers the whole sheet.
+  - Read: `docs/process.md`, "Screening for scope"; `docs/tooling.md`, "Screening sheets".
 - **Naming** (step 3). Hand over: the printout of `tools/cluster.py`, which has the diagnostics, the notes and the
-  `Clustering` line; the regions a targeted expansion covered, by paper ID, and whether each is still thin; on a later
-  pass, or after a rerun, the printout of `tools/assign.py remap`. The agent reads `naming-sheet.md` and the input, and
-  names, defines and rates every computed cluster that has no name; for each `high` cluster, the definition's second
-  sentence states its central claim. After a recluster, it also settles every cluster `remap` did not match: renamed or
-  retired (`docs/process.md`, "Late papers"). Writes: Clusters rows, with `computed` ids; `Clustering`, with the
-  Clusters table's ids; `Clustering rationale`; `Clusters`. Returns: the ratings it was unsure about, and any `expect`
-  theme with no cluster, for a targeted expansion. Halts: `H6`; `H7` only if a targeted expansion for that theme has
-  already run.
+  `Clustering` line; the regions a targeted expansion covered, by paper ID or theme, and whether each is still thin; on
+  a later pass, or after a rerun, the printout of `tools/assign.py remap`. The agent reads `naming-sheet.md` and the
+  input, and names, defines and rates every computed cluster that has no name; for each `high` cluster, the definition's
+  second sentence states its central claim. After a recluster, it also settles every cluster `remap` did not match:
+  renamed or retired (`docs/process.md`, "Late papers"). Writes: Clusters rows, with `computed` ids; `Clustering`, with
+  the Clusters table's ids; `Clustering rationale`; `Clusters`. Returns: the ratings it was unsure about, and any
+  `expect` theme with no cluster, for a targeted expansion. Halts: `H6`; `H7` only if a targeted expansion for that
+  theme has already run.
   - Read: `docs/process.md`, "Step 3: cluster", "Recording it" and "When stability fails", on a later pass "Matching
     clusters across passes", and after a recluster "Late papers"; `docs/formats.md`, "2. Clusters" and "1. Retrieval
     log".

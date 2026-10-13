@@ -9,14 +9,15 @@ detail each step needs placed under it.
 Retrieval has four jobs, and the tools are good at different ones. Assign tools by job rather than ranking them.
 
 - `Orientation: what is the field talking about now?` — WebSearch. Step 1.
-- `Expansion: how did we get here, and who disagrees (dissent)?` — Asta. Step 2, and the dissent search in step 4.
+- `Expansion: how did we get here, and who disagrees (dissent)?` — the Semantic Scholar Graph API, by script
+  (`tools/expand.py`), in step 2; Asta, for the dissent search in step 4.
 - `Fringe: what has the field overlooked?` — the fringe scripts. The end of step 2.
 - `Characterisation: what does a paper do, and what did it find?` — the paper's full text, fetched by script and read by
   section, with Asta's snippet search to find passages in it. Step 5.
 
 Orientation and expansion need each other. A pass that uses only WebSearch produces a corpus top-heavy with preprints
-and missing the methods they all cite. A pass that uses only Asta keyword search misses what the community has only just
-started discussing.
+and missing the methods they all cite. A pass that uses only keyword search and citations misses what the community has
+only just started discussing.
 
 How to call each service, their limits and failure modes, are in `docs/external_services.md`.
 
@@ -40,7 +41,7 @@ check by script that the steps before them left everything they should (`docs/ga
 script, which is deterministic and costs no tokens, or model judgement. In `run by`, `main` means the main session runs
 the command itself, between dispatches. A quoted name, such as `survey-pass` "Orient", is a dispatch with the brief of
 that name in `docs/dispatch.md` ("Briefs"), which says what the main session hands over and what comes back. A subagent
-runs only the scripts its own job needs, such as `tools/assign.py add` while expanding or `tools/fulltext.py show` while
+runs only the scripts its own job needs, such as `tools/assign.py add` while orienting or `tools/fulltext.py show` while
 verifying.
 
 The `writes` column is the only authority on who writes what. A capitalised name in code, such as `Pool`, is a line of
@@ -51,7 +52,7 @@ others; the main session then writes it, in the "After every dispatch" row. Ever
 
 | step | operation | run by | reads | writes | done when |
 | -- | -- | -- | -- | -- | -- |
-| any | After every dispatch | main: `python3 tools/bib.py <topic>` if the coreset changed; if pool rows were added, `python3 tools/pool.py <topic>` while the pass is at step 3 or before, or has returned to it, and after a coverage round that proposes a cluster; otherwise `uv run tools/assign.py late <topic>` ("Late papers"), and on `RECLUSTER:` return to step 3; after Naming, `python3 tools/assign.py clusters <topic>`; then `python3 tools/check.py <topic>` | the agent's report | `Tokens`, one entry appended; the `Pool` line the fetch printed; the `Late papers` line, if `late` assigned any; `Coreset`, from the check's row count, if the coreset changed and step 5 has written the line; a parallel agent's `Log:` and `Open work:` lines | the check exits 0, apart from the open work of a return to step 3 ("Returning to step 3") or of Revise (step 7). A failure the agent cannot fix halts the pass (`H9`) |
+| any | After every dispatch | main: `python3 tools/bib.py <topic>` if the coreset changed; if pool rows were added, `python3 tools/pool.py <topic>` while the pass is at step 3 or before, or has returned to it, and after a coverage round that proposes a cluster; otherwise `uv run tools/assign.py late <topic>` ("Late papers"), and on `RECLUSTER:` return to step 3; after Naming, `python3 tools/assign.py clusters <topic>`; then `python3 tools/check.py <topic>` | the agent's report | `Tokens`, one entry appended; the `Pool` line the fetch printed; the `Late papers` line, if `late` assigned any; `Coreset`, from the check's row count, if the coreset changed and step 5 has written the line; a parallel agent's `Log:` and `Open work:` lines | the check exits 0, apart from the open work of a return to step 3 ("Returning to step 3") or of Revise (step 7), and, after a targeted expansion's Screening dispatches, its rows not yet added, until `add-expand` runs. A failure the agent cannot fix halts the pass (`H9`) |
 | any | On a halt | main | a report or printout starting `STOP:` | `Halts`: the halt, with `pending`, then the user's decision in its place | the user has decided; see "When a pass ends" |
 | any | On a requirement the user may waive | main and user | the failing requirement | `Waivers` | the user has decided; an agent never waives anything (`docs/gates.md`) |
 | any | Probe, on request | `survey-pass` "Probe" | the question; the coreset rows closest to it | Pool rows, as late papers; `Probes` | as the brief |
@@ -59,20 +60,22 @@ others; the main session then writes it, in the "After every dispatch" row. Ever
 | 0 | Preflight: scripts | main: `python3 tools/preflight.py` | — | — (the printout goes to the next row) | exit 0. Exit 1 halts the pass (`H1`) |
 | 0 | Preflight: Asta and WebSearch | `survey-pass` "Preflight" | the script's printout | `Preflight`, both halves | the report has no `STOP:` |
 | 0 | Gate `G0` | main: `python3 tools/check.py <topic> --gate G0` | — | `Gates` | passes (`docs/gates.md`) |
-| 1 | Orient | `survey-pass` "Orient" | WebSearch results for the input's topic, context and questions, with and without the recency window | Pool rows, by `tools/assign.py add`; rejections, by `tools/assign.py reject`; `Orientation`, with the themes, the input's seeds and the frontier candidates; `Recency window`; `Errored queries`; Open work: papers that could not enter the pool | every frontier candidate listed is in the pool, every seed the input names is in the pool or in Open work, and orientation stopped by its rule ("Screening for scope") |
-| 2 | Expand and screen | `survey-pass` "Expand" | Asta traversal and search results: titles and abstracts | Pool rows; rejections; `Expansion`; `Errored queries`, added to; Open work: papers that could not enter the pool | backward traversal done from every frontier candidate, a relevance search run for every theme in `Orientation`, expansion stopped by its rule ("Screening for scope"), and every errored query retried once (`H2` if it still fails) |
+| 1 | Orient | `survey-pass` "Orient" | WebSearch results for the input's topic, context and questions, with and without the recency window | Pool rows, by `tools/assign.py add`; rejections, by `tools/assign.py reject`; `Orientation`, with the themes (among them every other name the input gives the topic), the input's seeds and the frontier candidates; `Recency window`; `Errored queries`; Open work: papers that could not enter the pool | every frontier candidate listed is in the pool, every seed the input names is in the pool or in Open work, every errored query was retried once (`H2` if it still fails), and orientation stopped by its rule ("Screening for scope") |
+| 2 | Collect expansion candidates | main: `python3 tools/expand.py collect <topic>` | the `Orientation` line | `expand.json`; the screening sheet `expand-screen.md`, its new rows appended; Open work: `Papers that could not enter the pool`, for a seed or frontier candidate it warns Semantic Scholar does not know | exit 0. If the Graph API stays busy past the script's retries, run the same command once more: it resumes where it stopped. A second failure halts the pass (`H3`). `STOP: H14` halts it too. A refusal for a line with no themes sends the pass back to Orient, re-dispatched to complete its line |
+| 2 | Screen expansion candidates | `survey-pass` "Screening", one per block of at most 100 unjudged rows, in parallel | the sheet's rows in the range handed over; the input's `Topic` and `Clustering` | those rows' `in scope` and `reason` columns, by `tools/expand.py judge` | every row of this pass `yes` or `no`, with a reason; no `maybe` left |
+| 2 | Add expansion candidates | main: `python3 tools/assign.py add-expand <topic>` | — | Pool rows, for the `yes` rows; rejections, in `rejected.md`, for the `no` rows; `Expansion`, as it prints it; Open work: `Papers that could not enter the pool`, for the in-scope candidates it lists without an ID or an embedding | exit 0; it refuses while any row of this pass is unjudged. A `no` it reports for a pool paper is re-judged on the sheet, or halts the pass (`H12`) |
 | 2 | Fetch pool data | main: `python3 tools/pool.py <topic>` | — | `pool.json`; the Pool's `year`, `citations` and `cites`; `Pool` | exit 0, and `tools/check.py` notes no unfetched paper |
 | 2 | Collect fringe candidates | main: `uv run tools/fringe.py collect <topic>` | — | `fringe.json`; the blind screening sheet `fringe-screen.md` | exit 0 |
-| 2 | Screen fringe candidates | `survey-pass` "Fringe screening" | `fringe-screen.md` | its `in scope` and `reason` columns, by `tools/fringe.py judge` | every row `yes` or `no`, with a reason; no `maybe` left |
+| 2 | Screen fringe candidates | `survey-pass` "Screening", blind, one per block of at most 100 rows, in parallel | the sheet's rows in the range handed over; the input's `Topic` and `Clustering` | those rows' `in scope` and `reason` columns, by `tools/fringe.py judge` | every row `yes` or `no`, with a reason; no `maybe` left |
 | 2 | Add fringe candidates | main: `python3 tools/assign.py add-fringe <topic>` | — | Pool rows; `Fringe`; Open work: `Papers that could not enter the pool`, for the in-scope candidates it lists without an ID | exit 0; it refuses while any row is unjudged |
 | 2 | Fetch again | main: `python3 tools/pool.py <topic>` | — | as above; `Pool`, replacing the earlier one | as above |
 | 2 | Gate `G1` | main: `python3 tools/check.py <topic> --gate G1` | — | `Gates` | passes |
 | 3 | Cluster | main: `uv run tools/cluster.py <topic>` | — | `clusters.json`; a printout with the diagnostics, the notes and the `Clustering` line | exit 0. `STOP: H8`, or `no structure` (`H4`), halts the pass. Any other diagnostic is acted on in the next two rows ("When stability fails") |
-| 3 | Targeted expansion, once per region: a `thin cluster`; the thinnest regions, on `no stable level`; an `expect` theme that Naming reports missing; a cluster a coverage round proposed (step 7) | main: `python3 tools/sheets.py <topic>`; then `survey-pass` "Expand", targeted, one at a time | the region's section of `naming-sheet.md`, the missing theme, or the proposed cluster's theme and candidates; and why | Pool rows; rejections; `Expansion`, a `targeted` part naming the region by one of its papers; `Errored queries` | backward traversal from the region's most-cited papers and a relevance search on its theme, under the stopping rule ("Screening for scope") |
+| 3 | Targeted expansion, once per region: a `thin cluster`; the 2 thinnest regions, on `no stable level`; an `expect` theme that Naming reports missing; a cluster a coverage round proposed (step 7) | main: `python3 tools/sheets.py <topic>`; then, per region, `python3 tools/expand.py collect <topic> --targeted <ids> --query "<theme>" --why "<why>"`, without `--targeted` for a missing theme; then step 2's Screen and Add rows, for the new rows | the region's section of `naming-sheet.md`: its 5 papers most cited within the pool, and its titles; the missing theme; or the proposed cluster's theme and candidates | as step 2's rows; `Expansion`, as `add-expand` prints it, with a `targeted` part per region, naming it by its first paper or by the missing theme | `add-expand` exits 0 with every new row judged |
 | 3 | Fetch and recluster, after a targeted expansion or on `RECLUSTER:` | main: `python3 tools/pool.py <topic>`, then `uv run tools/cluster.py <topic>`; once the clusters have names, then `python3 tools/assign.py remap <topic>` | — | `Pool`; `clusters.json`; on a return from step 7, `Late papers` ("Returning to step 3") | exit 0. Still `no stable level`: take the coarsest level and halt (`H5`). An expected cluster still missing halts (`H7`). A cluster still thin is kept, and the `Clustering rationale` says so |
 | 3 | Carry names over, on a later pass | main: `python3 tools/assign.py remap <topic>` | — | the Clusters table's `computed` column | exit 0; it lists the clusters left to name |
 | 3 | Write the sheets | main: `python3 tools/sheets.py <topic>` | — | `naming-sheet.md`; `fringe-sheet.md` | exit 0 |
-| 3 | Name the clusters | `survey-pass` "Naming" | `naming-sheet.md`; the input; `tools/cluster.py`'s printout; the regions expanded, by paper ID, and whether each is still thin; on a later pass or a return, `tools/assign.py remap`'s printout | Clusters rows, with `computed` ids, and each `high` cluster's central claim; on a rerun, every unmatched cluster renamed or retired ("Late papers"); `Clustering`, with names for the computed ids; `Clustering rationale`; `Clusters` | every computed cluster is named once, and after `tools/assign.py clusters` the check passes. An `expect` theme with no cluster goes back to the targeted-expansion rows, once. `H6` is found here |
+| 3 | Name the clusters | `survey-pass` "Naming" | `naming-sheet.md`; the input; `tools/cluster.py`'s printout; the regions expanded, by paper ID or theme, and whether each is still thin; on a later pass or a return, `tools/assign.py remap`'s printout | Clusters rows, with `computed` ids, and each `high` cluster's central claim; on a rerun, every unmatched cluster renamed or retired ("Late papers"); `Clustering`, with names for the computed ids; `Clustering rationale`; `Clusters` | every computed cluster is named once, and after `tools/assign.py clusters` the check passes. An `expect` theme with no cluster goes back to the targeted-expansion rows, once. `H6` is found here |
 | 3 | Write the clusters | main: `python3 tools/assign.py clusters <topic>` | — | the Pool's `cluster` column; Open work: `Clusters not yet reviewed by the user` | `tools/check.py` passes, with no cluster cell left to fill |
 | 3 | Rewrite the sheets | main: `python3 tools/sheets.py <topic>` | — | the sheets, now with names | exit 0 |
 | 3 | Build the viewer | main: `python3 tools/graph.py <topic>` | — | `graph.html` | exit 0 |
@@ -168,6 +171,12 @@ from their decision (see "Cluster review").
 
 - `H13` — the input's `Clustering` section asks for `review: before coreset`.
 
+**Halt: nothing to expand from, at step 2.**
+
+- `H14` — the `Orientation` line names neither seeds nor frontier candidates, so expansion has no paper to traverse
+  from; `tools/expand.py collect` prints `STOP: H14`. The user decides: name seeds in the input, or point orientation at
+  sources that name the field's current work, and rerun step 1.
+
 **Not end conditions.** These are handled inside the pass. Do not halt on them:
 
 - a broad scope — note it in the `Clustering rationale` and continue ("When stability fails");
@@ -203,10 +212,13 @@ throughout, and step 2's backward traversal is what reaches it.
 Screen each candidate for scope ("Screening for scope" below). Add the in-scope ones to the pool with
 `tools/assign.py add` (see step 2), and record the rest with `tools/assign.py reject`. The input's seed papers, if it
 names any, enter the pool too. Then write the log's `Orientation` line: the queries; the themes, as the phrases the
-field uses for its sub-topics, which step 2 searches; the input's seeds; and the frontier candidates, by ID. That line
-is where step 2 starts its traversal and where step 4 looks for frontier papers, so a candidate or a theme named only in
-a report is lost. A frontier candidate that cannot enter the pool, because Semantic Scholar does not know it or it has
-no embedding, is not listed: it goes to Open work's `Papers that could not enter the pool`.
+field uses for its sub-topics, which step 2 searches; the input's seeds; and the frontier candidates, by ID. The themes
+also include every other name the input gives the topic, since each name reaches its own sub-community, and a name step
+2 does not search is a part of the field the pool misses. That line is where step 2 starts its traversal and where step
+4 looks for frontier papers, so a candidate or a theme named only in a report is lost. A line with neither seeds nor
+frontier candidates leaves step 2 nothing to traverse from, and halts the pass there (`H14`). A frontier candidate that
+cannot enter the pool, because Semantic Scholar does not know it or it has no embedding, is not listed: it goes to Open
+work's `Papers that could not enter the pool`.
 
 A frontier candidate is a paper the field currently treats as its state of the art or a turning point: in scope, and
 either published within the recency window, or named as current by the sources orientation reads, such as a lab's
@@ -219,38 +231,54 @@ names people use for the themes. It skews recent and well-publicised, which is e
 
 ### Step 2: expand
 
-Traverse backward from the frontier candidates, forward from the input's seeds and the frontier candidates, and run
-relevance searches on the themes that step 1 named. Screen for scope. Everything in scope enters the pool.
+Traverse backward and forward from the input's seeds and the frontier candidates, and run a relevance search on each
+theme that step 1 named. Screen every candidate for scope. Everything in scope enters the pool.
 
-Use Asta.
+The traversals and searches run by script, `tools/expand.py collect`, which calls the Semantic Scholar Graph API
+(`docs/external_services.md`). Agents only judge. The reason is size: this work returns more candidates than one agent's
+context holds, and an agent that tracks them by hand leaves no record that can be checked. The script keeps that record,
+and the screening is split into blocks that agents judge in parallel.
 
-- Backward traversal (`get_paper` references) from frontier papers finds what the field is built on, which is where
-  anchors come from.
-- Forward traversal (`get_citations`) from the input's seeds and the frontier papers finds follow-ups, and among them
-  the dissent. Step 4 repeats it from each cluster's anchor. It is targeted — searching a key paper's citers for
-  challenges and extensions — not a crawl.
-- `search_papers_by_relevance` and `snippet_search` fill in clusters that traversal does not reach.
-- Asta supports date-restricted queries. Use them to keep recent work represented.
+- Backward traversal, the references of the seeds and the frontier candidates, finds what the field is built on, which
+  is where anchors come from.
+- Forward traversal, the citers of the same papers, finds follow-ups, and among them the dissent. Step 4 repeats it from
+  each cluster's anchor, through Asta. There it is targeted — searching a key paper's citers for challenges and
+  extensions — not a crawl.
+- A relevance search per theme, its first 50 results, reaches work that does not cite the starting papers. The themes
+  are the queries: step 1's agent chooses them, and the script runs them.
 
-Traversal goes one step: the references of a frontier candidate, not the references of those references. Going further
-is a judgement, under the stopping rule below.
+Traversal goes one step: the references of a seed or frontier candidate, not the references of those references. Step 2
+does no work beyond this. The gaps it leaves are what the targeted expansions of step 3 and the coverage test of step 7
+exist to find.
 
-Add each in-scope paper to the Pool table with `python3 tools/assign.py add <topic> <paper-id> ...`, never by hand.
-Record each candidate judged out of scope with `python3 tools/assign.py reject <topic> <paper-id> <reason>`, or many at
-once, one `<paper-id><TAB><reason>` per line on stdin: a rejection is a judgement too, and one that is not recorded can
-be neither reviewed nor redone (`docs/gates.md`). If nothing was out of scope, end the `Expansion` line with
-`; rejected: none`. Then the main session runs `python3 tools/pool.py <topic>`, which fetches the metadata and
-clustering data for every pool paper by script (see `docs/tooling.md`). Metadata is never fetched through a model's
-context.
+The script leaves out a candidate already in the pool, already rejected, already on the sheet, a second record of a
+paper it keeps, or one Semantic Scholar does not know. It records every result, and what it left out and why, in
+`graphs/<topic>/expand.json`, and appends the rest to the screening sheet `graphs/<topic>/expand-screen.md`, one
+numbered row each, with title and abstract. The main session hands the sheet's rows, in blocks of at most 100, to
+`survey-pass` "Screening" agents, which run in parallel. Each screens its rows for scope ("Screening for scope" below)
+and records each verdict with `tools/expand.py judge`: `yes` or `no`, with a reason. A `maybe` parks a row to come back
+to; it counts as unjudged until it is resolved. Until the next step runs, a verdict can be replaced by judging the row
+again.
+
+Then `tools/assign.py add-expand` acts on the sheet. Each `yes` enters the Pool table through `tools/assign.py add`, and
+each `no` enters `rejected.md` with its reason: a rejection is a judgement too, and one that is not recorded can be
+neither reviewed nor redone (`docs/gates.md`). It refuses while any row of this pass is unjudged, and it prints the
+`Expansion` line, so that every count in the line comes from the files. Then the main session runs
+`python3 tools/pool.py <topic>`, which fetches the metadata and clustering data for every pool paper by script (see
+`docs/tooling.md`). Metadata is never fetched through a model's context.
+
+Outside these sheets, as in orientation, a paper enters the Pool table only through
+`python3 tools/assign.py add <topic> <paper-id> ...`, never by hand. A candidate judged out of scope is recorded with
+`python3 tools/assign.py reject <topic> <paper-id> <reason>`, or many at once, one `<paper-id><TAB><reason>` per line on
+stdin.
 
 Traversal from the frontier cannot reach papers the field has overlooked, so expansion ends with two fringe routes, run
 by `tools/fringe.py collect` (see "Fringe routes" below). The script writes the candidates to a blind screening sheet,
-`graphs/<topic>/fringe-screen.md`, one row per candidate. A `survey-pass` agent screens them for scope as it would any
-other candidate, and records each verdict with `tools/fringe.py judge`: `yes` or `no`, with a short `reason`. A `maybe`
-parks a row to come back to; it counts as unjudged until it is resolved. Then `tools/assign.py add-fringe` adds the
-in-scope ones to the pool, refusing while any row is unjudged, and `tools/pool.py` runs again. This happens before
-clustering, because adding them changes the clusters. The sheet stays in `graphs/<topic>/` as the record of the
-screening (`docs/formats.md`, "`graphs/<topic>/`").
+`graphs/<topic>/fringe-screen.md`, one row per candidate. `survey-pass` "Screening" agents screen them for scope as they
+would any other candidate, and record each verdict with `tools/fringe.py judge`, by the same rules as expansion's sheet.
+Then `tools/assign.py add-fringe` adds the in-scope ones to the pool, refusing while any row is unjudged, and
+`tools/pool.py` runs again. This happens before clustering, because adding them changes the clusters. Both sheets stay
+in `graphs/<topic>/` as the record of the screening (`docs/formats.md`, "`graphs/<topic>/`").
 
 #### Screening for scope
 
@@ -265,13 +293,17 @@ Every candidate, from orientation, expansion, the fringe routes or a coverage te
 - `Borderline is in` — when the abstract leaves it unclear, the paper is in. A wrong inclusion is visible and cheap: it
   sits in the pool, and the clustering places it at an edge. A wrong rejection leaves no trace in the pool at all.
 
-The reason, for a rejection or a fringe verdict, is one line that ties the verdict to the `Topic`, such as "about image
-classification; the topic is language-model reasoning". Never "not relevant".
+A candidate with no abstract in Semantic Scholar shows `(no abstract)` on a screening sheet. About one in ten traversal
+candidates has none. Judge it from its title, and the rule "borderline is in" applies: a title that leaves the paper's
+subject unclear is in.
 
-When to stop. Orientation stops when two consecutive queries add no new frontier candidate. Expansion's required work is
-in its `done when` (the order of operations). Beyond it, further traversals and queries continue only while they keep
-paying: stop once a batch of about 50 screened candidates adds fewer than 5 papers to the pool. Record why expansion
-stopped in the `Expansion` line (`stopped: ...`). These numbers are first guesses, to be revisited on a real pool.
+The reason, for a rejection or for any verdict on a screening sheet, is one line of at least two words that ties the
+verdict to the `Topic`, such as "about image classification; the topic is language-model reasoning". Never "not
+relevant". The judging scripts refuse a `yes` or `no` with a shorter reason.
+
+When to stop. Orientation stops when two consecutive queries add no new frontier candidate. This number is a first
+guess, to be revisited on a real pool. Expansion has no stopping rule: its work is fixed by the `Orientation` line, and
+it ends when every row on its sheet is judged.
 
 #### Fringe routes
 
@@ -284,7 +316,8 @@ field's vocabulary, and traversal follows citations. A fringe paper is by defini
 it reliably. Two routes add overlooked papers to the pool at the end of step 2. Both run by script, at no model cost,
 and the candidates are then screened blind: titles and abstracts in shuffled order, without the route that found them,
 and without the year, which would give the route away, since `new` finds only recent work. A paper already rejected in
-`rejected.md` is not collected again.
+`rejected.md` is not collected again, nor one whose title matches a pool paper's: that is most likely a second Semantic
+Scholar record of the same paper, such as its venue version.
 
 - `hidden` — papers cited by at least two pool papers, at least a year old, and the least cited overall for their age.
   The field's own work draws on them; the wider literature has not noticed them. This is where cross-field work turns
@@ -319,13 +352,19 @@ Naming is judgement; membership is not. Do not move papers between clusters by h
 (`tools/graph.py`); it shows the chosen parameters, each cluster's stability, and the level below.
 
 Step 3 can loop once per region. A `thin cluster`, `no stable level`, or an `expect` theme that naming finds no cluster
-for, each calls for a targeted expansion of that region ("When stability fails"). The Expand agent expands the region;
-the main session fetches the new papers with `tools/pool.py` and reruns `tools/cluster.py`. These papers are not late
-papers: the rerun clusters them with the rest. Once the clusters have names, the rerun is followed by
-`tools/assign.py remap`, even on a first pass, and the clusters it did not match are named again. Each region is
-expanded once; what is still wrong after that halts or is noted, as the order of operations says. Computed ids are
-renumbered on every run, so a region is named by one of its papers, both in the `Expansion` line and when judging
-whether a thin cluster after the rerun is the same region: it is if it holds that paper.
+for, each calls for a targeted expansion of that region ("When stability fails"). It reuses step 2's scripts and
+screening. `tools/expand.py collect <topic> --targeted <ids> --query "<theme>" --why "<why>"` traverses backward from
+the region's 5 papers most cited within the pool, as the naming sheet lists them, and searches the region's theme. The
+main session words that theme from the region's titles, or takes it from the input's `expect` line or the coverage
+round. For an expected theme with no cluster, there are no papers to traverse from, and the search runs alone. The new
+rows are screened, `add-expand` adds them, and the main session fetches them with `tools/pool.py` and reruns
+`tools/cluster.py`. The 5 papers, like the 2 regions expanded on `no stable level`, are first guesses, to be revisited
+on a real pool. These papers are not late papers: the rerun clusters them with the rest. Once the clusters have names,
+the rerun is followed by `tools/assign.py remap`, even on a first pass, and the clusters it did not match are named
+again. Each region is expanded once; what is still wrong after that halts or is noted, as the order of operations says.
+Computed ids are renumbered on every run, so a region is named by one of its papers, or by its theme if it had none,
+both in the `Expansion` line and when judging whether a thin cluster after the rerun is the same region: it is if it
+holds that paper.
 
 #### Clustering method
 
@@ -482,8 +521,8 @@ a user override that is logged. Otherwise the clustering quietly becomes judgeme
   the user's call. Either way, that is a finding about the field.
 - `no stable level` — structure is above random, but no level reaches `τ`. The usual cause is a thin pool: too few
   papers per region, or many papers with few resolved references (the tool reports the share with fewer than 10). Expand
-  the thinnest regions in step 2 and rerun. If it is still unstable, take the coarsest level and halt for review (`H5`),
-  so that the user chooses with the slider.
+  the 2 thinnest regions, the two smallest clusters at the level `tools/cluster.py` chose, and rerun. If it is still
+  unstable, take the coarsest level and halt for review (`H5`), so that the user chooses with the slider.
 
 **A broad scope is not a failure.** Sometimes only the coarsest level reaches `τ`, and very stably (0.9 or more). The
 pool then divides into a few clearly separate areas, while finer divisions are unstable. The clusters are real and

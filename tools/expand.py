@@ -27,7 +27,7 @@ screening sheet graphs/<topic>/expand-screen.md, one numbered row each, with tit
 a row keeps its number and its verdict. Rerunning a collection in the same pass replaces its record and appends only
 what is new, and any candidate of expand.json that has lost its row gets it back.
 
-Progress is saved in expand.json after every call. If the Graph API stays busy past its retries, `collect` stops and
+Progress is saved in expand.json after every batch and every search. If the Graph API stays busy past its retries, `collect` stops and
 says so, and the same command run again resumes where it stopped.
 
 `judge` writes screening verdicts into the sheet. It is the shared judge of tools/screen.py, which says what it refuses,

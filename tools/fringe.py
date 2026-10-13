@@ -33,8 +33,9 @@ A third route, `followers` (low-cited citers of each cluster's most-cited paper)
 
 It fetches their metadata, references and embeddings into graphs/<topic>/fringe.json, and writes a blind screening
 sheet, graphs/<topic>/fringe-screen.md: titles and abstracts in shuffled order, without the route and without the
-year, which would give the route away (`new` finds only recent work), for an agent to mark in or out of scope. A rerun
-keeps the judgements already on the sheet. Each candidate records its arXiv ID or, failing that, its CorpusId;
+year, which would give the route away (`new` finds only recent work), for agents to mark in or out of scope. Its rows
+are numbered, so that they can be handed to screening agents as ranges. A rerun keeps the judgements already on the
+sheet. Each candidate records its arXiv ID or, failing that, its CorpusId;
 tools/assign.py add-fringe then adds the in-scope ones to the pool.
 
 `judge` writes screening verdicts into the sheet's `in scope` and `reason` cells, from stdin, so that an agent need not
@@ -216,13 +217,14 @@ def collect(topic, per_route):
                    for x, v in verdicts((d / "fringe-screen.md").read_text()).items() if v[0]}
     order = sorted(cands)
     random.Random(0).shuffle(order)
-    rows = [f"| {x} | {clean(cands[x]['title'])} | {clean(cands[x]['abstract'])[:ABSTRACT_CHARS] or '(no abstract)'} | "
-            f"{' | '.join(earlier.get(x, ('', '')))} |" for x in order]
+    # Numbered, so that the main session can hand the rows to screening agents as ranges.
+    rows = [f"| {n} | {x} | {clean(cands[x]['title'])} | {clean(cands[x]['abstract'])[:ABSTRACT_CHARS] or '(no abstract)'} | "
+            f"{' | '.join(earlier.get(x, ('', '')))} |" for n, x in enumerate(order, 1)]
     (d / "fringe-screen.md").write_text(
         "# Fringe screening sheet\n\n"
         f"Candidates for `{topic}`, in shuffled order. Mark `in scope` as `yes` or `no`, with a reason "
         f"of at least two words (`python3 tools/fringe.py judge {topic}`).\n\n"
-        "| s2 | title | abstract | in scope | reason |\n| -- | -- | -- | -- | -- |\n" + "\n".join(rows) + "\n")
+        "| # | s2 | title | abstract | in scope | reason |\n| -- | -- | -- | -- | -- | -- |\n" + "\n".join(rows) + "\n")
     if any(excluded.values()):
         print(f"left out as already rejected (graphs/{topic}/rejected.md): "
               + ", ".join(f"{r} {excluded.get(r, 0)}" for r in routes))

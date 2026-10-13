@@ -205,7 +205,7 @@ r = tool("tools/expand.py", "judge", T, stdin=f"{f['s2s'][2]}\tno\timages\n")
 check("expand judge refuses a one-word reason", r.returncode == 1 and "two words" in r.stderr
       and (G / "expand-screen.md").read_text() == before, r.stdout + r.stderr)
 fr_row = next(l for l in (G / "fringe-screen.md").read_text().splitlines() if l.endswith("| no | out of scope |"))
-r = tool("tools/fringe.py", "judge", T, stdin=f"{fr_row.split('|')[1].strip()}\tno\timages\n")
+r = tool("tools/fringe.py", "judge", T, stdin=f"{fr_row.split('|')[2].strip()}\tno\timages\n")
 check("fringe judge refuses a one-word reason", r.returncode == 1 and "two words" in r.stderr, r.stdout + r.stderr)
 
 # 6h4 two judges at once on disjoint rows both land: judge locks the sheet
@@ -324,6 +324,7 @@ check("an untraversed start paper fails g1.expansion-collected", "g1.expansion-c
 
 # 6h7 the fringe routes leave out a second record of a pool paper, by title (M2)
 import fringe
+from screen import verdicts as screen_verdicts
 f = build()
 pool = json.loads((G / "pool.json").read_text())["papers"]
 counts = {}
@@ -345,6 +346,11 @@ with contextlib.redirect_stdout(io.StringIO()):
 got = json.loads((G / "fringe.json").read_text())["candidates"]
 check("fringe collect leaves out a candidate titled as a pool paper", len(multi) == 2 and multi[0] not in got
       and multi[1] in got, str(list(got)))
+# The sheet numbers its rows, for handing them over as ranges, and the shared parser still finds them.
+fr_lines = [l for l in (G / "fringe-screen.md").read_text().splitlines() if l.startswith("| ") and "--" not in l[:5]]
+check("fringe sheet rows are numbered from 1", fr_lines[0].startswith("| # | s2 |")
+      and [l.split("|")[1].strip() for l in fr_lines[1:]] == [str(n) for n in range(1, len(got) + 1)]
+      and set(screen_verdicts((G / "fringe-screen.md").read_text())) == set(got), "\n".join(fr_lines[:3]))
 
 # 6h8 a `yes` with only a CorpusId enters the pool by it; a `yes` titled as a pool paper is not added again
 import assign

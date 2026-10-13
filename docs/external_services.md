@@ -13,14 +13,15 @@ the rule that a persistent error halts the pass, exist to turn those silent fail
 
 | service | used by | for | access |
 | -- | -- | -- | -- |
-| Asta MCP | agents | expansion, screening, characterisation, verification, probes | MCP server, API key |
-| Semantic Scholar Graph API | scripts only | embeddings, full reference lists, citation counts, recommendations | HTTP, unauthenticated |
+| Asta MCP | agents | resolving IDs, selection and dissent searches, characterisation, verification, probes | MCP server, API key |
+| Semantic Scholar Graph API | scripts only | expansion's traversals and searches, embeddings, full reference lists, citation counts, recommendations | HTTP, unauthenticated |
 | arXiv | `tools/bib.py`, `tools/fulltext.py` | bibliography entries; full text for verification | HTTP, unauthenticated |
 | WebSearch and WebFetch | agents | orientation, the frontier, work that never reached arXiv, probes | built into Claude Code |
 
 Agents reach the Semantic Scholar corpus through Asta (see below for how sure that is), and scripts reach it through the
 Graph API directly. Neither goes through web searches. The split is by volume: anything a model must read goes through
-Asta, and bulk data that no model should read, such as embeddings and reference lists, goes through a script.
+Asta, and bulk data that no model should read, such as embeddings, reference lists and expansion's candidate lists, goes
+through a script.
 
 ## Asta
 
@@ -52,11 +53,11 @@ without a key Asta answers at lower anonymous rate limits, which has not been te
 
 | tool | use it for | notes |
 | -- | -- | -- |
-| `search_papers_by_relevance` | expansion queries; filling clusters traversal does not reach; probes | keyword search; default 50 results |
+| `search_papers_by_relevance` | dissent searches; probes | keyword search; default 50 results |
 | `search_paper_by_title` | resolving a paper named in a web page or a reference to its IDs |  |
-| `get_paper` | one paper's metadata; backward traversal via `references` |  |
+| `get_paper` | one paper's metadata, such as its `externalIds` |  |
 | `get_paper_batch` | metadata for many known papers in one call | prefer it to repeated `get_paper` |
-| `get_citations` | forward traversal: follow-ups and dissent among a paper's citers | default 100 results |
+| `get_citations` | dissent among an anchor's citers (step 4) | default 100 results; no offset, so it cannot page past them |
 | `snippet_search` | finding the passage a claim rests on, before quoting it from the full text; characterisation; probes | about 500-word passages from the body text; a pointer, never the quoted source |
 | `search_authors_by_name`, `get_author_papers` | a named group's work, such as a lab the input names |  |
 
@@ -71,10 +72,10 @@ Rules for calling them:
   its arXiv ID and corpus ID: by default a tool identifies a paper only by Semantic Scholar's own `paperId`, which
   `tools/assign.py` does not take. `abstract` is what screening reads; `references` and `citations` return whole lists
   and are long; `tldr` is a cheap one-line summary. Every returned field enters the agent's context, so this is the main
-  lever on screening cost.
-- `Dates` — `publication_date_range` restricts by publication date, for example `2025-06:` for June 2025 onward. Use it
-  to keep recent work represented. `snippet_search` has no publication filter. Its `inserted_before` restricts by the
-  date a paper entered the index, which is not the same thing.
+  lever on an agent's cost.
+- `Dates` — `publication_date_range` restricts by publication date, for example `2025-06:` for June 2025 onward.
+  `snippet_search` has no publication filter. Its `inserted_before` restricts by the date a paper entered the index,
+  which is not the same thing.
 - `Snippet coverage` — snippets come from the title, abstract and body text. They exclude figure captions and the
   bibliography. A number that appears only in a figure is therefore not retrievable, which is why `docs/verification.md`
   allows a cell to report only what the text supports.
@@ -88,7 +89,7 @@ binding. When a call returns 429 or any other error:
 
 - Wait 2 seconds and retry, up to 3 retries, doubling the wait each time.
 - If it still fails, record the query under `Errored queries` in the retrieval log, never among the queries in the
-  `Orientation` or `Expansion` lines.
+  `Orientation` line.
 - At the end of the step, retry every errored query once more. If one still fails, halt the pass (`H2` in
   `docs/process.md`, "When a pass ends"). A step that silently lost a query cannot be told apart from one that searched
   and found nothing.
@@ -108,6 +109,9 @@ otherwise: what it returns in bulk would flood a model's context, and the script
   SPECTER2 embeddings.
 - `tools/assign.py` (`add`, `add-fringe`, and `late` through `tools/pool.py`), `tools/bib.py` and `tools/fulltext.py`
   use it for papers without an arXiv ID, and `tools/preflight.py` for its check.
+- `tools/expand.py` uses the batch endpoint for the reference and citer lists of the papers expansion starts from, and
+  for its candidates' titles, abstracts and IDs; each paper's references and citations endpoints, to page a list the
+  batch cut short; and the search endpoint, `/paper/search`, for its relevance searches.
 - `tools/fringe.py` uses the batch endpoint and the recommendations endpoint. Recommendations return only papers from
   about the last two months; see `docs/process.md` ("Fringe routes").
 
@@ -125,11 +129,18 @@ Why the fringe routes use the Graph API and not Asta. Both reach the Semantic Sc
   but fetching them for every pool paper would put them all through an agent's context.
 - `Reproducibility` — a script applies the same rule on every run; an agent paging through results does not.
 
+Expansion uses it for the same reasons of volume and reproducibility. Its required traversals and searches return more
+candidates than one agent's context holds, and only their titles and abstracts need to reach a model, on the screening
+sheet. And Asta's `get_citations` cannot page, so a paper's citers past the first page would be lost.
+
 Calls are unauthenticated. The unauthenticated endpoint shares one rate limit across all its users, so it answers 429
 often, even to a single request. The scripts retry a 429, a 500, 502, 503 or 504, a dropped connection or a timeout with
 a growing wait, up to eight attempts, so a 429 means busy, not down. A script that fails after all its retries halts the
 pass (`H3`). `tools/pool.py` and `tools/graph.py` save after every batch, so a rerun fetches only what is still missing.
-`tools/fringe.py collect` keeps no cache: a failed run is rerun whole, which takes a few minutes.
+`tools/expand.py collect` asks for many papers per call, waits a second between calls, and saves after every batch and
+every search, so a
+busy spell costs a rerun, which resumes where it stopped, rather than the run. `tools/fringe.py collect` keeps no cache:
+a failed run is rerun whole, which takes a few minutes.
 
 ## arXiv
 
@@ -205,10 +216,12 @@ Why every failure halts:
   abstracts is worse than none, because nothing downstream reveals the weakness.
 - `Snippet search` — without it, verification loses its fastest way to find a claim in a long paper, and probes lose
   their search over body text.
-- `Asta search and traversal` — without them expansion falls back to WebSearch alone. That produces a pool top-heavy
-  with preprints and missing the methods they all cite, and it has happened in this repo.
+- `Asta search and traversal` — without them orientation cannot resolve the papers it finds to their IDs, and
+  selection loses its dissent searches. A pass that carried on would fall back to WebSearch alone, which produces a
+  pool top-heavy with preprints and missing the methods they all cite; it has happened in this repo.
 - `WebSearch` — without it orientation cannot see the current frontier.
-- `The rest` — the Graph API and `uv` are needed later in the pass, and a missing key changes Asta's limits. No failure
+- `The rest` — the Graph API runs expansion itself, from step 2, and every fetch after it; `uv` is needed later in the
+  pass; and a missing key changes Asta's limits. No failure
   may lead to a silent fallback that compromises the quality or repeatability of a pass, and halting here is cheaper
   than discovering the failure at step 5.
 
