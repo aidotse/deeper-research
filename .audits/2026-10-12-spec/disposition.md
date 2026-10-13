@@ -80,7 +80,30 @@ None yet.
 
 ## Pending
 
-Phases 2–4, as the plan sets them out.
+Phases 3–4, as the plan sets them out. Phase 3, the docs, was started on 2026-10-13 with one code change it needed:
+`tools/expand.py collect` takes `--query` and `--why` without `--targeted`, for an expected theme with no cluster (a
+search alone, the region named by its theme), and prints `STOP: H14` when `Orientation` names neither seeds nor frontier
+candidates (`S6`). Left to write, in this order:
+
+- `docs/process.md`: the overview's expansion line; a new `H14` in "When a pass ends"; the order of operations' step 2
+  rows (collect, screening in blocks of at most 100 rows, in parallel, add-expand, fetch), the fringe screening row's
+  brief, and the targeted-expansion row (`collect --targeted/--query`, its 5 papers most cited within the pool, 2
+  thinnest regions on `no stable level`: `A8`); step 1's themes including the input's other names (`A9`); step 2
+  rewritten for the script, required work only (`A6`, `A7`, `S1`); "Screening for scope", the `(no abstract)` rule
+  (`P1`) and "When to stop" for orientation only; "Fringe routes", the title match; step 3's "The Expand agent"
+  sentence.
+- `docs/dispatch.md`: the Screening brief in place of Expand and Fringe screening (a sheet and a row range, reads the
+  input's `Topic` and `Clustering`, `W2`; blind for the fringe sheet); the Orient brief (`A9`, `externalIds`: `A1`); the
+  parallel rule (screening dispatches write the sheet through the lock, not the pool).
+- `docs/formats.md`: the `Expansion` template and its notes, now printed by `add-expand`; the list of script-printed
+  lines; `expand.json` and `expand-screen.md` under `graphs/<topic>/`; `rejected.md`'s writers.
+- `docs/tooling.md`: a section for `tools/expand.py` and `tools/screen.py`; `add-expand` under "Pool table"; "Fringe
+  candidates" (two-word reasons, title match).
+- `docs/external_services.md`: the Asta tools table (expansion no longer uses Asta), the Graph API's users and the
+  batching and resume of `collect`.
+- `docs/gates.md`: the `G1` row and the trace line for expansion.
+- `.claude/agents/survey-pass.md`: "Leaving a trace" and "Reading the files" (the expansion sheet).
+- Then a check of the docs against the code by a fresh agent, as the plan says.
 
 ### Watch in the next run
 

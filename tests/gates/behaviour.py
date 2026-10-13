@@ -296,13 +296,19 @@ with contextlib.redirect_stdout(io.StringIO()):
     code = ex.main(["collect", T, "--targeted", f["fr1"]])
 check("collect --targeted without --query and --why is a usage error", code == 2, str(code))
 with contextlib.redirect_stdout(io.StringIO()):
+    ex.main(["collect", T, "--query", "agent memory", "--why", "an expected theme with no cluster"])
+d_t = json.loads((G / "expand.json").read_text())
+check("a targeted round with a theme and no papers only searches, and is named by its theme",
+      d_t["rounds"][-1]["region"] == '"agent memory"' and [x["kind"] for x in d_t["rounds"][-1]["sources"]] == ["search"],
+      str(d_t["rounds"][-1])[:300])
+with contextlib.redirect_stdout(io.StringIO()):
     ex.main(["collect", T, "--targeted", f["fr1"], "--query", "chain of thought", "--why", "thin cluster"])
     ex.main(["collect", T, "--targeted", f["fr1"], "--query", "other theme", "--why", "thin cluster"])
 d4 = json.loads((G / "expand.json").read_text())
 line = ex.expansion_line(d4, screen.verdicts((G / "expand-screen.md").read_text()), "2026-10-09")
 check("a targeted round is its own part, and another query on the same region is another round",
-      len(d4["rounds"]) == 4 and f"targeted, {f['fr1']} (thin cluster): backward from {f['fr1']}" in line
-      and not any(x["kind"] == "forward" for x in d4["rounds"][2]["sources"]), line[-400:])
+      len(d4["rounds"]) == 5 and f"targeted, {f['fr1']} (thin cluster): backward from {f['fr1']}" in line
+      and not any(x["kind"] == "forward" for x in d4["rounds"][3]["sources"]), line[-400:])
 
 # 6h6 a start paper Semantic Scholar does not know passes G1 only once Open work records it
 f = build()

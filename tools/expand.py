@@ -2,7 +2,7 @@
 
 Usage:
   python3 tools/expand.py collect <topic>
-  python3 tools/expand.py collect <topic> --targeted <id>[,<id> ...] --query "<theme>" --why "<why>"
+  python3 tools/expand.py collect <topic> [--targeted <id>[,<id> ...]] --query "<theme>" --why "<why>"
   python3 tools/expand.py judge <topic> < lines        (one `<s2><TAB>yes|no|maybe<TAB><reason>` per line)
 
 `collect`, on a pass's first expansion, reads the seeds, the frontier candidates and the themes from the latest pass's
@@ -15,8 +15,9 @@ Usage:
 
 Both traversals come from the batch endpoint, up to 500 papers per call. A list shorter than the paper's own count is
 paged from the paper's references or citations endpoint instead, up to that endpoint's limit (about 10,000), where the
-traversal is marked `capped`. With `--targeted`, for a targeted expansion in step 3, it traverses backward from the
-papers given, which are the region's, and searches the region's theme. The first paper given names the region.
+traversal is marked `capped`. With `--query` and `--why`, for a targeted expansion in step 3, it searches the region's
+theme and, with `--targeted`, traverses backward from the papers given, which are the region's. The region is named by
+the first paper given, or, for an expected theme with no cluster and so no papers, by the theme.
 
 It leaves out a candidate already in the pool, by ID or by title (a second record of a pool paper, such as its venue
 version); one already in graphs/<topic>/rejected.md; one already on the sheet, by ID or by title; a second record of
@@ -198,18 +199,18 @@ def collect(topic, targeted=None, query=None, why=None):
     d = topic_dir(topic)
     since, line = latest_entry(topic)
     seeds, frontier, themes = orientation_parts(line)
-    if targeted:
+    if query:
         starts, directions, queries, kind = targeted, ("backward",), [query], "targeted"
     else:
         starts = list(dict.fromkeys(seeds + frontier))
         if not starts:
-            sys.exit("the latest `Orientation` line names neither seeds nor frontier candidates, so there is nothing "
-                     "to traverse from (docs/process.md, \"Step 2: expand\")")
+            sys.exit("STOP: H14 — the latest `Orientation` line names neither seeds nor frontier candidates, so "
+                     "there is nothing to traverse from (docs/process.md, \"When a pass ends\")")
         if not themes:
             sys.exit("the latest `Orientation` line names no themes (`themes: \"<phrase>\", ...`), so there is nothing "
                      "to search")
         directions, queries, kind = ("backward", "forward"), themes, "first"
-    region = targeted[0] if targeted else None
+    region = (targeted[0] if targeted else f'"{query}"') if query else None
     key = [kind, region, query]
     d.mkdir(parents=True, exist_ok=True)
     path = d / "expand.json"
@@ -358,13 +359,14 @@ def main(argv):
         opts = {argv[i]: argv[i + 1] for i in range(2, len(argv), 2)}
     except IndexError:
         opts = None
-    if opts is None or set(opts) - {"--targeted", "--query", "--why"} or (opts and set(opts) != {"--targeted", "--query", "--why"}):
+    if (opts is None or set(opts) - {"--targeted", "--query", "--why"}
+            or (opts and not {"--query", "--why"} <= set(opts)) or not all(opts.values())):
         print(__doc__.strip())
         return 2
     if opts:
-        ids = [x.strip() for x in opts["--targeted"].split(",") if x.strip()]
+        ids = [x.strip() for x in opts.get("--targeted", "").split(",") if x.strip()]
         bad = [x for x in ids if not ID.match(x)]
-        if not ids or bad:
+        if bad or ("--targeted" in opts and not ids):
             sys.exit(f"--targeted takes canonical paper IDs, comma-separated; got {bad or 'none'}")
         return collect(topic, ids, opts["--query"], opts["--why"])
     return collect(topic)
