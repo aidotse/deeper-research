@@ -15,13 +15,14 @@ verified, and what to watch.
 | phase | IDs | commits | state |
 | -- | -- | -- | -- |
 | 1, independent fixes | `A4`, `A5`, `C2`, `A1` (its docs part), `E16`, `E17` | `ac34b92` | done |
-| 2, the code | see the plan | — | pending |
+| 2, the code | `A2`, `Z1`, `C1`, `C3`, `M1`, `M2`, `S5`, `S6`, `S7`, `A3`, `T1`, `T2`, `E15`, `E18`–`E20`, `P2`–`P12` | `79ae39f` | done |
 | 3, the docs | see the plan | — | pending |
 | 4, the simulation | — | — | pending |
 
 ## Commits
 
 - `ac34b92` — phase 1.
+- `79ae39f` — phase 2.
 
 ## Outcomes
 
@@ -48,6 +49,31 @@ verified, and what to watch.
 
 Both gate suites pass after the phase: 84 of 84 faults, 49 of 49 behaviours.
 
+### Phase 2: the code
+
+Verified by both gate suites after the phase, 92 of 92 faults and 69 of 69 behaviours, and by one live run of `collect`
+on a scratch topic (`P2`). Watch for all of it in `pool` iteration 2, the first real run.
+
+- `A2`, `Z1`, `E18` — `partial`, `79ae39f`. The code of the design: `tools/expand.py` (`collect`, `collect --targeted`,
+  `judge`), `tools/screen.py`, `tools/assign.py add-expand`, and `G1`'s new checks. The docs follow in phase 3; whether
+  screening now fits in capped dispatches is for phase 4 to show.
+- `C1`, `T1`, `T2` — `fixed`, `79ae39f`. `G1` checks `expand.json`: a backward and a forward traversal per seed and
+  frontier candidate, a search per theme, every row of this pass judged and acted on, and the `Expansion` line equal to
+  the one the files give. Faults `g1.expansion-*` (11) and `g1.orientation` (3).
+- `C3` — `fixed`, `79ae39f`. The shared `judge` refuses a `yes` or `no` with fewer than two words, on both sheets.
+- `M1` — `fixed`, `79ae39f`. Citer lists come whole from the batch endpoint, or are paged when shorter than the paper's
+  count; a list past the endpoint's offset limit is marked `capped` in the line.
+- `M2` — `fixed`, `79ae39f`. Both collectors drop a candidate whose title matches a pool paper (`tools/screen.py`,
+  `pool_titles`).
+- `S6` — `partial`, `79ae39f`. `collect` and `G1` accept seeds or frontier candidates, either one. What the main session
+  does with neither is phase 3's wording.
+- `S7` — `fixed`, `79ae39f`. Entries without a paper ID are counted, per source, in the line.
+- `S5`, `A3` — `moot`, `79ae39f`. The sheet is the record of progress, and the counts come from the script.
+- `E15` — `fixed` in the code, `79ae39f`: every row carries its abstract, or `(no abstract)` (`P1`, phase 3).
+- `E19` — `fixed`, `79ae39f`: a verdict is replaced on the sheet with `judge` before `add-expand`.
+- `E20` — `moot`, `79ae39f`: traversal and searches are one script run.
+- `P2`–`P12` — `fixed`, `79ae39f`, as the plan describes each.
+
 ## Not mapped to a phase
 
 None yet.
@@ -59,3 +85,5 @@ Phases 2–4, as the plan sets them out.
 ### Watch in the next run
 
 - `A5`, `E16`, `E17`: see their entries above.
+- `P2`: whether the shared Graph API pool lets `collect` through, and how often a run must resume, until the user's
+  Semantic Scholar key arrives.
