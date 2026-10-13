@@ -10,8 +10,11 @@ Usage:
 
   backward   the references of every seed and frontier candidate
   forward    every citer of every seed and frontier candidate
-  search     one relevance search per theme, its first SEARCH_LIMIT (50) results; hyphens are sent as spaces, since
-             the endpoint matches nothing on a hyphenated term
+  search     one search per theme, on the bulk search endpoint: the theme as an exact phrase in a paper's title or
+             abstract (stemmed, so "model collapse" also matches "modeling collapse"), keeping the SEARCH_LIMIT (50)
+             most-cited matches. The relevance search endpoint ranks by relevance, but refused every unauthenticated
+             call for hours on 2026-10-13, while the bulk endpoint answered. A theme that is a description rather than
+             a phrase papers use may match nothing; the `Expansion` line gives each theme's matches.
 
 Both traversals come from the batch endpoint, up to 500 papers per call. A list shorter than the paper's own count is
 paged from the paper's references or citations endpoint instead, up to that endpoint's limit (about 10,000), where the
@@ -56,7 +59,7 @@ from net import get_json  # noqa: E402
 from screen import ABSTRACT_CHARS, clean, judge, judged, pool_titles, title_key, verdicts  # noqa: E402
 
 API = "https://api.semanticscholar.org/graph/v1"
-SEARCH_LIMIT = 50   # results per relevance search, as Asta's default
+SEARCH_LIMIT = 50   # results kept per theme search, as Asta's relevance search returns by default
 PAGE = 1000         # the most the references and citations endpoints return per call
 BATCH = 500         # the most IDs the batch endpoint takes per call
 LISTS = "citationCount,referenceCount,references.paperId,citations.paperId"
@@ -143,11 +146,18 @@ def traversal(pid, direction, rec):
     return src
 
 
+def phrase(query):
+    """A theme as the phrase searched: quotes dropped, whitespace collapsed; hyphens kept, which the endpoint matches."""
+    return " ".join(query.replace('"', " ").split())
+
+
 def search(query):
-    q = urllib.parse.quote(query.replace("-", " "))
-    d = call(f"{API}/paper/search?query={q}&limit={SEARCH_LIMIT}&fields=paperId")
-    ids = list(dict.fromkeys(p["paperId"] for p in d.get("data") or [] if p.get("paperId")))
-    return {"kind": "search", "query": query, "ids": ids, "unresolved": 0, "returned": len(ids)}
+    """One theme's search: the theme as an exact phrase in title or abstract, its SEARCH_LIMIT most-cited matches."""
+    q = urllib.parse.quote('"' + phrase(query) + '"')
+    d = call(f"{API}/paper/search/bulk?query={q}&fields=paperId&sort=citationCount:desc")
+    ids = list(dict.fromkeys(p["paperId"] for p in (d.get("data") or [])[:SEARCH_LIMIT] if p.get("paperId")))
+    return {"kind": "search", "endpoint": "search/bulk", "query": query, "ids": ids, "unresolved": 0,
+            "returned": len(ids), "matched": d.get("total") or 0}
 
 
 def lite(rec):
@@ -206,6 +216,8 @@ def collect(topic, targeted=None, query=None, why=None):
         if not starts:
             sys.exit("STOP: H14 — the latest `Orientation` line names neither seeds nor frontier candidates, so "
                      "there is nothing to traverse from (docs/process.md, \"When a pass ends\")")
+        if any(not phrase(x) for x in themes):
+            sys.exit("the latest `Orientation` line has an empty theme; each theme is a phrase to search")
         if not themes:
             sys.exit("the latest `Orientation` line names no themes (`themes: \"<phrase>\", ...`), so there is nothing "
                      "to search")
@@ -236,9 +248,11 @@ def collect(topic, targeted=None, query=None, why=None):
                     print(f"{k} from {p}: {part['sources'][f'{k} {p}']['returned']}")
             save()
         for q in queries:
-            if f"search {q}" not in part["sources"]:
+            # A search saved before the move to the bulk endpoint has no `endpoint`, and is run again.
+            if "endpoint" not in part["sources"].get(f"search {q}", {}):
                 part["sources"][f"search {q}"] = search(q)
-                print(f'query "{q}": {part["sources"][f"search {q}"]["returned"]}')
+                s = part["sources"][f"search {q}"]
+                print(f'query "{q}": {s["returned"]} of {s["matched"]} matched')
                 save()
         sources = [part["sources"][label] for label in labels]
 
@@ -329,7 +343,9 @@ def expansion_line(data, verdict_of, since):
                     + (", capped" if s.get("capped") else "") + ")" for s in items))
         items = [s for s in src if s["kind"] == "search"]
         if items:
-            bits.append("queries " + ", ".join(f'"{s["query"]}" ({s["returned"]})' for s in items))
+            bits.append("queries " + ", ".join(
+                f'"{s["query"]}" ({s["returned"]}' + (f' of {s["matched"]}' if "matched" in s else "") + ")"
+                for s in items))
         mine = [x for x, c in data["candidates"].items() if c.get("round") == i]
         said = [verdict_of.get(x, ("", ""))[0] for x in mine]
         unique = len({x for s in src for x in s["ids"]})
@@ -368,6 +384,8 @@ def main(argv):
         bad = [x for x in ids if not ID.match(x)]
         if bad or ("--targeted" in opts and not ids):
             sys.exit(f"--targeted takes canonical paper IDs, comma-separated; got {bad or 'none'}")
+        if not phrase(opts["--query"]):
+            sys.exit("--query takes a theme to search as a phrase; got an empty one")
         return collect(topic, ids, opts["--query"], opts["--why"])
     return collect(topic)
 

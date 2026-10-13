@@ -75,9 +75,66 @@ Spot checks:
 
 ### Fixes
 
-Decided by the user: option B with A's cap, and the input narrowed (`simulation.md`, "Decisions"). Pending: whether a
-spec audit of step 2 comes first, then the change itself.
+Decided by the user: option B with A's cap, and the input narrowed (`simulation.md`, "Decisions"). A scoped spec audit
+of step 2 came first, in `.audits/2026-10-12-spec/`, and its remediation is the fix for all six: `E16`, `E17` in
+`ac34b92`; `E15`, `E18`–`E20` in `79ae39f` (code) and `97a23f0` (docs). Its disposition says what each became.
 
 ### Result
 
-Pending.
+Not converged: the fixes go to iteration 2.
+
+## Iteration 2
+
+### Run
+
+- `Runner` — headless `claude -p`, session `1526c065-0ee9-4b06-8f8c-b24ee2259c65`. Prompt: `runs/pool-2.prompt.md`,
+  the same as iteration 1's. Steering: none at launch.
+- `From` — checkpoint `sim-checkpoint-model-collapse-plan` (commit `748c7a5`), the topic's files unchanged since; a
+  scratch copy built from `d530389`.
+- `First leg` — halted at `H3` after 23 min, 27 runner turns, $5.93 (the runner's own `total_cost_usd`). `survey-pass`
+  "Orient": 183098 tokens, 69 tool uses, 15 min; 14 frontier candidates, both seeds; the pool at 71 papers.
+  `tools/expand.py collect` saved all 32 traversals (backward and forward from 16 start papers: 1,209 unique papers,
+  forward from `2305.17493` 551 and from `2404.01413` 182, nothing capped), then failed on the first theme search with
+  429s past `tools/net.py`'s retries; the rerun resumed and failed the same way. The runner recorded `H3`, `pending`.
+- `Decision` — the auditor probed the search endpoint: `/paper/search` answered 429 to every call for at least 10
+  minutes, while `/paper/{id}` and `/paper/search/bulk` answered 200. The user chose to wait for the search endpoint
+  and resume the session (2026-10-13), rather than switch to bulk search or wait for the Semantic Scholar key. A
+  background probe tries it every 5 minutes for up to 2 hours; the decision goes in by `runs/pool-2-resume.prompt.md`.
+
+### Findings
+
+- `E21` — `blocker`. The unauthenticated Graph API's relevance search, `/paper/search`, can refuse every call for long
+  spells, while its other endpoints answer. `collect`'s resume, the fix for `P2`, cannot help when the one call left
+  keeps failing. Every pass now hinges on it until the user's Semantic Scholar key arrives. That the search endpoint has
+  a tighter anonymous limit than the rest is the auditor's inference from these probes, `UNVERIFIED`. The probes: the
+  search endpoint answered 429 to 3 calls at about 15:45, then to 16 probes 5 minutes apart from 15:51 to 17:07; in the
+  same spell `/paper/{id}` answered 200, and `/paper/search/bulk` answered 200 to most calls and 429 to some (2 of 7 in
+  one set). On the bulk endpoint, the theme as an exact phrase, sorted by citations, matched: "model collapse" 931, with
+  a paper titled "MODELING COLLAPSE AND ACCRETION IN TURBULENT GAS C…" (the probe printed 50 characters) among the top
+  three, so the match is stemmed; "model autophagy" 114; "self-consuming generative models" 12; "knowledge collapse" 24;
+  "AI autophagy" 5; "strong model collapse" 2; "accumulating real and synthetic data" 1; and none for "synthetic data
+  verification model collapse", "model collapse scaling laws", "linguistic diversity decline synthetic text" and
+  "recursive training diffusion models". Without quotes, every word is required, and the most-cited matches were off
+  topic: for "self consuming generative models" (207 matches), a survey of deep-learning tools came first. Fix: below.
+
+- `E22` — `minor`, in the audit's harness, not the spec. `runner.sh`'s fixed tool allowlist is not enforced: the runner
+  ran `cat`, `sed -n`, `awk` and `sed -i` (to append its `Tokens` entry to the survey), none of them on the list, and
+  its transcript shows no denial. Nothing in the user's or the copy's settings allows them. The cause is not
+  established: a global hook that rewrites shell commands may be approving them, `UNVERIFIED`. Why it matters: the
+  allowlist is how the audit sees a runner reach outside the spec's tools, as a tool failure in its report. Fix: the
+  user's, since it concerns permissions; reported to the user.
+
+More findings follow once the run ends.
+
+### Fixes
+
+- `E21` — decided by the user, 2026-10-13: the theme searches move to the bulk endpoint, and a comparison with
+  relevance search is kept as future work (`docs/roadmap.md`, "Theme searches, and the Semantic Scholar key").
+  `tools/expand.py`: each theme is searched as an exact phrase, its 50 most-cited matches kept and its total recorded;
+  the `Expansion` line prints `"<theme>" (<kept> of <matched>)`; a search saved by the old code is run again on
+  resume; an empty theme is refused. The Orient brief and step 1 ask for themes written as papers write them. Reviewed
+  by a fresh agent (six findings, all fixed: one wording each in step 3 and the roadmap, four small ones in the code
+  and tests). Both gate suites pass, 92 of 92 and 74 of 74. The halted session resumes with the fixed script and docs
+  copied into the scratch copy, as steering (`runs/pool-2-resume.prompt.md`): the change cannot alter what Orient
+  wrote, since only the collect row and those after it search.
+

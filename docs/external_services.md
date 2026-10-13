@@ -111,7 +111,9 @@ otherwise: what it returns in bulk would flood a model's context, and the script
   use it for papers without an arXiv ID, and `tools/preflight.py` for its check.
 - `tools/expand.py` uses the batch endpoint for the reference and citer lists of the papers expansion starts from, and
   for its candidates' titles, abstracts and IDs; each paper's references and citations endpoints, to page a list the
-  batch cut short; and the search endpoint, `/paper/search`, for its relevance searches.
+  batch cut short; and the bulk search endpoint, `/paper/search/bulk`, for its theme searches. The relevance search
+  endpoint, `/paper/search`, refused every unauthenticated call for hours on 2026-10-13, while the others answered, so
+  no script uses it.
 - `tools/fringe.py` uses the batch endpoint and the recommendations endpoint. Recommendations return only papers from
   about the last two months; see `docs/process.md` ("Fringe routes").
 

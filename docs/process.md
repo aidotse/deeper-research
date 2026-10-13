@@ -212,13 +212,13 @@ throughout, and step 2's backward traversal is what reaches it.
 Screen each candidate for scope ("Screening for scope" below). Add the in-scope ones to the pool with
 `tools/assign.py add` (see step 2), and record the rest with `tools/assign.py reject`. The input's seed papers, if it
 names any, enter the pool too. Then write the log's `Orientation` line: the queries; the themes, as the phrases the
-field uses for its sub-topics, which step 2 searches; the input's seeds; and the frontier candidates, by ID. The themes
-also include every other name the input gives the topic, since each name reaches its own sub-community, and a name step
-2 does not search is a part of the field the pool misses. That line is where step 2 starts its traversal and where step
-4 looks for frontier papers, so a candidate or a theme named only in a report is lost. A line with neither seeds nor
-frontier candidates leaves step 2 nothing to traverse from, and halts the pass there (`H14`). A frontier candidate that
-cannot enter the pool, because Semantic Scholar does not know it or it has no embedding, is not listed: it goes to Open
-work's `Papers that could not enter the pool`.
+field uses for its sub-topics, written as papers write them, since step 2 searches each as an exact phrase; the input's
+seeds; and the frontier candidates, by ID. The themes also include every other name the input gives the topic, since
+each name reaches its own sub-community, and a name step 2 does not search is a part of the field the pool misses. That
+line is where step 2 starts its traversal and where step 4 looks for frontier papers, so a candidate or a theme named
+only in a report is lost. A line with neither seeds nor frontier candidates leaves step 2 nothing to traverse from, and
+halts the pass there (`H14`). A frontier candidate that cannot enter the pool, because Semantic Scholar does not know it
+or it has no embedding, is not listed: it goes to Open work's `Papers that could not enter the pool`.
 
 A frontier candidate is a paper the field currently treats as its state of the art or a turning point: in scope, and
 either published within the recency window, or named as current by the sources orientation reads, such as a lab's
@@ -231,8 +231,8 @@ names people use for the themes. It skews recent and well-publicised, which is e
 
 ### Step 2: expand
 
-Traverse backward and forward from the input's seeds and the frontier candidates, and run a relevance search on each
-theme that step 1 named. Screen every candidate for scope. Everything in scope enters the pool.
+Traverse backward and forward from the input's seeds and the frontier candidates, and search each theme that step 1
+named. Screen every candidate for scope. Everything in scope enters the pool.
 
 The traversals and searches run by script, `tools/expand.py collect`, which calls the Semantic Scholar Graph API
 (`docs/external_services.md`). Agents only judge. The reason is size: this work returns more candidates than one agent's
@@ -244,8 +244,12 @@ and the screening is split into blocks that agents judge in parallel.
 - Forward traversal, the citers of the same papers, finds follow-ups, and among them the dissent. Step 4 repeats it from
   each cluster's anchor, through Asta. There it is targeted — searching a key paper's citers for challenges and
   extensions — not a crawl.
-- A relevance search per theme, its first 50 results, reaches work that does not cite the starting papers. The themes
-  are the queries: step 1's agent chooses them, and the script runs them.
+- A search per theme reaches work that does not cite the starting papers. It looks for the theme as an exact phrase in a
+  paper's title or abstract, and keeps the 50 most-cited matches. The themes are the queries: step 1's agent chooses
+  them, and the script runs them, so a theme that is a description rather than a phrase papers use matches little or
+  nothing. The `Expansion` line gives each theme's matches. Why exact phrases: the Graph API's relevance search refused
+  every unauthenticated call for hours on 2026-10-13, and its bulk search, which answered, does not rank by relevance; a
+  phrase keeps the 50 it returns on topic.
 
 Traversal goes one step: the references of a seed or frontier candidate, not the references of those references. Step 2
 does no work beyond this. The gaps it leaves are what the targeted expansions of step 3 and the coverage test of step 7
@@ -355,16 +359,17 @@ Step 3 can loop once per region. A `thin cluster`, `no stable level`, or an `exp
 for, each calls for a targeted expansion of that region ("When stability fails"). It reuses step 2's scripts and
 screening. `tools/expand.py collect <topic> --targeted <ids> --query "<theme>" --why "<why>"` traverses backward from
 the region's 5 papers most cited within the pool, as the naming sheet lists them, and searches the region's theme. The
-main session words that theme from the region's titles, or takes it from the input's `expect` line or the coverage
-round. For an expected theme with no cluster, there are no papers to traverse from, and the search runs alone. The new
-rows are screened, `add-expand` adds them, and the main session fetches them with `tools/pool.py` and reruns
-`tools/cluster.py`. The 5 papers, like the 2 regions expanded on `no stable level`, are first guesses, to be revisited
-on a real pool. These papers are not late papers: the rerun clusters them with the rest. Once the clusters have names,
-the rerun is followed by `tools/assign.py remap`, even on a first pass, and the clusters it did not match are named
-again. Each region is expanded once; what is still wrong after that halts or is noted, as the order of operations says.
-Computed ids are renumbered on every run, so a region is named by one of its papers, or by its theme if it had none,
-both in the `Expansion` line and when judging whether a thin cluster after the rerun is the same region: it is if it
-holds that paper.
+main session takes that theme from the input's `expect` line or the coverage round, or, for a cluster, picks it from the
+phrases the region's titles share. It is searched as an exact phrase, as step 1's themes are, so it is written as papers
+write it, not as a description. For an expected theme with no cluster, there are no papers to traverse from, and the
+search runs alone. The new rows are screened, `add-expand` adds them, and the main session fetches them with
+`tools/pool.py` and reruns `tools/cluster.py`. The 5 papers, like the 2 regions expanded on `no stable level`, are first
+guesses, to be revisited on a real pool. These papers are not late papers: the rerun clusters them with the rest. Once
+the clusters have names, the rerun is followed by `tools/assign.py remap`, even on a first pass, and the clusters it did
+not match are named again. Each region is expanded once; what is still wrong after that halts or is noted, as the order
+of operations says. Computed ids are renumbered on every run, so a region is named by one of its papers, or by its theme
+if it had none, both in the `Expansion` line and when judging whether a thin cluster after the rerun is the same region:
+it is if it holds that paper.
 
 #### Clustering method
 

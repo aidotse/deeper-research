@@ -192,9 +192,9 @@ One entry per pass, in date order. An entry's lines keep the order below, so a l
 - **Orientation (WebSearch):** "<exact query>", ...; themes: "<phrase>", ...; seeds from the input: none | <id>, ...;
   frontier candidates: <id>, ...
 - **Expansion:** backward from <id> (<n>[, not found][, capped]), ...; forward from <id> (<n>), ...; queries "<theme>"
-  (<n>), ...; <u> unique, left out: in the pool <n>, rejected earlier <n>, on the sheet already <n>, another record <n>,
-  not found <n>; <n> without a paper ID; screened <m>: in scope <y>, rejected <z>[; targeted, <id> | "<theme>" (<why>):
-  <its traversals, queries and counts, as above>; ...]
+  (<n> of <matched>), ...; <u> unique, left out: in the pool <n>, rejected earlier <n>, on the sheet already <n>,
+  another record <n>, not found <n>; <n> without a paper ID; screened <m>: in scope <y>, rejected <z>[; targeted,
+  <id> | "<theme>" (<why>): <its traversals, queries and counts, as above>; ...]
 - **Errored queries:** none | "<query>" (429, failed after 3 retries; retried at the end of the step: ok | failed)
 - **Recency window:** <the window>, applied to the recency queries only
 - **Fringe:** collected YYYY-MM-DD: hidden H, new W candidates (U unique); in scope S; added to the pool A, of which
@@ -246,16 +246,17 @@ comes from a script's printout or a tool's result, never from counting by hand.
 What some lines need, beyond their form:
 
 - `Orientation` — the themes are the phrases the field uses for its sub-topics, and every other name the input gives the
-  topic: step 2 searches each one, as written. The seeds are the papers the input names. A frontier candidate is listed
-  only once it is in the pool; one that cannot enter goes to Open work's `Papers that could not enter the pool` instead.
+  topic: step 2 searches each one as an exact phrase, so each is written as papers write it. The seeds are the papers
+  the input names. A frontier candidate is listed only once it is in the pool; one that cannot enter goes to Open work's
+  `Papers that could not enter the pool` instead.
 - `Expansion` — printed by `tools/assign.py add-expand` from `expand.json` and the screening sheet, and pasted as
   printed, replacing any earlier `Expansion` line of the pass: `tools/check.py` recomputes it. Each part is one
   collection. A traversal names the paper it started from and, in brackets, how many papers it returned, with
   `not found` for a paper Semantic Scholar does not know, and `capped` for a reference or citer list longer than the
-  endpoint pages to; each query is the theme, quoted, with its count. Then: how many unique papers the collection
-  returned, how many it left out and why, how many list entries had no paper ID, and how many of its candidates were
-  screened, and with what verdict. A targeted expansion adds a part that opens `targeted,`, naming the region by its
-  first paper, or by its theme when the region had no papers, and why it was expanded.
+  endpoint pages to; each query is the theme, quoted, with how many papers it kept and how many matched. Then: how many
+  unique papers the collection returned, how many it left out and why, how many list entries had no paper ID, and how
+  many of its candidates were screened, and with what verdict. A targeted expansion adds a part that opens `targeted,`,
+  naming the region by its first paper, or by its theme when the region had no papers, and why it was expanded.
 - `Late papers` — `tools/assign.py late` prints the first form. After a recluster nothing prints it: the main session
   writes the second form, from `tools/cluster.py`'s `changes:` line.
 - `Fringe` — `left out` counts the in-scope candidates that have neither an arXiv ID nor a `CorpusId`, so could not be

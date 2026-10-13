@@ -253,10 +253,11 @@ def fake(url, body=None):
         return {"data": [{"citingPaper": {"paperId": G1}}], "next": 1}
     if "/citations" in url:
         return {"data": [{"citingPaper": {"paperId": H}}]}
-    if "/paper/search" in url:
-        return {"data": [{"paperId": A}, {"paperId": f["s2s"][0]}]}
+    if "/paper/search/bulk" in url:
+        return {"total": 7, "data": [{"paperId": A}, {"paperId": f["s2s"][0]}]}
     return {"data": []}
-ex.call = fake
+calls_all = []
+ex.call = lambda url, body=None: (calls_all.append(url), fake(url, body))[1]
 fail["meta"] = 1
 with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
     try:
@@ -292,6 +293,20 @@ with contextlib.redirect_stdout(io.StringIO()):
 check("a rerun restores a candidate's lost row", A in (G / "expand-screen.md").read_text(), "")
 line = ex.expansion_line(d3, screen.verdicts((G / "expand-screen.md").read_text()), "2026-10-09")
 check("the line counts the new round", "1 without a paper ID" in line and "screened 2: in scope 0, rejected 0" in line, line)
+check("a theme is searched as an exact phrase, by citations, and the line gives its matches",
+      any('/paper/search/bulk?query=%22' in u and "sort=citationCount:desc" in u for u in calls_all)
+      and '(2 of 7)' in line, line)
+check("a theme keeps its hyphens and loses stray quotes and spaces, and an older search record prints its count alone",
+      ex.phrase(' "self-consuming   generative\tmodels" ') == "self-consuming generative models"
+      and 'queries "q" (1);' in ex.expansion_line({"rounds": [{"collected": "2026-10-09", "kind": "first",
+          "sources": [{"kind": "search", "query": "q", "ids": ["x"], "returned": 1, "unresolved": 0}],
+          "left out": {k: [] for k in ex.LEFT_OUT}}], "candidates": {}}, {}, "2026-10-09"), "")
+with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+    try:
+        ex.main(["collect", T, "--query", ' " ', "--why", "empty"]); empty = None
+    except SystemExit as e:
+        empty = str(e)
+check("collect refuses an empty theme", empty and "empty" in empty, str(empty))
 with contextlib.redirect_stdout(io.StringIO()):
     code = ex.main(["collect", T, "--targeted", f["fr1"]])
 check("collect --targeted without --query and --why is a usage error", code == 2, str(code))

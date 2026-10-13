@@ -144,9 +144,10 @@ certainty.
 the seeds, the frontier candidates and the themes from the latest pass's `Orientation` line. From the Graph API's batch
 endpoint, up to 500 papers a call, it takes the reference and citer lists of every seed and frontier candidate. A list
 shorter than the paper's own count is paged from the paper's references or citations endpoint instead, up to that
-endpoint's limit of about 10,000, where the traversal is marked `capped`. Then it runs one relevance search per theme,
-keeping the first 50 results; hyphens are sent as spaces, since the endpoint matches nothing on a hyphenated term. Last,
-it fetches the title, abstract and IDs of every candidate left, in batches.
+endpoint's limit of about 10,000, where the traversal is marked `capped`. Then it runs one search per theme on the bulk
+search endpoint: the theme as an exact phrase in a paper's title or abstract, stemmed, so that "model collapse" also
+matches "modeling collapse", keeping the 50 most-cited matches, and recording how many papers matched in all. Last, it
+fetches the title, abstract and IDs of every candidate left, in batches.
 
 It leaves out a candidate already in the pool, by ID or by title; one in `rejected.md`; one already on the sheet, by ID
 or by title; a second record of another new candidate, by title, keeping the one with an arXiv ID; and one Semantic

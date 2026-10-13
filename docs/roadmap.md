@@ -44,6 +44,26 @@ input for the rerun.
 
 ## Known gaps, not yet built
 
+### Theme searches, and the Semantic Scholar key
+
+`tools/expand.py collect` searches each theme on the Graph API's bulk endpoint, `/paper/search/bulk`: the theme as an
+exact phrase in title or abstract, keeping the 50 most-cited matches. It moved there on 2026-10-13, when the relevance
+search endpoint, `/paper/search`, refused every unauthenticated call for about two hours while the other endpoints
+answered (simulation audit, `pool` iteration 2, `E21`). The two differ: relevance ranking finds papers that word a theme
+differently, while an exact phrase finds only papers that use it, and sorting by citations favours older work. A theme
+that is a description rather than a phrase papers use matches little or nothing: 4 of 9 themes tried on `model-collapse`
+matched none (the auditor's probes, recorded under `E21` in the simulation audit's `segments/pool.md`).
+
+- `The key` — the user applied for a Semantic Scholar API key on 2026-10-13; an answer may take two weeks. With it,
+  every script gets a rate limit of its own (1 request per second, introductory). Using it changes the spec's statement
+  that no key or user identifier is sent (`docs/external_services.md`, "Credentials and privacy"), which the user
+  approves when the key arrives. Every script must then pace itself to the key's limit.
+- `The comparison` — once the relevance endpoint answers reliably, run both on the same themes of a real pass, and
+  compare: the overlap of the two result sets; how many of each are judged in scope; what each finds that traversal did
+  not; and how many themes match nothing as a phrase. Then choose one, or keep both, with the reason in the spec.
+- `Meanwhile, watch` — whether orientation writes its themes as phrases papers use, now that the Orient brief asks for
+  it, and how many themes the `Expansion` line shows matching nothing.
+
 ### Discovery lag
 
 A paper on arXiv but not yet in Semantic Scholar is invisible to Asta, and `tools/pool.py` cannot fetch its embedding or
@@ -298,10 +318,11 @@ The first guesses: `τ` = 0.75; `k` = 10; `c` = 10; the fringe score's age cohor
 (0.15 excess over random, 0.9 for "broad", 0.6 for "unstable", 10 papers for "thin", 20% for "trading"); the fringe
 quota; in `tools/cluster.py`, 0.6 for a stable sub-cluster (`SUBCLUSTER_SCORE`), 10 references for the thin-reference
 share (`THIN_REFS`) and 30% for the smallest time holdout (`MIN_HOLDOUT_SHARE`); 20% `abstract`-sourced rows for halt
-`H10`; and 10% late additions before a recluster (`docs/process.md`, "Late papers"); the stopping rules for retrieval
-(two queries without a new frontier candidate; fewer than 5 papers added per 50 screened, `docs/process.md`, "Screening
-for scope"); at least 6 words per quoted part (`QUOTE_WORDS` in `tools/gates.py`); and at least 10 candidates per
-coverage-test round.
+`H10`; and 10% late additions before a recluster (`docs/process.md`, "Late papers"); orientation's stopping rule (two
+queries without a new frontier candidate, `docs/process.md`, "Screening for scope"); a targeted expansion's 5 papers
+most cited within the pool, and the 2 thinnest regions on `no stable level` (`docs/process.md`, step 3); the 50 results
+kept per theme search (`SEARCH_LIMIT` in `tools/expand.py`); at least 6 words per quoted part (`QUOTE_WORDS` in
+`tools/gates.py`); and at least 10 candidates per coverage-test round.
 
 Their basis so far is one curated corpus, `reasoning`, not a real pool: `combined` wins clearly (grid-mean stability
 0.722 ± 0.004, against `refs` 0.671 and `text` 0.646). Level: 6 clusters at 0.79; 8 clusters drops to 0.67. `τ` 0.70

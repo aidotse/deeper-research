@@ -102,10 +102,10 @@ Read the survey itself one section at a time, with `python3 tools/check.py <topi
   pass; on a later pass, the previous `Orientation` line. The agent runs WebSearch, screens each candidate for scope,
   resolves the in-scope ones to their IDs, asking Asta for `externalIds`, adds them with `tools/assign.py add`, and
   records the rest with `tools/assign.py reject`. It adds the seed papers the input names. Its themes are step 2's
-  search queries, so they include every other name the input gives the topic. Writes: Pool rows; rejections;
-  `Orientation`, with the themes, the seeds and the frontier candidates; `Recency window`; `Errored queries`, `none` if
-  none; Open work: papers that could not enter the pool. Returns: why it stopped, and the candidates it was unsure
-  about.
+  search queries, each searched as an exact phrase, so they are written as papers write them, and include every other
+  name the input gives the topic. Writes: Pool rows; rejections; `Orientation`, with the themes, the seeds and the
+  frontier candidates; `Recency window`; `Errored queries`, `none` if none; Open work: papers that could not enter the
+  pool. Returns: why it stopped, and the candidates it was unsure about.
   - Read: `docs/process.md`, "Step 1: orient" and "Screening for scope"; `docs/external_services.md`, "WebSearch and
     WebFetch", "Tools, and when to use each" and "Rate limits and errors"; `docs/formats.md`, "Paper IDs", "1. Retrieval
     log" and "5. Open work"; `docs/tooling.md`, "Pool table".
