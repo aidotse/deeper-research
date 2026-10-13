@@ -6,6 +6,7 @@
 
 Usage:
   python3 tools/assign.py add <topic> <paper-id> [<paper-id> ...]
+  python3 tools/assign.py add-expand <topic>
   python3 tools/assign.py add-fringe <topic>
   python3 tools/assign.py clusters <topic>
   uv run tools/assign.py late <topic>
@@ -21,6 +22,11 @@ add         Adds papers to the Pool table by canonical ID (docs/formats.md, "Pap
             graphs/<topic>/rejected.md is added, with a warning that names the rejection. Afterwards the main session
             runs tools/pool.py (before step 3) or `assign.py late` (after it), for `year`, `citations` and `cites`,
             and pastes the `Pool` line it prints.
+add-expand  Adds the candidates marked `yes` in graphs/<topic>/expand-screen.md (step 2, and each targeted expansion),
+            each by its arXiv ID or, failing that, its CorpusId, and records each `no` in rejected.md with the
+            sheet's reason. Prints the log's `Expansion` line. It refuses while any row is unjudged. A `no` for a
+            paper now in the pool is listed as a conflict, not recorded. Rerun after more rows are judged, it adds
+            only what is new.
 add-fringe  Adds the candidates marked `yes` in graphs/<topic>/fringe-screen.md (end of step 2), each by its arXiv ID
             or, failing that, its CorpusId, and prints the log's `Fringe` line. It refuses while any candidate is
             still unjudged, that is, marked neither `yes` nor `no`. It warns, as `add` does, on a rejected paper.
@@ -38,8 +44,9 @@ remap       After a recluster, moves each named cluster's `computed` id to the n
             `previous`), clears the ids of clusters that did not match, and lists new clusters still to be named.
             Until it has run, `clusters` refuses, so that old names cannot land on new clusters.
 reject      Records a candidate screened out of scope, with a one-line reason, in graphs/<topic>/rejected.md: the trace
-            of a judgement that would otherwise leave none (docs/gates.md). Used in steps 1 and 2 and in targeted
-            expansions; the fringe routes record theirs on their own sheet. Refuses a paper already in the pool.
+            of a judgement that would otherwise leave none (docs/gates.md). Used in orientation (step 1); expansion
+            judges on its sheet, and add-expand copies its rejections here; the fringe routes keep theirs on their own
+            sheet. Refuses a paper already in the pool.
             Without a paper ID, it reads one `<paper-id><TAB><reason>` per line from stdin, and records them all or,
             if any line is wrong, none.
 
@@ -212,6 +219,56 @@ def add(topic, ids):
     return 0
 
 
+def add_expand(topic):
+    from expand import canonical, expansion_line, latest_entry, pass_candidates
+    from screen import judged, pool_titles, title_key, verdicts
+    d = topic_dir(topic)
+    for name in ("expand.json", "expand-screen.md"):
+        if not (d / name).exists():
+            sys.exit(f"no graphs/{topic}/{name}; run `python3 tools/expand.py collect {topic}` first, then have the "
+                     "candidates screened")
+    data = json.loads((d / "expand.json").read_text())
+    since = latest_entry(topic)[0]
+    cands, said = data["candidates"], verdicts((d / "expand-screen.md").read_text())
+    unknown = [s for s in said if s not in cands]
+    if unknown:
+        sys.exit(f"{len(unknown)} row(s) of expand-screen.md are not in expand.json: {unknown[:3]}")
+    # Only this pass's candidates: an earlier pass's verdicts were acted on then, and the user may since have changed
+    # the pool (H12).
+    mine = pass_candidates(data, since)
+    absent = [s for s in mine if s not in said]
+    if absent:
+        sys.exit(f"{len(absent)} candidate(s) in expand.json have no row in expand-screen.md: {absent[:3]}; rerun "
+                 f"`python3 tools/expand.py collect {topic}` with the same arguments, which restores missing rows")
+    blank = [s for s in mine if not judged(*said[s])]
+    if blank:
+        sys.exit(f"{len(blank)} row(s) of expand-screen.md have no `yes` or `no` judgement with a reason of at least two "
+                 "words yet")
+    pool, titles = set(pool_ids(topic)), pool_titles(topic)
+    yes = [s for s in mine if said[s][0].startswith("yes")]
+    no = [s for s in mine if said[s][0].startswith("no")]
+    there = [s for s in yes if canonical(cands[s]) in pool or title_key(cands[s]["title"]) in titles]
+    no_id = [s for s in yes if not canonical(cands[s])]
+    ids = [canonical(cands[s]) for s in yes if s not in there and canonical(cands[s])]
+    if ids:
+        add(topic, ids)   # fetches each paper's record, and refuses one without a SPECTER2 embedding
+    print(f"{len(there)} in-scope candidate(s) already in the pool")
+    if no_id:
+        print(f"in scope but without an arXiv or corpus ID, so not added; record them in Open work: {no_id}")
+    pool, rej = set(pool_ids(topic)), rejected(topic)
+    conflict = [canonical(cands[s]) for s in no if canonical(cands[s]) in pool]
+    _, recorded, _ = write_rejections(topic, [(canonical(cands[s]), said[s][1]) for s in no
+                                              if canonical(cands[s]) and canonical(cands[s]) not in pool | set(rej)])
+    print(f"recorded {len(recorded)} rejection(s) in graphs/{topic}/rejected.md")
+    if conflict:
+        print(f"judged `no` on the sheet but in the pool, so not recorded as rejected: {conflict}; one verdict is wrong: "
+              f"re-judge the row with `python3 tools/expand.py judge {topic}`, or ask the user to take the paper out of "
+              "the pool (H12)")
+    print("\nlog line, in place of any earlier `Expansion` line of this pass:")
+    print(expansion_line(data, said, since))
+    return 0
+
+
 def add_fringe(topic):
     d = topic_dir(topic)
     for name in ("fringe.json", "fringe-screen.md"):
@@ -226,7 +283,7 @@ def add_fringe(topic):
             rows[c[0]] = (c[h.index("in scope")].strip().lower(), c[h.index("reason")].strip())
     screened = {s: v for s, (v, _) in rows.items()}
     # The gate's own test (G1, fringe-screened): `yes` or `no` with a reason; blank or `maybe` is unjudged.
-    from gates import judged
+    from screen import judged
     blank = [s for s, (v, r) in rows.items() if not judged(v, r)]
     if blank:
         sys.exit(f"{len(blank)} candidate(s) in fringe-screen.md have no `yes` or `no` judgement with a reason yet")
@@ -383,12 +440,32 @@ def remap(topic):
 
 REJECTED_HEADER = """# Rejected candidates: {topic}
 
-Candidates screened out of scope in orientation, expansion and targeted expansions, one row per judgement, written by
-`tools/assign.py reject`. The fringe routes' judgements are in `fringe-screen.md`. See docs/gates.md.
+Candidates screened out of scope, one row per judgement: in orientation, by `tools/assign.py reject`; in expansion and
+targeted expansions, copied from `expand-screen.md` by `tools/assign.py add-expand`. The fringe routes' judgements are in
+`fringe-screen.md`. See docs/gates.md.
 
 | paper | date | reason |
 | -- | -- | -- |
 """
+
+
+def write_rejections(topic, todo):
+    """Append [(paper id, reason)] to rejected.md, dated today, skipping a paper already recorded today. Returns
+    (path, recorded, skipped)."""
+    path = topic_dir(topic) / "rejected.md"
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(REJECTED_HEADER.format(topic=topic))
+    today = time.strftime("%Y-%m-%d")
+    text = path.read_text()
+    done = {row_id(l) for h, c, _, l in table_rows(text) if h and h[0] == "paper" and len(c) > 1 and c[1] == today}
+    new, again = [], []
+    for pid, reason in todo:
+        (again if pid in done else new).append((pid, reason))
+        done.add(pid)
+    if new:
+        path.write_text(text.rstrip("\n") + "\n" + "".join(f"| [{p}]({link(p)}) | {today} | {r} |\n" for p, r in new))
+    return path, new, again
 
 
 def reject(topic, args):
@@ -420,19 +497,7 @@ def reject(topic, args):
             todo.append((pid, reason))
     if problems:
         sys.exit("\n".join(problems) + ("" if args else f"\nnothing recorded: {len(problems)} of {len(items)} line(s) wrong"))
-    path = topic_dir(topic) / "rejected.md"
-    if not path.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(REJECTED_HEADER.format(topic=topic))
-    today = time.strftime("%Y-%m-%d")
-    text = path.read_text()
-    done = {row_id(l) for h, c, _, l in table_rows(text) if h and h[0] == "paper" and len(c) > 1 and c[1] == today}
-    new, again = [], []
-    for pid, reason in todo:
-        (again if pid in done else new).append((pid, reason))
-        done.add(pid)
-    if new:
-        path.write_text(text.rstrip("\n") + "\n" + "".join(f"| [{p}]({link(p)}) | {today} | {r} |\n" for p, r in new))
+    path, new, again = write_rejections(topic, todo)
     if args:
         print(f"{args[0]} is already recorded as rejected today" if again
               else f"recorded {args[0]} as out of scope in {path.relative_to(ROOT)}")
@@ -443,7 +508,7 @@ def reject(topic, args):
 
 
 def main(argv):
-    commands = {"add": lambda t: add(t, argv[2:]), "add-fringe": add_fringe, "clusters": write_clusters,
+    commands = {"add": lambda t: add(t, argv[2:]), "add-expand": add_expand, "add-fringe": add_fringe, "clusters": write_clusters,
                 "late": late, "remap": remap, "reject": lambda t: reject(t, argv[2:])}
     # `reject` takes an ID and a reason, or neither and lines on stdin, which must then not be a terminal.
     if argv and argv[0] == "reject" and (len(argv) == 3 or (len(argv) == 2 and sys.stdin.isatty())):

@@ -49,6 +49,12 @@ All by the user, 2026-10-12.
 - `The input` — the user narrowed it before this audit, excluding self-training for capability gains (recorded in the
   simulation audit's `simulation.md`).
 - `The audit itself` — the user chose a blind read before the change, over writing this plan directly.
+- `Rate limits` (`P2`), 2026-10-13 — decided: `collect` batches its calls and resumes after a failure, which keeps a
+  pass's calls to the shared unauthenticated pool few, and makes a busy spell cost a rerun. The user has applied for a
+  Semantic Scholar API key, which gives every script a rate limit of its own; an answer may take two weeks. Using the
+  key changes the spec's statement that no key or user identifier is sent, which the user approves with the key.
+  Rejected: routing the scripts through Asta. Its `get_citations` cannot page, it has no embeddings, so the Graph API
+  stays needed anyway, and a script would have to speak MCP with a key from Claude Code's config.
 
 ## The design
 
@@ -56,26 +62,29 @@ All by the user, 2026-10-12.
 
 Step 2 becomes four rows, three of them scripts:
 
-1. `Collect` — main: `uv run tools/expand.py collect <topic>`. From the latest `Orientation` line, it reads the seeds,
+1. `Collect` — main: `python3 tools/expand.py collect <topic>`. From the latest `Orientation` line, it reads the seeds,
    the frontier candidates and the themes. It calls the Semantic Scholar Graph API directly, as `tools/fringe.py` does:
 
-   - backward: the references of every seed and every frontier candidate;
-   - forward: every citer of every seed and every frontier candidate, paged to the end, so nothing is cut at 100;
+   - backward and forward: the reference and citer lists of every seed and frontier candidate, from the batch endpoint,
+     up to 500 papers per call; a list shorter than the paper's count is paged from its own endpoint, so nothing is cut
+     at 100;
    - searches: one relevance search per theme (`/graph/v1/paper/search`), top 50.
 
-   It drops candidates already in the pool (by ID or by normalised title) or already in `rejected.md`. It drops those
-   without a SPECTER2 embedding, which no tool could add. It records each source's full result in
-   `graphs/<topic>/expand.json`, with the totals and what was dropped and why. It writes the screening sheet
-   `graphs/<topic>/expand-screen.md`, one numbered row per unique candidate, with title and abstract.
+   It drops candidates already in the pool (by ID or by normalised title), already in `rejected.md`, already on the
+   sheet, or unknown to Semantic Scholar, and keeps one of two records with the same title. It records each source's
+   full result in `graphs/<topic>/expand.json`, with the totals and what was dropped and why, saving after every call so
+   that a failed run resumes. It appends to the screening sheet `graphs/<topic>/expand-screen.md`, one numbered row per
+   candidate, with title and abstract. The embedding check moved to `Add`, for the `yes` rows only (`P2`).
 
 2. `Screen` — `survey-pass` "Screening", one dispatch per block of at most 100 rows, handed over as a row range. The
    agent judges each row with `tools/expand.py judge`, `yes` or `no` with a reason. Dispatches may run in parallel,
    since `judge` locks the sheet while it writes. A verdict can be replaced on the sheet until the next row, `Add`,
    runs.
 
-3. `Add` — main: `python3 tools/assign.py add-expand <topic>`. It refuses while any row is unjudged. Each `yes` enters
-   the pool and each `no` enters `rejected.md` with its reason. It prints the `Expansion` line, so every count in it
-   comes from the script.
+3. `Add` — main: `python3 tools/assign.py add-expand <topic>`. It refuses while any row of this pass is unjudged. Each
+   `yes` enters the pool through `tools/assign.py add`, which refuses a paper without a SPECTER2 embedding, and each
+   `no` enters `rejected.md` with its reason. It prints the `Expansion` line, so every count in it comes from the
+   script.
 
 4. `Fetch` — main: `python3 tools/pool.py <topic>`, as now. Then the fringe rows follow, unchanged.
 
@@ -116,6 +125,48 @@ and `2404.01413`, and one references call for `2404.01413`. Findings: one.
   "from its title and abstract", and says nothing for a candidate without one. Fix: the sheet shows `(no abstract)`. The
   Screening brief says to judge such a row from its title, and that "borderline is in" applies. The same calls also
   confirm the fix for `M1`: paging returned all 551 and all 182 citers.
+
+### A live run of `collect`, 2026-10-12
+
+Run by the plan's author on a scratch topic (one seed, `2404.01413`, and one theme), against the live Graph API, at no
+model cost. It gave 249 rows, 20 without an abstract, about 195 tokens per row. Findings: two.
+
+- `P2` — `blocker`. The shared unauthenticated rate limit returned 429s past the network helper's retries, twice, on a
+  run of about 8 calls; the first design made about 60 calls on the `model-collapse` topic. A busy spell would halt the
+  pass (`H3`) and lose the run. Fix: as decided above, batching (one batch call returns the full reference and citer
+  lists of many papers: 30 and 551, and 30 and 182, for the two seeds, in 1.6 s), the embedding check moved to `Add`,
+  and progress saved after every call. About 15 calls on that topic.
+- `P3` — `minor`. `collect` failed when `graphs/<topic>/` did not exist. Fix: it creates it.
+
+### Independent code review, 2026-10-13
+
+Run by a fresh agent that read the design above, the audit's IDs and the uncommitted code, but not the plan's author's
+reasoning; about 91k tokens. Findings: eight, all fixed in phase 2, with tests.
+
+- `P4` — `other` (bug). `add-expand` matched the pool by ID only, while `collect` and `G1` also match by title, so two
+  records of one paper could both enter the pool. Fix: `collect` keeps one of two same-title candidates, preferring the
+  arXiv record; `add-expand` skips a `yes` whose title matches a pool paper.
+- `P5` — `other` (bug). A candidate could lose its sheet row for good: `collect` died between its two writes, or
+  appended while a `judge` held the lock. Fix: `collect` takes the same lock, and every run appends any candidate of
+  `expand.json` without a row.
+- `P6` — `other` (bug). A `no` for a pool paper, or one without an ID, failed `G1` with advice (`add-expand`) that could
+  not clear it. Fix: `G1` names the real remedy, re-judging the row, and a `no` without an ID has nothing to record.
+- `P7` — `gap`. A traversal that returned 404 counted as done, and an old-style arXiv ID went into a URL path unencoded.
+  Fix: `G1` fails on an untraversed start paper until Open work records it; IDs go in batch bodies, and the paged
+  fallback quotes them; a list past the endpoint's offset limit is marked `capped`.
+- `P8` — `other` (bug). A second targeted run on one region with another query replaced the first's record. Fix: a round
+  is keyed by its query too.
+- `P9` — `gap`. `add-expand` and `G1` acted on every row from every pass, so a paper the user had taken out of the pool
+  would be re-added. Fix: both act on this pass's candidates only.
+- `P10` — `gap`. No tests for paging, `--targeted`, argument parsing, 404s, the fringe title match, or a `CorpusId`-only
+  candidate. Fix: behaviour tests for each.
+- `P11` — `minor`. Leftovers: the fringe sheet's header still asked for "a short reason"; unused imports; two duplicated
+  parsers; a sheet parsed twice. Fix: all tidied.
+
+### The behaviour tests, 2026-10-13
+
+- `P12` — `other` (bug), found by the new rerun test. A rerun of a collection could append a second record of one of its
+  own rows, since the title check did not see them. Fix: a rerun's own titles count as taken.
 
 ## Remediations
 

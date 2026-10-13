@@ -6,8 +6,8 @@ A gate is a point in the order of operations (docs/process.md) after which a set
 
   G0 ready             after step 0: the pass's log entry, its dimensions (declared, or proposed with their values),
                        a passing preflight
-  G1 pool complete     after step 2: orientation and expansion recorded, rejections recorded, the pool fetched, the
-                       fringe routes collected, screened and added
+  G1 pool complete     after step 2: orientation recorded; expansion collected from every seed, frontier candidate and
+                       theme, screened and added; the pool fetched; the fringe routes collected, screened and added
   G2 clusters named    after step 3: this pass's clustering, named, written into the pool, and logged
   G3 coreset selected  after step 4: every required role filled or its empty slot recorded, dissent searched and quoted,
                        bridges and the fringe quota, no empty cell
@@ -36,6 +36,7 @@ import re
 import subprocess
 import unicodedata
 
+from screen import judged, verdicts
 from check import (ABSTRACT_SHARE, BARE_ID, CORESET_COLUMNS, FRINGE_QUOTA, NEEDED, ROOT, read, row_id, sections,
                    table_rows, words)
 
@@ -155,6 +156,8 @@ class Ctx:
         self.fringe = json.loads(read(d / "fringe.json") or "null")
         self.screen = read(d / "fringe-screen.md")
         self.rejected = read(d / "rejected.md")
+        self.expand = json.loads(read(d / "expand.json") or "null")
+        self.expand_screen = read(d / "expand-screen.md")
 
     def line(self, label):
         return " ".join(self.L.get(label, []))
@@ -223,34 +226,123 @@ def r_preflight(c):
     return f"`Preflight` does not show these checks passing: {bad}; a failed check halts the pass (H1)" if bad else None
 
 
-def frontier(c):
-    m = re.search(r"frontier candidates:\s*(.*)$", c.line("Orientation"))
-    return BARE_ID.findall(m.group(1)) if m else []
-
-
 def r_orientation(c):
     if (m := need_lines(c, "Orientation", "Recency window")):
         return m
-    ids = frontier(c)
-    if not ids:
-        return "`Orientation` lists no frontier candidates by ID (`; frontier candidates: <id>, ...`)"
+    from expand import orientation_parts
+    seeds, ids, themes = orientation_parts(c.line("Orientation"))
+    problems = []
+    if not (seeds or ids):
+        problems.append("`Orientation` lists neither seeds (`seeds from the input: <id>, ...`) nor frontier candidates "
+                        "(`frontier candidates: <id>, ...`) by ID, so expansion has nothing to traverse from")
+    if not themes:
+        problems.append("`Orientation` names no themes (`themes: \"<phrase>\", ...`), so expansion has nothing to search")
     out = sorted(set(ids) - c.pool)
-    return f"frontier candidates not in the pool: {out}; add them with `tools/assign.py add`" if out else None
+    if out:
+        problems.append(f"frontier candidates not in the pool: {out}; add them with `tools/assign.py add`")
+    return "; ".join(problems) or None
 
 
-def r_expansion(c):
+def expand_rounds(c):
+    """This pass's collections in expand.json, as (index, record)."""
+    return [(i, r) for i, r in enumerate((c.expand or {}).get("rounds", [])) if r.get("collected", "") >= c.date]
+
+
+def r_expansion_collected(c):
+    if not c.expand:
+        return f"graphs/{c.topic}/expand.json does not exist: run `python3 tools/expand.py collect {c.topic}`"
+    first = [r for _, r in expand_rounds(c) if r.get("kind") == "first"]
+    if not first:
+        return f"expansion was not collected this pass ({c.date}): run `python3 tools/expand.py collect {c.topic}`"
+    from expand import orientation_parts
+    seeds, ids, themes = orientation_parts(c.line("Orientation"))
+    have = {(x["kind"], x.get("from") or x.get("query")) for x in first[-1]["sources"]}
+    missing = ([f"backward from {i}" for i in dict.fromkeys(seeds + ids) if ("backward", i) not in have]
+               + [f"forward from {i}" for i in dict.fromkeys(seeds + ids) if ("forward", i) not in have]
+               + [f'query "{t}"' for t in themes if ("search", t) not in have])
+    # A paper Semantic Scholar does not know was not traversed; it passes only once Open work records it.
+    unknown = sorted({x["from"] for _, r in expand_rounds(c) for x in r["sources"]
+                      if x.get("error") and x["from"] not in c.ow("Papers that could not enter the pool")})
+    problems = []
+    if missing:
+        problems.append(f"this pass's expansion did not collect these, which `Orientation` names: {missing[:6]}; rerun "
+                        f"`python3 tools/expand.py collect {c.topic}`")
+    if unknown:
+        problems.append(f"Semantic Scholar did not find these, so they were not traversed: {unknown}; record them in "
+                        "Open work's `Papers that could not enter the pool`")
+    return "; ".join(problems) or None
+
+
+def expand_mine(c):
+    """{s2: (verdict, reason)} for the sheet rows of this pass's candidates."""
+    from expand import pass_candidates
+    said = verdicts(c.expand_screen)
+    return {s: said.get(s) for s in pass_candidates(c.expand, c.date)}
+
+
+def r_expansion_screened(c):
+    if not c.expand_screen:
+        return f"graphs/{c.topic}/expand-screen.md does not exist"
+    if not c.expand:
+        return None   # g1.expansion-collected reports it
+    mine = expand_mine(c)
+    # Every collected candidate needs its row: deleting rows must not shorten the screening.
+    absent = sorted(s for s, v in mine.items() if v is None)
+    bad = [s for s, v in mine.items() if v is not None and not judged(*v)]
+    problems = []
+    if absent:
+        problems.append(f"{len(absent)} candidate(s) in expand.json have no row in expand-screen.md: {absent[:4]}; rerun "
+                        f"`python3 tools/expand.py collect {c.topic}`, which restores them")
+    if bad:
+        problems.append(f"{len(bad)} row(s) of expand-screen.md without a `yes` or `no` and a reason of a few words")
+    return "; ".join(problems) or None
+
+
+def r_expansion_added(c):
+    if not (c.expand and c.expand_screen):
+        return None  # g1.expansion-collected and g1.expansion-screened report it
+    from expand import canonical
+    cands = c.expand.get("candidates", {})
+    pool_titles = {" ".join(words(t)) for t in c.titles.values()}
+    rejected = {row_id(l) for h, _, _, l in table_rows(c.rejected or "") if h and h[0] == "paper"}
+    unseen = c.ow("Papers that could not enter the pool")
+    missing, unrecorded, conflict = [], [], []
+    for s, v in expand_mine(c).items():
+        if v is None:
+            continue
+        x = cands.get(s, {})
+        pid = canonical(x)
+        if v[0].startswith("yes") and not (pid in c.pool or " ".join(words(x.get("title", ""))) in pool_titles
+                                           or (pid and pid in unseen) or (x.get("title") and x["title"] in unseen)):
+            missing.append(pid or s)
+        elif v[0].startswith("no") and pid and pid in c.pool:
+            conflict.append(pid)
+        elif v[0].startswith("no") and pid and pid not in rejected:
+            unrecorded.append(pid)
+    problems = []
+    if missing:
+        problems.append(f"{len(missing)} in-scope candidate(s) of expand-screen.md neither in the pool nor in Open work: "
+                        f"{missing[:6]}; run `python3 tools/assign.py add-expand {c.topic}`")
+    if unrecorded:
+        problems.append(f"{len(unrecorded)} rejected candidate(s) of expand-screen.md not in rejected.md: "
+                        f"{unrecorded[:6]}; run `python3 tools/assign.py add-expand {c.topic}`")
+    if conflict:
+        problems.append(f"judged `no` on expand-screen.md but in the pool: {conflict[:6]}; re-judge the row with "
+                        f"`python3 tools/expand.py judge {c.topic}`, or ask the user to take the paper out (H12)")
+    return "; ".join(problems) or None
+
+
+def r_expansion_line(c):
     if (m := need_lines(c, "Expansion")):
         return m
-    # A candidate counts as traversed where a part of the line that opens with a direction gives it a count:
-    # `backward from <id> (40), <id> (35)`.
-    traversed = set()
-    for part in c.line("Expansion").split(";"):
-        part = part.strip()
-        if re.match(r"(backward|forward|both)\b", part) and not re.search(r"\bnot\b", part, re.I):
-            traversed |= set(re.findall(rf"{BARE_ID.pattern}\s*\(\d+\)", part))
-    out = [i for i in frontier(c) if i not in traversed]
-    return (f"`Expansion` does not name these frontier candidates as traversed, in the form `backward from <id> (<n>), "
-            f"...`: {out}") if out else None
+    if not (c.expand and c.expand_screen):
+        return None
+    from expand import expansion_line
+    want = expansion_line(c.expand, verdicts(c.expand_screen), c.date).split(":** ", 1)[1]
+    if " ".join(c.line("Expansion").split()) != " ".join(want.split()):
+        return (f"`Expansion` disagrees with expand.json and the sheet; paste the line "
+                f"`python3 tools/assign.py add-expand {c.topic}` prints")
+    return None
 
 
 def r_errored(c):
@@ -266,19 +358,6 @@ def r_errored(c):
         return "an errored query has no retry outcome (`retried at the end of the step: ok | failed`)"
     if any(re.search(r"retried at the end of the step:\s*failed", e) for e in entries) and "H2" not in c.halts:
         return "an errored query still failed after its retry, but `Halts` has no H2"
-    return None
-
-
-def r_rejected(c):
-    # A pass that judged every candidate in scope says so in its `Expansion` line, rather than having nothing to show.
-    if re.search(r"\brejected: none\b", c.line("Expansion")):
-        return None
-    if not c.rejected:
-        return f"graphs/{c.topic}/rejected.md does not exist: record each out-of-scope candidate with `tools/assign.py reject`"
-    dates = [cs[1] for h, cs, _, _ in table_rows(c.rejected) if h and h[0] == "paper" and len(cs) > 1]
-    if not any(d >= c.date for d in dates):
-        return (f"no rejection recorded since {c.date} (`tools/assign.py reject`); if none was out of scope, end the "
-                f"`Expansion` line with `; rejected: none`")
     return None
 
 
@@ -298,8 +377,7 @@ def r_fetched(c):
 
 def screened(c):
     """{s2: (verdict, reason)} from the fringe screening sheet."""
-    return {cs[0]: (cs[h.index("in scope")].strip().lower(), cs[h.index("reason")].strip())
-            for h, cs, _, _ in table_rows(c.screen or "") if h and h[0] == "s2" and len(cs) == len(h)}
+    return verdicts(c.screen)
 
 
 def r_fringe_collected(c):
@@ -308,12 +386,6 @@ def r_fringe_collected(c):
     if c.fringe.get("collected", "") < c.date:
         return f"the fringe routes were last collected on {c.fringe.get('collected')}, before this pass ({c.date})"
     return None
-
-
-def judged(verdict, reason):
-    """Whether a screening row is judged: `yes` or `no` (not `maybe`), with a reason of a few words. `tools/assign.py
-    add-fringe` uses the same test."""
-    return (verdict.startswith("yes") or verdict.startswith("no")) and len(words(reason)) >= 2
 
 
 def r_fringe_screened(c):
@@ -933,8 +1005,9 @@ REQUIREMENTS = {
     0: [("g0.entry", r_entry), ("g0.placeholders", r_placeholders), ("g0.labels", r_labels),
         ("g0.dimensions", r_dimensions), ("g0.preflight", r_preflight),
         ("g0.halts-waivers", lambda c: need_lines(c, "Halts", "Waivers"))],
-    1: [("g1.orientation", r_orientation), ("g1.expansion", r_expansion), ("g1.errored", r_errored),
-        ("g1.rejected", r_rejected), ("g1.fetched", r_fetched), ("g1.fringe-collected", r_fringe_collected),
+    1: [("g1.orientation", r_orientation), ("g1.expansion-collected", r_expansion_collected),
+        ("g1.expansion-screened", r_expansion_screened), ("g1.expansion-added", r_expansion_added),
+        ("g1.expansion-line", r_expansion_line), ("g1.errored", r_errored), ("g1.fetched", r_fetched), ("g1.fringe-collected", r_fringe_collected),
         ("g1.fringe-screened", r_fringe_screened), ("g1.fringe-added", r_fringe_added), ("g1.fringe-line", r_fringe_line),
         ("g1.pool-line", r_pool_line)],
     2: [("g2.clustered", r_clustered), ("g2.named", r_named), ("g2.central-claim", r_central_claim), ("g2.written", r_written),

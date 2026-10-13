@@ -48,7 +48,7 @@ def build():
     (dst / "fringe-screen.md").write_text("\n".join(out) + "\n")
     (dst / "fringe.json").write_text(json.dumps(fr))
     (dst / "rejected.md").write_text(f"# Rejected candidates: {T}\n\n| paper | date | reason |\n| -- | -- | -- |\n"
-                                     f"| [2401.00001](https://arxiv.org/abs/2401.00001) | {DATE} | off topic |\n")
+                                     f"| [2401.00001](https://arxiv.org/abs/2401.00001) | {DATE} | about image classification |\n")
     unique = len(fr["candidates"])
 
     names = {f"c{i}": n for i, n in enumerate(["one", "two", "three", "four", "five", "six"], 1)}
@@ -99,6 +99,26 @@ def build():
             else f"{fetched[0]} to {fetched[-1]}")   # as tools/pool.py prints it
     fr1, fr2 = rows["c1"][-4][0], rows["c2"][-4][0]   # two anchors as frontier candidates
     changed = rows["c3"][0][0]
+    # expansion: one collection from the two frontier candidates and one theme; its sheet has three rows, two `yes`
+    # that are pool papers and one `no`, the paper rejected.md records
+    import expand, screen
+    s2s, pids_x = [f"{k + 1:040x}" for k in range(3)], [pids[3], pids[10], "2401.00001"]
+    cands = {x: {"title": titles.get(p, "A study of image classifiers"), "abstract": "An abstract of the paper.",
+                 "arxiv": None if p.startswith("CorpusId") else p, "corpus": p if p.startswith("CorpusId") else None,
+                 "round": 0} for x, p in zip(s2s, pids_x)}
+    xsrc = [dict(kind="backward", **{"from": fr1}, ids=s2s[:2], unresolved=1, returned=2),
+           dict(kind="backward", **{"from": fr2}, ids=s2s[2:], unresolved=0, returned=1),
+           dict(kind="forward", **{"from": fr1}, ids=[], unresolved=0, returned=0),
+           dict(kind="forward", **{"from": fr2}, ids=[], unresolved=0, returned=0),
+           dict(kind="search", query="test-time compute", ids=s2s, unresolved=0, returned=3)]
+    exp = {"rounds": [{"collected": DATE, "kind": "first", "region": None, "why": None, "sources": xsrc,
+                       "left out": {k: [] for k in expand.LEFT_OUT}}], "candidates": cands}
+    said = [("yes", "studies test-time compute"), ("yes", "studies reasoning length"), ("no", "about image classification")]
+    sheet = expand.SHEET.format(topic=T) + "".join(f"| {n} | {x} | {cands[x]['title'].replace('|', '/')} | An abstract of "
+                                                   f"the paper. | {v} | {r} |\n" for n, (x, (v, r)) in enumerate(zip(s2s, said), 1))
+    (dst / "expand.json").write_text(json.dumps(exp))
+    (dst / "expand-screen.md").write_text(sheet)
+    expansion = expand.expansion_line(exp, screen.verdicts(sheet), DATE)
     survey = f"""# Survey: {T}
 
 ## Retrieval log
@@ -108,8 +128,9 @@ def build():
 - **Gates:** G0 {DATE}
 - **Preflight:** snippet_search ok | search_papers_by_relevance ok | get_paper ok | get_citations ok | WebSearch ok |
   Graph API ok | arXiv ok | uv ok | Asta key set
-- **Orientation (WebSearch):** "reasoning models"; frontier candidates: {fr1}, {fr2}
-- **Expansion:** backward from {fr1} (40), {fr2} (35); queries "test-time compute"
+- **Orientation (WebSearch):** "reasoning models"; themes: "test-time compute"; seeds from the input: none;
+  frontier candidates: {fr1}, {fr2}
+{expansion}
 - **Errored queries:** none
 - **Recency window:** 2026-04-09 to {DATE}, applied to the recency queries only
 - **Fringe:** collected {DATE}: hidden 60, new 60 candidates ({unique} unique); in scope 3; added to the pool 3, of
@@ -233,7 +254,8 @@ A tension ({cite[2]}).
     call(audit.judge, "faithfulness", stdin="".join(f"S{i}\tsupported\tthe row says so\n" for i in range(1, n + 1)))
     s = (ROOT / f"surveys/{T}.md").read_text().replace("JUDGEMENT_AUDIT", audit.summary(T)[0])
     (ROOT / f"surveys/{T}.md").write_text(s)
-    return dict(verified=verified, dissent=[d1, d2], abstract=abstract, rows=all_rows, changed=changed, fr1=fr1, fr2=fr2, names=names, a=a)
+    return dict(verified=verified, dissent=[d1, d2], abstract=abstract, rows=all_rows, changed=changed, fr1=fr1, fr2=fr2, names=names, a=a,
+                s2s=s2s, expanded=pids_x)
 
 
 def clean():
