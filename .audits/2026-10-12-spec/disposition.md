@@ -16,13 +16,15 @@ verified, and what to watch.
 | -- | -- | -- | -- |
 | 1, independent fixes | `A4`, `A5`, `C2`, `A1` (its docs part), `E16`, `E17` | `ac34b92` | done |
 | 2, the code | `A2`, `Z1`, `C1`, `C3`, `M1`, `M2`, `S5`, `S6`, `S7`, `A3`, `T1`, `T2`, `E15`, `E18`–`E20`, `P2`–`P12` | `79ae39f` | done |
-| 3, the docs | see the plan | — | pending |
+| 3, the docs | `S1`, `S4`, `S6`, `W1`, `W2`, `A1`, `A6`–`A9`, `Z2`, `P1`, `P13`; the docs of phase 2's IDs | `b876f00`, `97a23f0` | done |
 | 4, the simulation | — | — | pending |
 
 ## Commits
 
 - `ac34b92` — phase 1.
 - `79ae39f` — phase 2.
+- `b876f00` — phase 3's one code change (`S6`).
+- `97a23f0` — phase 3, the docs.
 
 ## Outcomes
 
@@ -74,39 +76,57 @@ on a scratch topic (`P2`). Watch for all of it in `pool` iteration 2, the first 
 - `E20` — `moot`, `79ae39f`: traversal and searches are one script run.
 - `P2`–`P12` — `fixed`, `79ae39f`, as the plan describes each.
 
+### Phase 3: the docs
+
+Verified by both gate suites after the phase, 92 of 92 faults and 71 of 71 behaviours, and by a fresh agent's check of
+the docs against the code, whose twelve findings are in the plan: eleven fixed in the docs, one deferred (`P14`). The docs edited: `docs/process.md`, `docs/dispatch.md`, `docs/formats.md`,
+`docs/tooling.md`, `docs/external_services.md`, `docs/gates.md` and `.claude/agents/survey-pass.md`.
+
+- `A2`, `Z1`, `E18` — `fixed`, `97a23f0`. The docs of the design: the order of operations' step 2 rows (collect, screen,
+  add, fetch), step 2's prose, the `Expansion` line as `add-expand` prints it, the two new files under
+  `graphs/<topic>/`, and new sections in `docs/tooling.md`, "Expansion candidates" and "Screening sheets". Whether
+  screening fits in capped dispatches is for phase 4 to show.
+- `S1` — `fixed`, `97a23f0`. Forward traversal from the seeds and the frontier candidates is required work, in the collect
+  row and step 2's prose.
+- `S4` — `moot`, `97a23f0`. `rejected: none` is gone from the template, the notes and the `G1` row.
+- `S6` — `fixed`, `b876f00` and `97a23f0`. A new halt, `H14`: neither seeds nor frontier candidates. `collect` prints
+  `STOP: H14`; step 1 and "When a pass ends" say what the user decides.
+- `W1` — `fixed`, `97a23f0`. The Expand brief is gone. The required work's done-when sits in the script rows, which the
+  main session runs.
+- `W2` — `fixed`, `97a23f0`. The Screening brief, in place of Expand and Fringe screening, reads the input's `Topic` and
+  `Clustering`.
+- `A1` — `fixed`, `97a23f0`. The Orient brief asks Asta for `externalIds`.
+- `A6` — `moot`, `97a23f0`. Expansion has no stopping rule; "When to stop" keeps orientation's alone.
+- `A7` — `fixed`, `97a23f0`. The `snippet_search` sentence and the date-restricted queries are gone from step 2, and the
+  `Dates` bullet of `docs/external_services.md` no longer tells agents to use them for recent work.
+- `A8` — `fixed`, `97a23f0`. A targeted expansion traverses from the region's 5 papers most cited within the pool, as the
+  naming sheet lists them; on `no stable level`, the 2 thinnest regions, the two smallest clusters, are expanded. Both
+  are stated as first guesses. Departure: the plan left the targeted round's query to "the region's theme"; the docs
+  say the main session words it from the region's titles, or takes it from the `expect` line or the coverage round,
+  since a cluster has no name before Naming.
+- `A9` — `fixed`, `97a23f0`. The themes include every other name the input gives the topic: in the Orient brief, step 1,
+  the order of operations, and `docs/formats.md`'s `Context` and `Orientation` notes.
+- `Z2` — `moot`, `97a23f0`. The order of operations is rewritten for step 2. The fetch row is no longer a duplicate: pool
+  rows now enter through `add-expand`, which the main session runs, so no dispatch's "After every dispatch" fetch comes
+  before it. The fringe routes need that fetch first.
+- `P1` — `fixed`, `97a23f0`. "Screening for scope": a `(no abstract)` row is judged from its title, and borderline is in.
+- `P14` — `deferred`, with `S2`. A gap the docs check found; the docs now state it. See the plan.
+- `P13` — `fixed`, `97a23f0`. Found while writing the Screening brief: the fringe sheet now numbers its rows, so that it
+  too can be handed over in ranges of at most 100. Recorded in the plan.
+
 ## Not mapped to a phase
 
 None yet.
 
 ## Pending
 
-Phases 3–4, as the plan sets them out. Phase 3, the docs, was started on 2026-10-13 with one code change it needed:
-`tools/expand.py collect` takes `--query` and `--why` without `--targeted`, for an expected theme with no cluster (a
-search alone, the region named by its theme), and prints `STOP: H14` when `Orientation` names neither seeds nor frontier
-candidates (`S6`). Left to write, in this order:
-
-- `docs/process.md`: the overview's expansion line; a new `H14` in "When a pass ends"; the order of operations' step 2
-  rows (collect, screening in blocks of at most 100 rows, in parallel, add-expand, fetch), the fringe screening row's
-  brief, and the targeted-expansion row (`collect --targeted/--query`, its 5 papers most cited within the pool, 2
-  thinnest regions on `no stable level`: `A8`); step 1's themes including the input's other names (`A9`); step 2
-  rewritten for the script, required work only (`A6`, `A7`, `S1`); "Screening for scope", the `(no abstract)` rule
-  (`P1`) and "When to stop" for orientation only; "Fringe routes", the title match; step 3's "The Expand agent"
-  sentence.
-- `docs/dispatch.md`: the Screening brief in place of Expand and Fringe screening (a sheet and a row range, reads the
-  input's `Topic` and `Clustering`, `W2`; blind for the fringe sheet); the Orient brief (`A9`, `externalIds`: `A1`); the
-  parallel rule (screening dispatches write the sheet through the lock, not the pool).
-- `docs/formats.md`: the `Expansion` template and its notes, now printed by `add-expand`; the list of script-printed
-  lines; `expand.json` and `expand-screen.md` under `graphs/<topic>/`; `rejected.md`'s writers.
-- `docs/tooling.md`: a section for `tools/expand.py` and `tools/screen.py`; `add-expand` under "Pool table"; "Fringe
-  candidates" (two-word reasons, title match).
-- `docs/external_services.md`: the Asta tools table (expansion no longer uses Asta), the Graph API's users and the
-  batching and resume of `collect`.
-- `docs/gates.md`: the `G1` row and the trace line for expansion.
-- `.claude/agents/survey-pass.md`: "Leaving a trace" and "Reading the files" (the expansion sheet).
-- Then a check of the docs against the code by a fresh agent, as the plan says.
+Phase 4: `pool` iteration 2 of the simulation audit, from the `plan` checkpoint, with a rebuilt scratch copy.
 
 ### Watch in the next run
 
 - `A5`, `E16`, `E17`: see their entries above.
 - `P2`: whether the shared Graph API pool lets `collect` through, and how often a run must resume, until the user's
   Semantic Scholar key arrives.
+- Phase 3: whether the main session hands out ranges of at most 100 rows and runs them in parallel; whether screening
+  agents send verdicts with `printf`, as `docs/tooling.md` shows, rather than a program; and how the main session words
+  a targeted round's query.
