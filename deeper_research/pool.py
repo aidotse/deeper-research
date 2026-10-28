@@ -68,7 +68,8 @@ def fetch(ids, save):
 def backfill(ids, records, save):
     """Add `arxiv` and `corpus` to records fetched before they were kept, changing nothing else: the citations,
     references and embedding stay those the clustering was computed from. A paper Semantic Scholar does not return is
-    left without the key, to be tried again on the next run."""
+    left without the key, to be tried again on the next run.
+    """
     for i in range(0, len(ids), 100):
         batch = ids[i : i + 100]
         out = {}
@@ -136,10 +137,14 @@ def main(argv):
     topic, refresh = argv[0], "--refresh" in argv
     survey = ROOT / "surveys" / f"{topic}.md"
     if not survey.exists():
-        sys.exit(f"surveys/{topic}.md does not exist; write it first, with its five section headings (docs/process.md, "
-                 "step 0), and add the pool's papers with `uv run python -m deeper_research.assign add`")
+        sys.exit(
+            f"surveys/{topic}.md does not exist; write it first, with its five section headings (docs/process.md, "
+            "step 0), and add the pool's papers with `uv run python -m deeper_research.assign add`"
+        )
     if "Coreset" not in sections(survey.read_text()):
-        sys.exit(f"surveys/{topic}.md has no `## Coreset` section; add the five section headings first (docs/formats.md)")
+        sys.exit(
+            f"surveys/{topic}.md has no `## Coreset` section; add the five section headings first (docs/formats.md)"
+        )
     papers = parse(topic)[4]
     path = topic_dir(topic) / "pool.json"
     cache = {} if refresh or not path.exists() else json.loads(path.read_text())
@@ -173,8 +178,11 @@ def main(argv):
     print(f"no embedding: {len(no_emb)} {no_emb}")
     print(f"fewer than 10 resolved references: {short}")
     filled = fill_pool(topic, records)
-    print("no Pool table (legacy survey); survey left untouched" if filled is None
-          else f"Pool table: {filled} row(s) updated (citations as of {when})")
+    print(
+        "no Pool table (legacy survey); survey left untouched"
+        if filled is None
+        else f"Pool table: {filled} row(s) updated (citations as of {when})"
+    )
     # A paper has an arXiv ID if its canonical ID is one, or, for a CorpusId row, if its record knows one.
     on_arxiv = sum(1 for a in papers if ARXIV_ONLY.match(a) or (records.get(a) or {}).get("arxiv"))
     print("\nlog line:")

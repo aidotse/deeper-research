@@ -47,9 +47,28 @@ from sklearn.metrics import adjusted_mutual_info_score as ami
 from sklearn.metrics import adjusted_rand_score as ari
 
 ROOT = Path(__file__).resolve().parent.parent
-from deeper_research.cluster import (HOLDOUT_MONTHS, LEVELS, MIN_CLUSTER, MIN_HOLDOUT_SHARE, NO_STRUCTURE,  # noqa: E402
-                     SUBCLUSTER_SCORE, TAU, best_jaccard, combined_sim, knn_graph, leiden, level_stats, month_back,
-                     n_clusters, null_refs, null_text, opt, refs_sim, text_sim, tune)
+from deeper_research.cluster import (
+    HOLDOUT_MONTHS,
+    LEVELS,
+    MIN_CLUSTER,
+    MIN_HOLDOUT_SHARE,
+    NO_STRUCTURE,  # noqa: E402
+    SUBCLUSTER_SCORE,
+    TAU,
+    best_jaccard,
+    combined_sim,
+    knn_graph,
+    leiden,
+    level_stats,
+    month_back,
+    n_clusters,
+    null_refs,
+    null_text,
+    opt,
+    refs_sim,
+    text_sim,
+    tune,
+)
 from deeper_research.graph import parse, topic_dir  # noqa: E402
 
 # Set in each worker by setup(): the pool's records, dates and the run's settings.
@@ -215,8 +234,16 @@ def refine(node, rule, perts):
         return node
     base = BASE.get(rule, rule)
     cands = try_splits(node, base, perts)
-    node["candidates"] = [{"clusters": x["clusters"], "stability": x["stability"], "null": x.get("null"),
-                           "parts": [len(p) for p in x["parts"]], "scores": x["scores"]} for x in cands]
+    node["candidates"] = [
+        {
+            "clusters": x["clusters"],
+            "stability": x["stability"],
+            "null": x.get("null"),
+            "parts": [len(p) for p in x["parts"]],
+            "scores": x["scores"],
+        }
+        for x in cands
+    ]
     pick = choose(cands, base)
     if pick is None:
         node["stop"] = "no split passes"
@@ -225,8 +252,13 @@ def refine(node, rule, perts):
     if rule in BASE:
         big = [j for j in keep if len(x["parts"][j]) >= MIN_CLUSTER]
         scores, made = shakedown(node, x, big, perts, base)
-        node["shakedown"] = {"clusters": x["clusters"], "parts": [len(x["parts"][j]) for j in big], "scores": scores,
-                             "splits_made": made, "reruns": len(perts)}
+        node["shakedown"] = {
+            "clusters": x["clusters"],
+            "parts": [len(x["parts"][j]) for j in big],
+            "scores": scores,
+            "splits_made": made,
+            "reruns": len(perts),
+        }
         passed = [j for j, sc in zip(big, scores) if sc >= CFG["child"]]
         if base == "strict" and len(passed) < len(big):
             node["stop"] = "split not confirmed"
@@ -239,13 +271,25 @@ def refine(node, rule, perts):
     node["split"] = {"clusters": x["clusters"], "stability": x["stability"], "kept": len(keep)}
     node["children"] = []
     for j in keep:
-        child = {"depth": node["depth"] + 1, "size": len(x["parts"][j]), "idx": x["parts"][j],
-                 "score": x["scores"][j], "versions": x["found"][j]}
+        child = {
+            "depth": node["depth"] + 1,
+            "size": len(x["parts"][j]),
+            "idx": x["parts"][j],
+            "score": x["scores"][j],
+            "versions": x["found"][j],
+        }
         node["children"].append(refine(child, rule, perts))
     rest = [i for j in range(len(x["parts"])) if j not in keep for i in x["parts"][j]]
     if rest:
-        node["children"].append({"depth": node["depth"] + 1, "size": len(rest), "idx": np.array(sorted(rest)),
-                                 "stop": "remainder", "score": None})
+        node["children"].append(
+            {
+                "depth": node["depth"] + 1,
+                "size": len(rest),
+                "idx": np.array(sorted(rest)),
+                "stop": "remainder",
+                "score": None,
+            }
+        )
     return node
 
 
@@ -255,7 +299,13 @@ def build(root, rule):
     perts = perturbations(root)
     parts = sorted(groups(root, lab), key=len, reverse=True)
     found, scores = follow(perts, [P for _, P, _ in perts], gamma, parts)
-    tree = {"depth": 0, "size": len(root), "idx": root, "split": {"clusters": len(parts), "global": True}, "children": []}
+    tree = {
+        "depth": 0,
+        "size": len(root),
+        "idx": root,
+        "split": {"clusters": len(parts), "global": True},
+        "children": [],
+    }
     for p, f, s in zip(parts, found, scores):
         tree["children"].append(refine({"depth": 1, "size": len(p), "idx": p, "score": s, "versions": f}, rule, perts))
     return tree
@@ -318,11 +368,18 @@ def main(argv):
         sys.exit(__doc__)
     topic = argv[0]
     report_in = json.loads((topic_dir(topic) / "clusters.json").read_text())
-    cfg = {"measure": report_in["measure"], "k": report_in["params"]["k"], "c": report_in["params"]["c"],
-           "nulls": report_in["params"]["nulls"], "tau": opt(argv, "--tau", TAU, float),
-           "child": opt(argv, "--child", SUBCLUSTER_SCORE, float), "delta": opt(argv, "--delta", NO_STRUCTURE, float),
-           "reps": opt(argv, "--reps", 20, int), "min_node_full": opt(argv, "--min-node", 20, int),
-           "max_split": opt(argv, "--max-split", 6, int)}
+    cfg = {
+        "measure": report_in["measure"],
+        "k": report_in["params"]["k"],
+        "c": report_in["params"]["c"],
+        "nulls": report_in["params"]["nulls"],
+        "tau": opt(argv, "--tau", TAU, float),
+        "child": opt(argv, "--child", SUBCLUSTER_SCORE, float),
+        "delta": opt(argv, "--delta", NO_STRUCTURE, float),
+        "reps": opt(argv, "--reps", 20, int),
+        "min_node_full": opt(argv, "--min-node", 20, int),
+        "max_split": opt(argv, "--max-split", 6, int),
+    }
     rules = opt(argv, "--rules", ["tau", "strict", "partial"], lambda s: s.split(","))
     reruns, workers = opt(argv, "--reruns", 10, int), opt(argv, "--workers", 12, int)
 
@@ -359,7 +416,7 @@ def main(argv):
     summary = {}
     kinds = np.array([k for k, _ in subsets])
     for mi, m in enumerate(methods):
-        rows = results[mi * len(subsets):(mi + 1) * len(subsets)]
+        rows = results[mi * len(subsets) : (mi + 1) * len(subsets)]
         comp = [compare(refs[m], idx, lab) for (_, idx), (lab, _) in zip(subsets, rows)]
         aris = np.array([a for a, _ in comp])
         cw = {}
@@ -368,8 +425,10 @@ def main(argv):
                 cw.setdefault(c, []).append(j)
         sizes = np.bincount(refs[m])
         summary[m] = {
-            "clusters": n_clusters(refs[m]), f"clusters_{MIN_CLUSTER}plus": int((sizes >= MIN_CLUSTER).sum()),
-            "holdout_ari": float(aris[kinds == "holdout"].mean()), "resample_ari": float(aris[kinds == "resample"].mean()),
+            "clusters": n_clusters(refs[m]),
+            f"clusters_{MIN_CLUSTER}plus": int((sizes >= MIN_CLUSTER).sum()),
+            "holdout_ari": float(aris[kinds == "holdout"].mean()),
+            "resample_ari": float(aris[kinds == "resample"].mean()),
             "ami_vs_survey": float(ami(survey, refs[m])),
             "cluster_scores": {int(c): float(np.mean(v)) for c, v in cw.items()},
             "sizes": {int(c): int(sizes[c]) for c in cw},
@@ -383,18 +442,25 @@ def main(argv):
         score = f" e2e {node['score']:.2f}" if node.get("score") is not None else ""
         if "split" in node:
             s = node["split"]
-            what = ("global level" if s.get("global") else
-                    f"split {s['clusters']}, stability {s['stability']:.2f}, {s['kept']} kept")
+            what = (
+                "global level"
+                if s.get("global")
+                else f"split {s['clusters']}, stability {s['stability']:.2f}, {s['kept']} kept"
+            )
         else:
             what = f"leaf, {node['stop']}"
         out.append(f"{prefix}{node['size']:>3} [{mix}]{score} {what}")
         if "shakedown" in node:
             sd = node["shakedown"]
-            out.append(f"{prefix}      shakedown of the {sd['clusters']}-split: made in {sd['splits_made']} of {sd['reruns']} "
-                       "reruns; parts " + " ".join(f"{p}:{v:.2f}" for p, v in zip(sd["parts"], sd["scores"])))
+            out.append(
+                f"{prefix}      shakedown of the {sd['clusters']}-split: made in {sd['splits_made']} of {sd['reruns']} "
+                "reruns; parts " + " ".join(f"{p}:{v:.2f}" for p, v in zip(sd["parts"], sd["scores"]))
+            )
         for x in node.get("candidates", []):
-            out.append(f"{prefix}      try {x['clusters']}: stability {x['stability']:.2f}; parts "
-                       + " ".join(f"{p}:{s:.2f}" for p, s in zip(x["parts"], x["scores"])))
+            out.append(
+                f"{prefix}      try {x['clusters']}: stability {x['stability']:.2f}; parts "
+                + " ".join(f"{p}:{s:.2f}" for p, s in zip(x["parts"], x["scores"]))
+            )
         if "children" not in node:
             top = node["idx"][np.argmax(cites[node["idx"]])]
             out.append(f"{prefix}      e.g. {papers[ids[top]]['title'][:70]}")
@@ -404,14 +470,23 @@ def main(argv):
     for r, t in trees.items():
         lines = []
         show(t, lines)
-        print(f"\nrule {r}: tree (size [global clusters inside], end-to-end score, decision; "
-              f"tries with part size:end-to-end score):\n" + "\n".join(lines))
+        print(
+            f"\nrule {r}: tree (size [global clusters inside], end-to-end score, decision; "
+            f"tries with part size:end-to-end score):\n" + "\n".join(lines)
+        )
     print("\nreruns from scratch on each time holdout and each resample, compared with the full-pool result")
-    print(f"{'method':12}{'clusters':>9}{'(3+)':>6}{'holdout':>9}{'resample':>10}{'AMI blocks':>12}  per-cluster scores (size:score)")
+    print(
+        f"{'method':12}{'clusters':>9}{'(3+)':>6}{'holdout':>9}{'resample':>10}{'AMI blocks':>12}  per-cluster scores (size:score)"
+    )
     for m, s in summary.items():
-        cs = " ".join(f"{s['sizes'][c]}:{v:.2f}" for c, v in sorted(s["cluster_scores"].items(), key=lambda kv: -s["sizes"][kv[0]]))
-        print(f"{m:12}{s['clusters']:>9}{s[f'clusters_{MIN_CLUSTER}plus']:>6}{s['holdout_ari']:>9.2f}{s['resample_ari']:>10.2f}"
-              f"{s['ami_vs_survey']:>12.2f}  {cs}")
+        cs = " ".join(
+            f"{s['sizes'][c]}:{v:.2f}"
+            for c, v in sorted(s["cluster_scores"].items(), key=lambda kv: -s["sizes"][kv[0]])
+        )
+        print(
+            f"{m:12}{s['clusters']:>9}{s[f'clusters_{MIN_CLUSTER}plus']:>6}{s['holdout_ari']:>9.2f}{s['resample_ari']:>10.2f}"
+            f"{s['ami_vs_survey']:>12.2f}  {cs}"
+        )
 
     def strip(node):
         out = {x: node[x] for x in node if x not in ("idx", "children", "versions")}
@@ -420,8 +495,12 @@ def main(argv):
             out["children"] = [strip(ch) for ch in node["children"]]
         return out
 
-    report = {"generated": time.strftime("%Y-%m-%d"), "params": {**cfg, "rules": rules, "reruns": reruns},
-              "summary": summary, "trees": {r: strip(t) for r, t in trees.items()}}
+    report = {
+        "generated": time.strftime("%Y-%m-%d"),
+        "params": {**cfg, "rules": rules, "reruns": reruns},
+        "summary": summary,
+        "trees": {r: strip(t) for r, t in trees.items()},
+    }
     out = topic_dir(topic) / "recursive.json"
     out.write_text(json.dumps(report, indent=1))
     print(f"\nwrote {out.relative_to(ROOT)} in {time.time() - t0:.0f}s")

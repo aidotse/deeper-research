@@ -55,12 +55,12 @@ ROOT = Path(__file__).resolve().parent.parent
 from deeper_research.assign import pool_ids, rejected, survey_path, topic_dir  # noqa: E402
 from deeper_research.check import BARE_ID, ID, arxiv_of, s2_ref, sections  # noqa: E402
 from deeper_research.net import get_json  # noqa: E402
-from deeper_research.screen import ABSTRACT_CHARS, Papers, clean, judge, judged, pool_titles, title_key, verdicts  # noqa: E402
+from deeper_research.screen import Papers, clean, judge, judged, pool_titles, verdicts  # noqa: E402
 
 API = "https://api.semanticscholar.org/graph/v1"
-SEARCH_LIMIT = 50   # results kept per theme search, as Asta's relevance search returns by default
-PAGE = 1000         # the most the references and citations endpoints return per call
-BATCH = 500         # the most IDs the batch endpoint takes per call
+SEARCH_LIMIT = 50  # results kept per theme search, as Asta's relevance search returns by default
+PAGE = 1000  # the most the references and citations endpoints return per call
+BATCH = 500  # the most IDs the batch endpoint takes per call
 LISTS = "citationCount,referenceCount,references.paperId,citations.paperId"
 META = "title,abstract,externalIds,openAccessPdf"
 LEFT_OUT = ("in the pool", "rejected earlier", "on the sheet already", "another record", "not found")
@@ -75,7 +75,7 @@ Candidates for `{topic}` from expansion, one numbered row each (`uv run python -
 
 
 def call(url, body=None):
-    time.sleep(1)   # the unauthenticated endpoint shares one rate limit across all its users; net retries a 429
+    time.sleep(1)  # the unauthenticated endpoint shares one rate limit across all its users; net retries a 429
     return get_json(url, body)
 
 
@@ -96,6 +96,7 @@ def orientation_parts(line):
 def latest_entry(topic):
     """(date, Orientation line) of the retrieval log's latest pass entry."""
     from deeper_research.gates import log_entries
+
     entries = log_entries(sections(survey_path(topic).read_text()).get("Retrieval log", ""))
     if not entries:
         sys.exit("the retrieval log has no pass entry; run steps 0 and 1 of docs/process.md first")
@@ -108,11 +109,13 @@ def paged(pid, direction):
     out, offset = [], 0
     while True:
         try:
-            d = call(f"{API}/paper/{urllib.parse.quote(s2_ref(pid), safe=':')}/{endpoint}?fields=paperId&limit={PAGE}"
-                     f"&offset={offset}")
+            d = call(
+                f"{API}/paper/{urllib.parse.quote(s2_ref(pid), safe=':')}/{endpoint}?fields=paperId&limit={PAGE}"
+                f"&offset={offset}"
+            )
         except urllib.error.HTTPError as e:
             if e.code == 400 and offset:
-                return out, True   # past the endpoint's limit on offset plus limit
+                return out, True  # past the endpoint's limit on offset plus limit
             raise
         out += d.get("data") or []
         if d.get("next") is None:
@@ -123,8 +126,11 @@ def paged(pid, direction):
 def traversal(pid, direction, rec):
     """A source record for one traversal, from the paper's batch record."""
     src = {"kind": direction, "from": pid, "ids": [], "unresolved": 0}
-    key, count, inner = (("references", "referenceCount", "citedPaper") if direction == "backward"
-                         else ("citations", "citationCount", "citingPaper"))
+    key, count, inner = (
+        ("references", "referenceCount", "citedPaper")
+        if direction == "backward"
+        else ("citations", "citationCount", "citingPaper")
+    )
     if not rec:
         src["error"] = "not found"
         print(f"  WARNING: Semantic Scholar does not know {pid}; nothing to traverse")
@@ -155,8 +161,15 @@ def search(query):
     q = urllib.parse.quote('"' + phrase(query) + '"')
     d = call(f"{API}/paper/search/bulk?query={q}&fields=paperId&sort=citationCount:desc")
     ids = list(dict.fromkeys(p["paperId"] for p in (d.get("data") or [])[:SEARCH_LIMIT] if p.get("paperId")))
-    return {"kind": "search", "endpoint": "search/bulk", "query": query, "ids": ids, "unresolved": 0,
-            "returned": len(ids), "matched": d.get("total") or 0}
+    return {
+        "kind": "search",
+        "endpoint": "search/bulk",
+        "query": query,
+        "ids": ids,
+        "unresolved": 0,
+        "returned": len(ids),
+        "matched": d.get("total") or 0,
+    }
 
 
 def lite(rec):
@@ -164,8 +177,12 @@ def lite(rec):
     if not rec or not rec.get("title"):
         return None
     ext = rec.get("externalIds") or {}
-    return {"title": clean(rec["title"]), "abstract": clean(rec.get("abstract")), "arxiv": arxiv_of(rec),
-            "corpus": f"CorpusId:{ext['CorpusId']}" if ext.get("CorpusId") else None}
+    return {
+        "title": clean(rec["title"]),
+        "abstract": clean(rec.get("abstract")),
+        "arxiv": arxiv_of(rec),
+        "corpus": f"CorpusId:{ext['CorpusId']}" if ext.get("CorpusId") else None,
+    }
 
 
 def canonical(c):
@@ -190,18 +207,23 @@ def append_rows(topic, data):
     if not sheet.exists():
         sheet.write_text(SHEET.format(topic=topic))
     with open(sheet, "r+") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)   # released when the file closes
+        fcntl.flock(f, fcntl.LOCK_EX)  # released when the file closes
         text = f.read()
         have = verdicts(text)
         missing = [x for x in data["candidates"] if x not in have]
         first = len(have) + 1
         c = data["candidates"]
         f.seek(0)
-        f.write(text.rstrip("\n") + "\n" + "".join(
-            f"| {n} | {x} | {c[x]['title']} | {c[x]['abstract'] or '(no abstract)'} |  |  |\n"
-            for n, x in enumerate(missing, first)))
+        f.write(
+            text.rstrip("\n")
+            + "\n"
+            + "".join(
+                f"| {n} | {x} | {c[x]['title']} | {c[x]['abstract'] or '(no abstract)'} |  |  |\n"
+                for n, x in enumerate(missing, first)
+            )
+        )
         f.truncate()
-    return first, len(missing), {**have, **{x: ("", "") for x in missing}}
+    return first, len(missing), {**have, **dict.fromkeys(missing, ("", ""))}
 
 
 def collect(topic, targeted=None, query=None, why=None):
@@ -213,13 +235,17 @@ def collect(topic, targeted=None, query=None, why=None):
     else:
         starts = list(dict.fromkeys(seeds + frontier))
         if not starts:
-            sys.exit("STOP: H14 — the latest `Orientation` line names neither seeds nor frontier candidates, so "
-                     "there is nothing to traverse from (docs/process.md, \"When a pass ends\")")
+            sys.exit(
+                "STOP: H14 — the latest `Orientation` line names neither seeds nor frontier candidates, so "
+                'there is nothing to traverse from (docs/process.md, "When a pass ends")'
+            )
         if any(not phrase(x) for x in themes):
             sys.exit("the latest `Orientation` line has an empty theme; each theme is a phrase to search")
         if not themes:
-            sys.exit("the latest `Orientation` line names no themes (`themes: \"<phrase>\", ...`), so there is nothing "
-                     "to search")
+            sys.exit(
+                'the latest `Orientation` line names no themes (`themes: "<phrase>", ...`), so there is nothing '
+                "to search"
+            )
         directions, queries, kind = ("backward", "forward"), themes, "first"
     region = (targeted[0] if targeted else f'"{query}"') if query else None
     key = [kind, region, query]
@@ -235,12 +261,18 @@ def collect(topic, targeted=None, query=None, why=None):
     save = lambda: path.write_text(json.dumps(data, indent=1))
     labels = [f"{k} {p}" for k in directions for p in starts] + [f"search {q}" for q in queries]
     # The same collection rerun in the same pass replaces its record; its candidates on the sheet stay its own.
-    idx = next((i for i in pass_rounds(data, since) if [rounds[i]["kind"], rounds[i].get("region"),
-                                                        rounds[i].get("query")] == key), len(rounds))
+    idx = next(
+        (
+            i
+            for i in pass_rounds(data, since)
+            if [rounds[i]["kind"], rounds[i].get("region"), rounds[i].get("query")] == key
+        ),
+        len(rounds),
+    )
     try:
         todo = [p for p in starts if any(f"{k} {p}" not in part["sources"] for k in directions)]
         for i in range(0, len(todo), BATCH):
-            batch = todo[i:i + BATCH]
+            batch = todo[i : i + BATCH]
             for p, rec in zip(batch, call(f"{API}/paper/batch?fields={LISTS}", {"ids": [s2_ref(x) for x in batch]})):
                 for k in directions:
                     part["sources"][f"{k} {p}"] = traversal(p, k, rec)
@@ -258,8 +290,9 @@ def collect(topic, targeted=None, query=None, why=None):
         own = {x for x, c in cands.items() if c.get("round") == idx}
         on_sheet = {x for x in cands if x not in own}
         pool_json = d / "pool.json"
-        in_pool_s2 = ({r["s2"] for r in json.loads(pool_json.read_text())["papers"].values()} if pool_json.exists()
-                      else set())
+        in_pool_s2 = (
+            {r["s2"] for r in json.loads(pool_json.read_text())["papers"].values()} if pool_json.exists() else set()
+        )
         left = {k: [] for k in LEFT_OUT}
         todo = []
         for x in dict.fromkeys(x for s in sources for x in s["ids"]):
@@ -275,21 +308,23 @@ def collect(topic, targeted=None, query=None, why=None):
         if need:
             print(f"fetching titles and abstracts of {len(need)} candidate(s)...")
         for i in range(0, len(need), BATCH):
-            batch = need[i:i + BATCH]
+            batch = need[i : i + BATCH]
             part["meta"].update(zip(batch, map(lite, call(f"{API}/paper/batch?fields={META}", {"ids": batch}))))
             save()
     except (urllib.error.URLError, http.client.HTTPException, TimeoutError, ConnectionError) as e:
         save()
-        sys.exit(f"the Graph API failed after its retries ({e}). What was fetched is saved in {path.relative_to(ROOT)}: "
-                 "run the same command again to resume. If it fails again, the pass halts (H3).")
+        sys.exit(
+            f"the Graph API failed after its retries ({e}). What was fetched is saved in {path.relative_to(ROOT)}: "
+            "run the same command again to resume. If it fails again, the pass halts (H3)."
+        )
 
     # Records of one paper (screen.Papers: a shared ID, or the same title by check.same_title) count as one candidate.
     pool, rej = Papers(pool_ids(topic), pool_titles(topic)), set(rejected(topic))
-    sheet, seen = Papers(), Papers()   # earlier rounds' rows; this round's papers, a rerun's own rows among them
+    sheet, seen = Papers(), Papers()  # earlier rounds' rows; this round's papers, a rerun's own rows among them
     for x, c in cands.items():
         (sheet if x in on_sheet else seen).add(x, (c.get("arxiv"), c.get("corpus")), c["title"])
-    paper, keep = {}, {}   # candidate -> the paper it is a record of; paper -> the record kept: the first with an
-    for x in todo:         # arXiv ID, else the first. A rerun's own row is kept already, so a match to it is left out.
+    paper, keep = {}, {}  # candidate -> the paper it is a record of; paper -> the record kept: the first with an
+    for x in todo:  # arXiv ID, else the first. A rerun's own row is kept already, so a match to it is left out.
         m = part["meta"].get(x)
         if m:
             found, paper[x] = seen.find((m["arxiv"], m["corpus"]), m["title"])
@@ -315,8 +350,15 @@ def collect(topic, targeted=None, query=None, why=None):
         else:
             cands[x] = dict(m, round=idx)
             new.append(x)
-    record = {"collected": time.strftime("%Y-%m-%d"), "kind": kind, "region": region, "query": query, "why": why,
-              "sources": sources, "left out": left}
+    record = {
+        "collected": time.strftime("%Y-%m-%d"),
+        "kind": kind,
+        "region": region,
+        "query": query,
+        "why": why,
+        "sources": sources,
+        "left out": left,
+    }
     if idx < len(rounds):
         rounds[idx] = record
     else:
@@ -325,17 +367,22 @@ def collect(topic, targeted=None, query=None, why=None):
     save()
     first, added, v = append_rows(topic, data)
     print("left out: " + ", ".join(f"{k} {len(x)}" for k, x in left.items()))
-    print(f"wrote {path.relative_to(ROOT)}; {len(new)} new candidate(s); appended {added} row(s) to "
-          f"graphs/{topic}/expand-screen.md" + (f", numbered {first} to {first + added - 1}" if added else ""))
-    print(f"unjudged on the sheet: {sum(1 for a, r in v.values() if not judged(a, r))} of {len(v)}; next, have them "
-          f"screened in blocks of at most 100 rows (docs/dispatch.md, \"Screening\"), then run "
-          f"`uv run python -m deeper_research.assign add-expand {topic}`")
+    print(
+        f"wrote {path.relative_to(ROOT)}; {len(new)} new candidate(s); appended {added} row(s) to "
+        f"graphs/{topic}/expand-screen.md" + (f", numbered {first} to {first + added - 1}" if added else "")
+    )
+    print(
+        f"unjudged on the sheet: {sum(1 for a, r in v.values() if not judged(a, r))} of {len(v)}; next, have them "
+        f'screened in blocks of at most 100 rows (docs/dispatch.md, "Screening"), then run '
+        f"`uv run python -m deeper_research.assign add-expand {topic}`"
+    )
     return 0
 
 
 def expansion_line(data, verdict_of, since):
     """The log's `Expansion` line, from expand.json and the sheet's verdicts, over the rounds of the pass begun on
-    `since`. Each round is one part; a targeted round opens with `targeted, <region> (<why>):`."""
+    `since`. Each round is one part; a targeted round opens with `targeted, <region> (<why>):`.
+    """
     parts = []
     for i, r in enumerate(data["rounds"]):
         if r["collected"] < since:
@@ -345,24 +392,43 @@ def expansion_line(data, verdict_of, since):
         for kind in ("backward", "forward"):
             items = [s for s in src if s["kind"] == kind]
             if items:
-                bits.append(f"{kind} from " + ", ".join(
-                    f"{s['from']} ({s['returned']}" + (f", {s['error']}" if s.get("error") else "")
-                    + (", capped" if s.get("capped") else "") + ")" for s in items))
+                bits.append(
+                    f"{kind} from "
+                    + ", ".join(
+                        f"{s['from']} ({s['returned']}"
+                        + (f", {s['error']}" if s.get("error") else "")
+                        + (", capped" if s.get("capped") else "")
+                        + ")"
+                        for s in items
+                    )
+                )
         items = [s for s in src if s["kind"] == "search"]
         if items:
-            bits.append("queries " + ", ".join(
-                f'"{s["query"]}" ({s["returned"]}' + (f' of {s["matched"]}' if "matched" in s else "") + ")"
-                for s in items))
+            bits.append(
+                "queries "
+                + ", ".join(
+                    f'"{s["query"]}" ({s["returned"]}' + (f" of {s['matched']}" if "matched" in s else "") + ")"
+                    for s in items
+                )
+            )
         mine = [x for x, c in data["candidates"].items() if c.get("round") == i]
         said = [verdict_of.get(x, ("", ""))[0] for x in mine]
         unique = len({x for s in src for x in s["ids"]})
-        bits.append(f"{unique} unique, left out: " + ", ".join(f"{k} {len(r['left out'][k])}" for k in LEFT_OUT)
-                    + f"; {sum(s.get('unresolved', 0) for s in src)} without a paper ID")
-        bits.append(f"screened {len(mine)}: in scope {sum(v.startswith('yes') for v in said)}, rejected "
-                    f"{sum(v.startswith('no') for v in said)}")
+        bits.append(
+            f"{unique} unique, left out: "
+            + ", ".join(f"{k} {len(r['left out'][k])}" for k in LEFT_OUT)
+            + f"; {sum(s.get('unresolved', 0) for s in src)} without a paper ID"
+        )
+        bits.append(
+            f"screened {len(mine)}: in scope {sum(v.startswith('yes') for v in said)}, rejected "
+            f"{sum(v.startswith('no') for v in said)}"
+        )
         text = "; ".join(bits)
-        parts.append(f"targeted, {r['region']} ({r.get('why') or 'no reason given'}): {text}" if r["kind"] == "targeted"
-                     else text)
+        parts.append(
+            f"targeted, {r['region']} ({r.get('why') or 'no reason given'}): {text}"
+            if r["kind"] == "targeted"
+            else text
+        )
     return "- **Expansion:** " + "; ".join(parts)
 
 
@@ -377,13 +443,19 @@ def main(argv):
         if len(argv) != 2 or sys.stdin.isatty():
             print(__doc__.strip())
             return 2
-        return judge(topic_dir(topic) / "expand-screen.md", f"`uv run python -m deeper_research.expand collect {topic}`")
+        return judge(
+            topic_dir(topic) / "expand-screen.md", f"`uv run python -m deeper_research.expand collect {topic}`"
+        )
     try:
         opts = {argv[i]: argv[i + 1] for i in range(2, len(argv), 2)}
     except IndexError:
         opts = None
-    if (opts is None or set(opts) - {"--targeted", "--query", "--why"}
-            or (opts and not {"--query", "--why"} <= set(opts)) or not all(opts.values())):
+    if (
+        opts is None
+        or set(opts) - {"--targeted", "--query", "--why"}
+        or (opts and not {"--query", "--why"} <= set(opts))
+        or not all(opts.values())
+    ):
         print(__doc__.strip())
         return 2
     if opts:

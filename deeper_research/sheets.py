@@ -16,8 +16,8 @@ Standard library only; nothing is fetched.
 """
 
 import json
-from datetime import date
 import sys
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -33,9 +33,11 @@ def main(argv):
         return 2
     topic = argv[0]
     d = topic_dir(topic)
-    for path, then in ((ROOT / "surveys" / f"{topic}.md", "steps 0-2 of docs/process.md"),
-                       (d / "pool.json", f"`uv run python -m deeper_research.pool {topic}`"),
-                       (d / "clusters.json", f"`uv run python -m deeper_research.cluster {topic}`")):
+    for path, then in (
+        (ROOT / "surveys" / f"{topic}.md", "steps 0-2 of docs/process.md"),
+        (d / "pool.json", f"`uv run python -m deeper_research.pool {topic}`"),
+        (d / "clusters.json", f"`uv run python -m deeper_research.cluster {topic}`"),
+    ):
         if not path.exists():
             sys.exit(f"no {path.relative_to(ROOT)}; run {then} first")
     report = json.loads((d / "clusters.json").read_text())
@@ -51,7 +53,7 @@ def main(argv):
     assigned = dict(report["assignment"])
     assigned.update({p: x["cluster"] for p, x in report.get("late", {}).items()})
     by_s2 = {cache[a]["s2"]: a for a in assigned if a in cache}
-    indeg = {a: 0 for a in assigned}
+    indeg = dict.fromkeys(assigned, 0)
     for a in assigned:
         for x in set(cache.get(a, {}).get("refs", [])):
             if x in by_s2 and by_s2[x] != a:
@@ -66,7 +68,8 @@ def main(argv):
     def age_and_rate(a):
         """(months since publication, citations per month), counted to the fetch date, when the citations were
         counted; None without a date or a count. Citations per month is the frontier role's measure of impact
-        (docs/process.md, step 4)."""
+        (docs/process.md, step 4).
+        """
         rec = cache.get(a, {})
         when = rec.get("date") or (f"{rec['year']}-07-01" if rec.get("year") else None)
         if when is None or rec.get("citations") is None:
@@ -89,8 +92,11 @@ def main(argv):
     # lists them as diagnostics, so they are moved to the notes here.
     noted = ("unstable cluster", "broad scope")
     diagnostics = [x for x in report.get("diagnostics", []) if x.get("case") not in noted]
-    notes = report.get("notes", []) + [{"clusters": x.get("clusters", []), "text": f"{x['case']}: {x['detail']}"}
-                                       for x in report.get("diagnostics", []) if x.get("case") in noted]
+    notes = report.get("notes", []) + [
+        {"clusters": x.get("clusters", []), "text": f"{x['case']}: {x['detail']}"}
+        for x in report.get("diagnostics", [])
+        if x.get("case") in noted
+    ]
     diag = {}
     for x in diagnostics:
         for c in x.get("clusters", []):
@@ -102,10 +108,14 @@ def main(argv):
             note.setdefault(c, []).append(x["text"])
     whole_notes = [x["text"] for x in notes if not x.get("clusters")]
 
-    out = [f"# Naming sheet: {topic}", "",
-           f"Clustering of {report['generated']}: measure `{report['measure']}`, {report['level']} clusters "
-           f"({report['level_reason']}). Membership is computed: name and define each cluster, rate its alignment, "
-           "and never move papers between clusters (docs/process.md, step 3).", ""]
+    out = [
+        f"# Naming sheet: {topic}",
+        "",
+        f"Clustering of {report['generated']}: measure `{report['measure']}`, {report['level']} clusters "
+        f"({report['level_reason']}). Membership is computed: name and define each cluster, rate its alignment, "
+        "and never move papers between clusters (docs/process.md, step 3).",
+        "",
+    ]
     if whole:
         out += ["Whole-clustering diagnostics: " + "; ".join(whole), ""]
     if whole_notes:
@@ -119,8 +129,10 @@ def main(argv):
             out.append(f"- Diagnostic: {line}")
         for line in note.get(c, []):
             out.append(f"- Note: {line}")
-        out.append(f"- Sub-clusters at the next finer level: {len(cl['subclusters'])}"
-                   + (" (internally divided)" if cl["divided"] else ""))
+        out.append(
+            f"- Sub-clusters at the next finer level: {len(cl['subclusters'])}"
+            + (" (internally divided)" if cl["divided"] else "")
+        )
         out += ["", "Most cited within the pool:", ""]
         for a in sorted(members, key=lambda a: -indeg[a])[:TOP]:
             out.append(f"- {indeg[a]} — `{a}` — {title(a)} ({year(a)})")
@@ -130,8 +142,10 @@ def main(argv):
         # The frontier role's candidates: the last 12 months, by impact.
         rated = [(ar[1], a) for a in members if (ar := age_and_rate(a)) and ar[0] <= 12]
         out += ["", "Last 12 months, by citations per month:", ""]
-        out += [f"- `{a}` — {title(a)} ({cache.get(a, {}).get('date') or year(a)}){impact(a)}"
-                for _, a in sorted(rated, key=lambda x: (-x[0], x[1]))[:RECENT_RATED]] or ["- none"]
+        out += [
+            f"- `{a}` — {title(a)} ({cache.get(a, {}).get('date') or year(a)}){impact(a)}"
+            for _, a in sorted(rated, key=lambda x: (-x[0], x[1]))[:RECENT_RATED]
+        ] or ["- none"]
         for i, sub in enumerate(cl["subclusters"], 1):
             sst = f"{sub['stability']:.2f}" if sub["stability"] is not None else "none"
             out += ["", f"Sub-cluster {i}: {sub['size']} papers, stability {sst}", ""]
@@ -140,16 +154,23 @@ def main(argv):
         out.append("")
     (d / "naming-sheet.md").write_text("\n".join(out))
 
-    rows = [f"# Fringe sheet: {topic}", "",
-            "The highest fringe scores: distance to the nearest neighbours in the pool, ranked within the paper's age "
-            "cohort (docs/process.md, \"Clustering method\"). Read the abstracts through Asta (`get_paper_batch`), and "
-            "keep five to ten papers that each carry an idea no other coreset row has (step 4, `fringe`).", "",
-            "| score | year | cluster | refs | coreset | paper |", "| -- | -- | -- | -- | -- | -- |"]
+    rows = [
+        f"# Fringe sheet: {topic}",
+        "",
+        "The highest fringe scores: distance to the nearest neighbours in the pool, ranked within the paper's age "
+        'cohort (docs/process.md, "Clustering method"). Read the abstracts through Asta (`get_paper_batch`), and '
+        "keep five to ten papers that each carry an idea no other coreset row has (step 4, `fringe`).",
+        "",
+        "| score | year | cluster | refs | coreset | paper |",
+        "| -- | -- | -- | -- | -- | -- |",
+    ]
     for f in report["fringe"][:FRINGE]:
         a = f["id"]
-        rows.append(f"| {f['score']:.2f} | {f['year'] or ''} | {label(f['cluster'])} | "
-                    f"{len(cache.get(a, {}).get('refs', []))} | {'yes' if a in coreset else ''} | "
-                    f"`{a}` {title(a).replace('|', '/')} |")
+        rows.append(
+            f"| {f['score']:.2f} | {f['year'] or ''} | {label(f['cluster'])} | "
+            f"{len(cache.get(a, {}).get('refs', []))} | {'yes' if a in coreset else ''} | "
+            f"`{a}` {title(a).replace('|', '/')} |"
+        )
     (d / "fringe-sheet.md").write_text("\n".join(rows) + "\n")
     for name in ("naming-sheet.md", "fringe-sheet.md"):
         text = (d / name).read_text()

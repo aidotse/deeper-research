@@ -52,7 +52,6 @@ import sys
 import time
 import urllib.error
 from html.parser import HTMLParser
-from pathlib import Path
 
 from deeper_research.check import ARXIV_ONLY, ID, ROOT, row_id, sections, table_rows  # noqa: E402
 from deeper_research.net import get_json, request  # noqa: E402
@@ -79,20 +78,28 @@ HEADING_LEVEL = {
 
 # PDF text has no markup. A references heading is a line of its own, perhaps numbered ("7 References", "VII.
 # REFERENCES") or letter-spaced by the extraction ("R EFERENCES").
-REFS_HEAD = re.compile(r"^(?:(?:\d{1,2}|[IVX]{1,4})\.?\s+)?(?:r\s?eferences(?: and notes)?|bibliography|literature cited|"
-                       r"works cited)\s*:?$", re.I)
+REFS_HEAD = re.compile(
+    r"^(?:(?:\d{1,2}|[IVX]{1,4})\.?\s+)?(?:r\s?eferences(?: and notes)?|bibliography|literature cited|"
+    r"works cited)\s*:?$",
+    re.I,
+)
 # What a list of references looks like: numbered entries such as [12], a year that ends a sentence ("2022." or
 # "(2022)."), as in an entry and seldom in a body sentence, which cites as "(Wei et al., 2022)", and venue words.
 REF_MARK = re.compile(r"^\[\d{1,3}\]|\b(?:19|20)\d\d[a-z]?\)?\.|arXiv preprint|In Proceedings|\bdoi\b", re.M)
-APPENDIX_HEAD = re.compile(r"^(?:[A-Z]\.?\s+)?(?:appendix|appendices|a\s?ppendix|supplementary materials?|"
-                           r"supplemental materials?)\b[^.]{0,80}$", re.I)
+APPENDIX_HEAD = re.compile(
+    r"^(?:[A-Z]\.?\s+)?(?:appendix|appendices|a\s?ppendix|supplementary materials?|"
+    r"supplemental materials?)\b[^.]{0,80}$",
+    re.I,
+)
 PAGE = re.compile(r"^\[page (\d+)\]$")
 # A section heading in PDF text, a guess: a short numbered title on its own line ("3 Method", "4.2 Ablations"), or one
 # of the unnumbered headings most papers share.
-PDF_HEAD = re.compile(r"^(?:\d{1,2}(?:\.\d{1,2}){0,2}\.?\s+[A-Z][A-Za-z\-]+(?:\s+[A-Za-z][A-Za-z\-:]*){0,7}|"
-                      r"(?i:abstract|introduction|related work|background|methods?|experiments|results|discussion|"
-                      r"conclusions?|limitations|broader impacts?|acknowledge?ments|appendix(?:\s+[A-Z])?\b[^.]{0,60}|"
-                      r"appendices))$")
+PDF_HEAD = re.compile(
+    r"^(?:\d{1,2}(?:\.\d{1,2}){0,2}\.?\s+[A-Z][A-Za-z\-]+(?:\s+[A-Za-z][A-Za-z\-:]*){0,7}|"
+    r"(?i:abstract|introduction|related work|background|methods?|experiments|results|discussion|"
+    r"conclusions?|limitations|broader impacts?|acknowledge?ments|appendix(?:\s+[A-Z])?\b[^.]{0,60}|"
+    r"appendices))$"
+)
 CAP = 6000  # tokens `show` prints by default
 
 
@@ -201,7 +208,8 @@ def from_html(aid):
 
 def pdf_text(body):
     """A PDF's extracted text, with page markers and without its bibliography, and a note on what was cut; or None
-    for a file pypdf cannot read, which leaves the paper unfetched rather than halting the run."""
+    for a file pypdf cannot read, which leaves the paper unfetched rather than halting the run.
+    """
     from pypdf import PdfReader
     from pypdf.errors import PyPdfError
 
@@ -222,15 +230,21 @@ def drop_bibliography(text):
     of the text. Page markers inside the cut are kept, so that the pages after it keep their numbers.
     """
     lines = text.split("\n")
-    heads = [i for i, ln in enumerate(lines) if REFS_HEAD.match(ln.strip())
-             and len(REF_MARK.findall("\n".join(lines[i + 1:i + 40]))) >= 8]
+    heads = [
+        i
+        for i, ln in enumerate(lines)
+        if REFS_HEAD.match(ln.strip()) and len(REF_MARK.findall("\n".join(lines[i + 1 : i + 40]))) >= 8
+    ]
     if not heads:
         return text, "no bibliography heading found, nothing cut"
     start = heads[-1]
     end = next((j for j in range(start + 1, len(lines)) if APPENDIX_HEAD.match(lines[j].strip())), len(lines))
     pages = [ln for ln in lines[start:end] if PAGE.match(ln.strip())]
-    note = (f"bibliography cut, lines {start + 1}-{end}; kept from {lines[end].strip()!r}" if end < len(lines)
-            else f"bibliography cut, lines {start + 1}-{end}, with everything after it: no appendix heading follows")
+    note = (
+        f"bibliography cut, lines {start + 1}-{end}; kept from {lines[end].strip()!r}"
+        if end < len(lines)
+        else f"bibliography cut, lines {start + 1}-{end}, with everything after it: no appendix heading follows"
+    )
     return "\n".join(lines[:start] + ["[bibliography removed]"] + pages + lines[end:]), note
 
 
@@ -267,9 +281,11 @@ def abstract_rows(topic):
     path = ROOT / "surveys" / f"{topic}.md"
     secs = sections(path.read_text()) if path.exists() else {}
     if "Coreset" not in secs:
-        print(f"error: --abstract fetches the coreset rows of surveys/{topic}.md, which "
-              + ("has no `## Coreset` section" if path.exists() else "does not exist")
-              + "; name the papers to fetch instead")
+        print(
+            f"error: --abstract fetches the coreset rows of surveys/{topic}.md, which "
+            + ("has no `## Coreset` section" if path.exists() else "does not exist")
+            + "; name the papers to fetch instead"
+        )
         return None
     ids = []
     for h, c, _, line in table_rows(secs["Coreset"]):
@@ -302,13 +318,14 @@ def headings(lines, pdf):
 def section_end(heads, k, n):
     """Where the k-th heading's section ends: at the next heading of its kind at the same level or above."""
     _, level, _, kind = heads[k]
-    return next((h[0] for h in heads[k + 1:] if h[3] == kind and h[1] <= level), n)
+    return next((h[0] for h in heads[k + 1 :] if h[3] == kind and h[1] <= level), n)
 
 
 def answers(label, name):
     """Whether a heading answers to a section name: the name starts the heading, case ignored, with or without the
     heading's number ("3.2", "A", "Appendix B"). Returns 2 where the name ends at a word boundary, 1 for a bare
-    prefix, 0 for no match."""
+    prefix, 0 for no match.
+    """
     label, name = label.lower(), name.lower().strip()
     bare = re.sub(r"^(?:appendix\s+)?(?:[a-z]|\d+)(?:\.\d+)*\.?\s+", "", label)
     if any(re.match(re.escape(name) + r"(?!\w)", x) for x in (label, bare)):
@@ -319,7 +336,8 @@ def answers(label, name):
 def passages(lines, lo, hi, rx, pdf):
     """The passages in lines lo to hi that match: a whole paragraph where it is short; in a table, the matching rows
     and the table's first row, which usually names the columns; otherwise, as in a long block or anywhere in PDF text,
-    whose blocks are pages, the lines around each match. Returns (start, end, first matching line)."""
+    whose blocks are pages, the lines around each match. Returns (start, end, first matching line).
+    """
     out, i = [], lo
     while i < hi:
         if not lines[i].strip():
@@ -354,8 +372,10 @@ def passages(lines, lo, hi, rx, pdf):
 def show(topic, pid, pattern, names, cap):
     path = file_of(topic, pid)
     if not path.exists():
-        print(f"error: no full text for {pid} in graphs/{topic}/fulltext; fetch it first with "
-              f"`uv run python -m deeper_research.fulltext {topic} {pid}`")
+        print(
+            f"error: no full text for {pid} in graphs/{topic}/fulltext; fetch it first with "
+            f"`uv run python -m deeper_research.fulltext {topic} {pid}`"
+        )
         return 1
     try:
         rx = re.compile(pattern, re.I) if pattern else None
@@ -380,8 +400,10 @@ def show(topic, pid, pattern, names, cap):
         if pdf and len(listed) < 3:
             listed = [k for k, h in enumerate(heads) if h[3] == "page"]
         print(f"{pid}: {lines[0].removeprefix('source: ')}, about {size(body, len(lines)):,} tokens")
-        print("tokens: estimated as characters / 4, for the section with its subsections"
-              + ("; headings in PDF text are guessed from short numbered lines" if pdf else ""))
+        print(
+            "tokens: estimated as characters / 4, for the section with its subsections"
+            + ("; headings in PDF text are guessed from short numbered lines" if pdf else "")
+        )
         print(f"{'line':>6} {'tokens':>7}  heading")
         for k in listed:
             i, level, label, kind = heads[k]
@@ -398,8 +420,10 @@ def show(topic, pid, pattern, names, cap):
             score = [answers(h[2], name) for h in heads]
             best = max(score, default=0)
             if not best:
-                print(f"error: no heading starts with {name!r}; run `uv run python -m deeper_research.fulltext show {topic} {pid}` "
-                      f"for the outline")
+                print(
+                    f"error: no heading starts with {name!r}; run `uv run python -m deeper_research.fulltext show {topic} {pid}` "
+                    f"for the outline"
+                )
                 return 1
             spans += [(heads[k][0], ends[k]) for k, s in enumerate(score) if s == best]
         spans = sorted(set(spans), key=lambda s: (s[0], -s[1]))
@@ -411,16 +435,21 @@ def show(topic, pid, pattern, names, cap):
             print(f"[lines {a + 1}-{b}, about {size(a, b):,} tokens]")
             for i in range(a, b):
                 if printed and printed + len(lines[i]) > budget:
-                    print(f"\nnote: cut at about {cap:,} tokens; the section runs on from line {i + 1} to {b}. Raise "
-                          f"--max, name a subsection, or read the file from that line.")
+                    print(
+                        f"\nnote: cut at about {cap:,} tokens; the section runs on from line {i + 1} to {b}. Raise "
+                        f"--max, name a subsection, or read the file from that line."
+                    )
                     return 0
                 print(lines[i])
                 printed += len(lines[i]) + 1
         return 0
 
     found = [p for a, b in spans for p in passages(lines, a, b, rx, pdf)]
-    print(f"{len(found)} passage(s) in {pid} match /{pattern}/" + (f" in {', '.join(names)}" if names else "")
-          + "; each printed under its heading, with its first line number")
+    print(
+        f"{len(found)} passage(s) in {pid} match /{pattern}/"
+        + (f" in {', '.join(names)}" if names else "")
+        + "; each printed under its heading, with its first line number"
+    )
     shown, rest = None, []
     for a, b, hit in found:
         chunk = "\n".join(lines[a:b])
@@ -433,8 +462,10 @@ def show(topic, pid, pattern, names, cap):
         print(f"[line {a + 1}]\n{chunk}")
         printed += len(chunk) + 1
     if rest:
-        print(f"\nnote: cut at about {cap:,} tokens; {len(rest)} more passage(s), under: "
-              f"{'; '.join(dict.fromkeys(rest))}. Narrow the pattern, name a --section, or raise --max.")
+        print(
+            f"\nnote: cut at about {cap:,} tokens; {len(rest)} more passage(s), under: "
+            f"{'; '.join(dict.fromkeys(rest))}. Narrow the pattern, name a --section, or raise --max."
+        )
     return 0
 
 
@@ -454,8 +485,10 @@ def show_main(argv):
         else:
             pos.append(a)
     if len(pos) not in (2, 3) or not all(n.strip() for n in names) or not cap.isdigit() or int(cap) < 1:
-        print("usage: uv run python -m deeper_research.fulltext show <topic> <paper-id> [<pattern>] [--section <name>]... "
-              "[--max <tokens>]")
+        print(
+            "usage: uv run python -m deeper_research.fulltext show <topic> <paper-id> [<pattern>] [--section <name>]... "
+            "[--max <tokens>]"
+        )
         return 2
     if not ID.match(pos[1]):
         print(f"error: expected a paper ID such as 2408.03314 or CorpusId:6628106; got {pos[1]!r}")
@@ -512,8 +545,10 @@ def main(argv):
         url, kind, text, note = got
         path.write_text(f"source: {url} ({kind})\nfetched: {today}\n\n{text}")
         heads = sum(1 for ln in text.splitlines() if ln.startswith("## "))
-        print(f"{kind:<8} {aid}: {len(text):,} chars (about {len(text) // 4:,} tokens), "
-              + (note if note else f"{heads} sections"))
+        print(
+            f"{kind:<8} {aid}: {len(text):,} chars (about {len(text) // 4:,} tokens), "
+            + (note if note else f"{heads} sections")
+        )
     if failed:
         # Not an error: these rows stay uncheckable (docs/verification.md, "Outcomes"). The exit status is 0, so that
         # only a real failure, such as arXiv itself not answering, halts the pass (H3).

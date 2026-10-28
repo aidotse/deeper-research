@@ -54,9 +54,24 @@ import numpy as np
 from sklearn.metrics import adjusted_rand_score as ari
 
 ROOT = Path(__file__).resolve().parent.parent
-from deeper_research.cluster import (HOLDOUT_MONTHS, LEVELS, MEASURE, MIN_CLUSTER, MIN_HOLDOUT_SHARE, SMALL, TAU,  # noqa: E402
-                     choose_level, combined_sim, knn_graph, leiden, level_stats, month_back, opt, refs_sim, text_sim,
-                     tune)
+from deeper_research.cluster import (
+    HOLDOUT_MONTHS,
+    LEVELS,
+    MEASURE,
+    MIN_CLUSTER,
+    MIN_HOLDOUT_SHARE,
+    SMALL,
+    choose_level,
+    combined_sim,
+    knn_graph,
+    leiden,
+    level_stats,
+    month_back,
+    opt,
+    refs_sim,
+    text_sim,
+    tune,
+)
 from deeper_research.graph import parse, topic_dir  # noqa: E402
 
 MAJORITY = 0.5  # the share that makes a cluster the main destination or source "by a majority"
@@ -67,11 +82,15 @@ MAJORITY = 0.5  # the share that makes a cluster the main destination or source 
 
 def match(old, new):
     """Match two clusterings, given as {paper id: cluster id}; returns one record per old and per new cluster."""
+
     def drop_fragments(lab):
         size = {}
         for c in lab.values():
             size[c] = size.get(c, 0) + 1
-        return {p: c for p, c in lab.items() if size[c] >= MIN_CLUSTER}, sum(1 for n in size.values() if n < MIN_CLUSTER)
+        return {p: c for p, c in lab.items() if size[c] >= MIN_CLUSTER}, sum(
+            1 for n in size.values() if n < MIN_CLUSTER
+        )
+
     old, frag_old = drop_fragments(old)
     new, frag_new = drop_fragments(new)
     shared = set(old) & set(new)
@@ -154,8 +173,11 @@ def curve(job):
     idx, measure, k, c, reps = job
     S, d = sim(idx, measure, c), DATES[idx]
     rng = np.random.default_rng(0)
-    return [level_stats(S, k, L, cutoffs_for(d), d, reps, rng, subset(idx, measure, c))
-            for L in LEVELS if L <= len(idx) // 4]
+    return [
+        level_stats(S, k, L, cutoffs_for(d), d, reps, rng, subset(idx, measure, c))
+        for L in LEVELS
+        if L <= len(idx) // 4
+    ]
 
 
 def today_settings(job):
@@ -181,8 +203,10 @@ def simulate(argv):
     cites = {a: r["citations"] or 0 for a, r in zip(ids, recs)}
     latest = date.fromisoformat(max(dates))
     passes = [(m, np.flatnonzero(dates < month_back(latest, m))) for m in months]
-    print(f"{topic}: {len(ids)} papers today; level {rep['level']}; "
-          f"earlier passes {', '.join(f'{m} months ago ({len(i)} papers)' for m, i in passes)}")
+    print(
+        f"{topic}: {len(ids)} papers today; level {rep['level']}; "
+        f"earlier passes {', '.join(f'{m} months ago ({len(i)} papers)' for m, i in passes)}"
+    )
 
     t0 = time.time()
     with ProcessPoolExecutor(workers, initializer=setup, initargs=(recs, dates)) as ex:
@@ -202,11 +226,13 @@ def simulate(argv):
         old = {ids[i]: f"o{int(x) + 1}" for i, x in zip(idx, lab)}
         old_ids = [ids[i] for i in idx]
         now_old = [today[a] for a in old_ids]
-        aris = {"old pass vs today": float(ari(lab, now_old)),
-                "old pass vs old papers at today's settings": float(ari(lab, settled[pi])),
-                "old papers at today's settings vs today": float(ari(settled[pi], now_old))}
+        aris = {
+            "old pass vs today": float(ari(lab, now_old)),
+            "old pass vs old papers at today's settings": float(ari(lab, settled[pi])),
+            "old papers at today's settings vs today": float(ari(settled[pi], now_old)),
+        }
         mo, mn, frags = match(old, today)
-        counts = {f"fragments in the old pass": frags["old"]} if frags["old"] else {}
+        counts = {"fragments in the old pass": frags["old"]} if frags["old"] else {}
         for r in list(mo.values()) + [v for v in mn.values() if v["case"] in ("new", "reshuffled")]:
             counts[r["case"]] = counts.get(r["case"], 0) + 1
         print(f"\n{m} months ago: {len(idx)} papers; level {cv[li]['clusters']} ({level_why})")
@@ -220,12 +246,33 @@ def simulate(argv):
             if r["case"] in ("new", "reshuffled"):
                 members = [p for p in today if today[p] == b]
                 print(f"    {b:>4} {label(members)}  <- {r['case']} ({r['fresh']:.0%} papers new)")
-        report.append({"months_ago": m, "papers": len(idx), "measure": MEASURE,
-                       "level": cv[li]["clusters"], "level_reason": level_why, "ari": aris,
-                       "counts": counts, "fragments": frags, "old": mo, "new": mn, "assignment": old})
+        report.append(
+            {
+                "months_ago": m,
+                "papers": len(idx),
+                "measure": MEASURE,
+                "level": cv[li]["clusters"],
+                "level_reason": level_why,
+                "ari": aris,
+                "counts": counts,
+                "fragments": frags,
+                "old": mo,
+                "new": mn,
+                "assignment": old,
+            }
+        )
     out = topic_dir(topic) / "match-simulation.json"
-    out.write_text(json.dumps({"generated": time.strftime("%Y-%m-%d"), "today_level": rep["level"],
-                               "today_measure": MEASURE, "passes": report}, indent=1))
+    out.write_text(
+        json.dumps(
+            {
+                "generated": time.strftime("%Y-%m-%d"),
+                "today_level": rep["level"],
+                "today_measure": MEASURE,
+                "passes": report,
+            },
+            indent=1,
+        )
+    )
     print(f"\nwrote {out.relative_to(ROOT)}")
 
 
@@ -261,25 +308,49 @@ def cluster_history(ids, recs, dates, today, measure, level, k, c, tau, segments
         rows = []
         for (cut, idx), run in zip(snaps, runs):
             have = {ids[i] for i in idx}
-            cases = [match({ids[i]: f"s{int(x)}" for i, x in zip(idx, lab)}, today)[1].get(b, {"case": "fragment"})["case"]
-                     for lab in run["labels"]]
+            cases = [
+                match({ids[i]: f"s{int(x)}" for i, x in zip(idx, lab)}, today)[1].get(b, {"case": "fragment"})["case"]
+                for lab in run["labels"]
+            ]
             matched, present = cases.count("matched"), sum(a in have for a in members[b])
             common = max(set(cases), key=cases.count)
-            why = ("found" if matched > seeds // 2 else
-                   f"too few papers ({present})" if present < SMALL else f"its papers were grouped differently ({common})")
-            rows.append({"cutoff": cut, "present": present, "matched_seeds": matched, "case": common, "why": why,
-                         "snapshot_stability": run["stability"]})
+            why = (
+                "found"
+                if matched > seeds // 2
+                else f"too few papers ({present})"
+                if present < SMALL
+                else f"its papers were grouped differently ({common})"
+            )
+            rows.append(
+                {
+                    "cutoff": cut,
+                    "present": present,
+                    "matched_seeds": matched,
+                    "case": common,
+                    "why": why,
+                    "snapshot_stability": run["stability"],
+                }
+            )
         first = None  # the earliest snapshot from which the cluster is found at every later snapshot
         for j in range(len(rows) - 1, -1, -1):
             if rows[j]["why"] != "found":
                 break
             first = j
-        out[b] = {"first_seen": cuts[first] if first is not None else None, "snapshots": rows,
-                  "statement": statement(rows, first, tau)}
-    return {"segments": segments, "seeds": seeds, "cutoffs": cuts,
-            "snapshots": [{"cutoff": cut, "papers": len(idx), "clusters": run["clusters"], "stability": run["stability"]}
-                          for (cut, idx), run in zip(snaps, runs)],
-            "clusters": out}
+        out[b] = {
+            "first_seen": cuts[first] if first is not None else None,
+            "snapshots": rows,
+            "statement": statement(rows, first, tau),
+        }
+    return {
+        "segments": segments,
+        "seeds": seeds,
+        "cutoffs": cuts,
+        "snapshots": [
+            {"cutoff": cut, "papers": len(idx), "clusters": run["clusters"], "stability": run["stability"]}
+            for (cut, idx), run in zip(snaps, runs)
+        ],
+        "clusters": out,
+    }
 
 
 def statement(rows, first, tau):
@@ -303,13 +374,28 @@ def history(argv):
     ids = rep["ids"]
     recs = [cache[a] for a in ids]
     dates = np.array([r["date"] or f"{r['year'] or 9999}-07-01" for r in recs])
-    h = cluster_history(ids, recs, dates, rep["assignment"], rep["measure"], rep["level"], rep["params"]["k"],
-                        rep["params"]["c"], rep["params"]["tau"], segments, seeds, reps, workers)
+    h = cluster_history(
+        ids,
+        recs,
+        dates,
+        rep["assignment"],
+        rep["measure"],
+        rep["level"],
+        rep["params"]["k"],
+        rep["params"]["c"],
+        rep["params"]["tau"],
+        segments,
+        seeds,
+        reps,
+        workers,
+    )
     cites = {a: r["citations"] or 0 for a, r in zip(ids, recs)}
     print(f"{topic}: {len(ids)} papers; today {rep['level']} clusters by {rep['measure']}")
     print("snapshots, clustered with today's settings:")
     for sn in h["snapshots"]:
-        print(f"  before {sn['cutoff']}: {sn['papers']:>3} papers, {sn['clusters']} clusters, stability {sn['stability']:.2f}")
+        print(
+            f"  before {sn['cutoff']}: {sn['papers']:>3} papers, {sn['clusters']} clusters, stability {sn['stability']:.2f}"
+        )
     print(f"per cluster (papers present at each snapshot, found in how many of {seeds} seeds):")
     for b, e in h["clusters"].items():
         mem = [a for a in ids if rep["assignment"][a] == b]
@@ -319,14 +405,19 @@ def history(argv):
             print(f"      before {row['cutoff']}: {row['present']:>3} papers, found {row['matched_seeds']}/{seeds}")
     print("\nlog line:\n" + log_line(h))
     out = topic_dir(topic) / "history.json"
-    out.write_text(json.dumps({"generated": time.strftime("%Y-%m-%d"), "level": rep["level"], "measure": rep["measure"],
-                               **h}, indent=1))
+    out.write_text(
+        json.dumps(
+            {"generated": time.strftime("%Y-%m-%d"), "level": rep["level"], "measure": rep["measure"], **h}, indent=1
+        )
+    )
     print(f"\nwrote {out.relative_to(ROOT)}")
 
 
 def log_line(h):
     """The retrieval log's Temporal stability line; the agent replaces computed ids with the Clusters table's ids."""
-    snaps = ", ".join(f"{sn['cutoff']} ({sn['papers']} papers, stability {sn['stability']:.2f})" for sn in h["snapshots"])
+    snaps = ", ".join(
+        f"{sn['cutoff']} ({sn['papers']} papers, stability {sn['stability']:.2f})" for sn in h["snapshots"]
+    )
     per = " | ".join(f"{b} {e['statement']}" for b, e in h["clusters"].items())
     return f"- **Temporal stability:** {h['segments']} equal-count segments; snapshots {snaps}; {per}"
 

@@ -56,11 +56,13 @@ from deeper_research.assign import rejected  # noqa: E402
 from deeper_research.check import sections  # noqa: E402
 from deeper_research.graph import parse, topic_dir  # noqa: E402
 from deeper_research.net import get_json  # noqa: E402
-from deeper_research.screen import ABSTRACT_CHARS, clean, judge, pool_titles, title_key, verdicts  # noqa: E402
+from deeper_research.screen import clean, judge, pool_titles, title_key, verdicts  # noqa: E402
 
 API = "https://api.semanticscholar.org"
-FIELDS = ("title,abstract,externalIds,publicationDate,year,citationCount,referenceCount,references.paperId,"
-          "embedding.specter_v2")
+FIELDS = (
+    "title,abstract,externalIds,publicationDate,year,citationCount,referenceCount,references.paperId,"
+    "embedding.specter_v2"
+)
 CITED_SEEDS = 10  # the most-cited pool papers added to the frontier candidates as seeds for the `new` route
 
 
@@ -78,15 +80,21 @@ def call(url, body=None):
 def fetch_s2(ids):
     out = {}
     for i in range(0, len(ids), 100):
-        data = call(f"{API}/graph/v1/paper/batch?fields={FIELDS}", {"ids": ids[i:i + 100]})
+        data = call(f"{API}/graph/v1/paper/batch?fields={FIELDS}", {"ids": ids[i : i + 100]})
         for rec in data:
             if not rec or not (rec.get("embedding") or {}).get("vector"):
                 continue
             out[rec["paperId"]] = {
-                "s2": rec["paperId"], "title": rec.get("title") or "", "abstract": rec.get("abstract") or "",
-                "arxiv": (rec.get("externalIds") or {}).get("ArXiv"), "date": rec.get("publicationDate"),
-                "corpus": f"CorpusId:{rec['externalIds']['CorpusId']}" if (rec.get("externalIds") or {}).get("CorpusId") else None,
-                "year": rec.get("year"), "citations": rec.get("citationCount") or 0,
+                "s2": rec["paperId"],
+                "title": rec.get("title") or "",
+                "abstract": rec.get("abstract") or "",
+                "arxiv": (rec.get("externalIds") or {}).get("ArXiv"),
+                "date": rec.get("publicationDate"),
+                "corpus": f"CorpusId:{rec['externalIds']['CorpusId']}"
+                if (rec.get("externalIds") or {}).get("CorpusId")
+                else None,
+                "year": rec.get("year"),
+                "citations": rec.get("citationCount") or 0,
                 "refs": sorted({x["paperId"] for x in rec.get("references") or [] if x.get("paperId")}),
                 "embedding": [round(v, 5) for v in rec["embedding"]["vector"]],
             }
@@ -107,9 +115,11 @@ def rate(rec, today):
 def frontier_candidates(topic):
     """The frontier candidates named in the latest pass's `Orientation` line, in order, without repeats."""
     from deeper_research.gates import log_entries
+
     log = sections((ROOT / "surveys" / f"{topic}.md").read_text()).get("Retrieval log", "")
     entries = log_entries(log)
     from deeper_research.expand import orientation_parts
+
     return orientation_parts(" ".join(entries[-1]["lines"].get("Orientation", [])) if entries else "")[1]
 
 
@@ -119,7 +129,7 @@ def new_route_seeds(topic, pool):
     frontier = [a for a in named if a in pool]
     missing = [a for a in named if a not in pool]
     by_s2 = {r["s2"]: a for a, r in pool.items()}
-    indeg = {a: 0 for a in pool}
+    indeg = dict.fromkeys(pool, 0)
     for a, r in pool.items():
         for x in set(r["refs"]):
             if x in by_s2 and by_s2[x] != a:
@@ -136,7 +146,9 @@ def collect(topic, per_route):
     in_pool = {r["s2"] for r in pool.values()}
     dated = [date.fromisoformat(r["date"]) for r in pool.values() if r.get("date")]
     if not dated:
-        sys.exit(f"no pool paper in pool.json has a publication date; run `uv run python -m deeper_research.pool {topic}` first")
+        sys.exit(
+            f"no pool paper in pool.json has a publication date; run `uv run python -m deeper_research.pool {topic}` first"
+        )
     latest = max(dated)
     routes = {}
     # A paper screened out earlier is not collected again, so that it cannot get a second, opposite verdict.
@@ -163,22 +175,32 @@ def collect(topic, per_route):
     # returns only very recent work).
     frontier, cited, missing, indeg = new_route_seeds(topic, pool)
     if missing:
-        print(f"WARNING: frontier candidates without a record in pool.json, not used as seeds: {', '.join(missing)}; "
-              f"run `uv run python -m deeper_research.pool {topic}` first")
+        print(
+            f"WARNING: frontier candidates without a record in pool.json, not used as seeds: {', '.join(missing)}; "
+            f"run `uv run python -m deeper_research.pool {topic}` first"
+        )
     if not frontier:
-        print("WARNING: the latest pass's `Orientation` line names no frontier candidate in the pool; the `new` route is "
-              "seeded from the most-cited pool papers alone")
-    print(f"new: seeded from {len(frontier)} frontier candidate(s) ({', '.join(frontier) or 'none'}) and the "
-          f"{len(cited)} most-cited pool papers ({', '.join(f'{a} ({indeg[a]})' for a in cited)})")
+        print(
+            "WARNING: the latest pass's `Orientation` line names no frontier candidate in the pool; the `new` route is "
+            "seeded from the most-cited pool papers alone"
+        )
+    print(
+        f"new: seeded from {len(frontier)} frontier candidate(s) ({', '.join(frontier) or 'none'}) and the "
+        f"{len(cited)} most-cited pool papers ({', '.join(f'{a} ({indeg[a]})' for a in cited)})"
+    )
     pos = [pool[a]["s2"] for a in frontier + cited]
-    recs = call(f"{API}/recommendations/v1/papers?fields=paperId,externalIds&limit={min(500, 2 * per_route)}",
-                {"positivePaperIds": pos})
+    recs = call(
+        f"{API}/recommendations/v1/papers?fields=paperId,externalIds&limit={min(500, 2 * per_route)}",
+        {"positivePaperIds": pos},
+    )
     new = []
     for p in recs["recommendedPapers"]:
         ext = p.get("externalIds") or {}
         if p["paperId"] in in_pool:
             continue
-        if is_rejected({"arxiv": ext.get("ArXiv"), "corpus": f"CorpusId:{ext['CorpusId']}" if ext.get("CorpusId") else None}):
+        if is_rejected(
+            {"arxiv": ext.get("ArXiv"), "corpus": f"CorpusId:{ext['CorpusId']}" if ext.get("CorpusId") else None}
+        ):
             excluded["new"] = excluded.get("new", 0) + 1
             continue
         new.append(p["paperId"])
@@ -201,37 +223,56 @@ def collect(topic, per_route):
                 m["routes"].append(route)
                 if route == "hidden":
                     m["pool_citers"] = counts.get(x, 0)
-    (d / "fringe.json").write_text(json.dumps({"collected": time.strftime("%Y-%m-%d"), "routes": routes,
-                                                "new_seeds": seeds, "candidates": cands}, separators=(",", ":")))
+    (d / "fringe.json").write_text(
+        json.dumps(
+            {"collected": time.strftime("%Y-%m-%d"), "routes": routes, "new_seeds": seeds, "candidates": cands},
+            separators=(",", ":"),
+        )
+    )
 
     # Blind screening sheet: shuffled, no route, no year (the `new` route finds only recent work), no citation counts.
     # Judgements already on the sheet, from an earlier collect, are carried over, so a rerun never erases screening work.
     earlier = {}
     if (d / "fringe-screen.md").exists():
-        earlier = {x: tuple(c.replace("\0", "/") for c in v)
-                   for x, v in verdicts((d / "fringe-screen.md").read_text()).items() if v[0]}
+        earlier = {
+            x: tuple(c.replace("\0", "/") for c in v)
+            for x, v in verdicts((d / "fringe-screen.md").read_text()).items()
+            if v[0]
+        }
     order = sorted(cands)
     random.Random(0).shuffle(order)
     # Numbered, so that the main session can hand the rows to screening agents as ranges.
-    rows = [f"| {n} | {x} | {clean(cands[x]['title'])} | {clean(cands[x]['abstract']) or '(no abstract)'} | "
-            f"{' | '.join(earlier.get(x, ('', '')))} |" for n, x in enumerate(order, 1)]
+    rows = [
+        f"| {n} | {x} | {clean(cands[x]['title'])} | {clean(cands[x]['abstract']) or '(no abstract)'} | "
+        f"{' | '.join(earlier.get(x, ('', '')))} |"
+        for n, x in enumerate(order, 1)
+    ]
     (d / "fringe-screen.md").write_text(
         "# Fringe screening sheet\n\n"
         f"Candidates for `{topic}`, in shuffled order. Mark `in scope` as `yes` or `no`, with a reason "
         f"of at least two words (`uv run python -m deeper_research.fringe judge {topic}`).\n\n"
-        "| # | s2 | title | abstract | in scope | reason |\n| -- | -- | -- | -- | -- | -- |\n" + "\n".join(rows) + "\n")
+        "| # | s2 | title | abstract | in scope | reason |\n| -- | -- | -- | -- | -- | -- |\n" + "\n".join(rows) + "\n"
+    )
     if any(excluded.values()):
-        print(f"left out as already rejected (graphs/{topic}/rejected.md): "
-              + ", ".join(f"{r} {excluded.get(r, 0)}" for r in routes))
+        print(
+            f"left out as already rejected (graphs/{topic}/rejected.md): "
+            + ", ".join(f"{r} {excluded.get(r, 0)}" for r in routes)
+        )
     if any(same_title.values()):
-        print("left out as another record of a pool paper, by title: "
-              + ", ".join(f"{r} {same_title.get(r, 0)}" for r in routes))
+        print(
+            "left out as another record of a pool paper, by title: "
+            + ", ".join(f"{r} {same_title.get(r, 0)}" for r in routes)
+        )
     for route, ids in routes.items():
         got = [cands[x] for x in ids if x in cands]
-        print(f"{route:9} {len(got):3} candidates; median citations {sorted(m['citations'] for m in got)[len(got) // 2] if got else '-'}; "
-              f"with arXiv id {sum(1 for m in got if m['arxiv'])}")
-    print(f"wrote {(d / 'fringe.json').relative_to(ROOT)} and {(d / 'fringe-screen.md').relative_to(ROOT)} "
-          f"({len(cands)} unique candidates; {sum(x in earlier for x in cands)} already judged, carried over)")
+        print(
+            f"{route:9} {len(got):3} candidates; median citations {sorted(m['citations'] for m in got)[len(got) // 2] if got else '-'}; "
+            f"with arXiv id {sum(1 for m in got if m['arxiv'])}"
+        )
+    print(
+        f"wrote {(d / 'fringe.json').relative_to(ROOT)} and {(d / 'fringe-screen.md').relative_to(ROOT)} "
+        f"({len(cands)} unique candidates; {sum(x in earlier for x in cands)} already judged, carried over)"
+    )
 
 
 def main(argv):
@@ -240,14 +281,20 @@ def main(argv):
         opts = {argv[i]: flags[argv[i]](argv[i + 1]) for i in range(2, len(argv), 2)}
     except (KeyError, IndexError, ValueError):
         opts = None
-    if (len(argv) < 2 or argv[0] not in ("collect", "judge", "analyse") or opts is None
-            or (argv[0] == "judge" and (opts or sys.stdin.isatty()))):
+    if (
+        len(argv) < 2
+        or argv[0] not in ("collect", "judge", "analyse")
+        or opts is None
+        or (argv[0] == "judge" and (opts or sys.stdin.isatty()))
+    ):
         print(__doc__.strip())
         return 2
     if argv[0] == "collect":
         collect(argv[1], opts.get("--per-route", 60))
     elif argv[0] == "judge":
-        return judge(topic_dir(argv[1]) / "fringe-screen.md", f"`uv run python -m deeper_research.fringe collect {argv[1]}`")
+        return judge(
+            topic_dir(argv[1]) / "fringe-screen.md", f"`uv run python -m deeper_research.fringe collect {argv[1]}`"
+        )
     else:
         analyse(argv[1], opts.get("--level"))
     return 0
@@ -274,6 +321,7 @@ def analyse(topic, level):
     import numpy as np
     from scipy.stats import mannwhitneyu
     from sklearn.metrics import adjusted_rand_score as ari
+
     from deeper_research.cluster import combined_sim, knn_graph, leiden, refs_sim, text_sim, tune
 
     pool = json.loads((d / "pool.json").read_text())["papers"]
@@ -291,8 +339,12 @@ def analyse(topic, level):
     T, C = text_sim(recs), refs_sim(recs)
     S = combined_sim(T, C, recs, c) if report["measure"] == "combined" else (T if report["measure"] == "text" else C)
     today = max(date.fromisoformat(r["date"]) for r in recs if r.get("date"))
-    cites = np.array([rate({"date": r.get("date"), "year": r.get("year"), "citations": r.get("citations") or 0}, today) or 0
-                      for r in recs])
+    cites = np.array(
+        [
+            rate({"date": r.get("date"), "year": r.get("year"), "citations": r.get("citations") or 0}, today) or 0
+            for r in recs
+        ]
+    )
     off = ~np.eye(n, dtype=bool)
     nn_text = np.array([np.sort(T[i][off[i]])[-10:].mean() for i in range(n)])
     nn_refs = np.array([np.sort(C[i][off[i]])[-10:].mean() for i in range(n)])
@@ -318,37 +370,71 @@ def analyse(topic, level):
         comp = []
         for cl in np.unique(full):
             m = full == cl
-            comp.append({"size": int(m.sum()), "fringe_share": float((cat[m] != "base").mean()),
-                         "routes": {r: int((cat[m] == r).sum()) for r in ("base", "hidden", "followers", "new")}})
+            comp.append(
+                {
+                    "size": int(m.sum()),
+                    "fringe_share": float((cat[m] != "base").mean()),
+                    "routes": {r: int((cat[m] == r).sum()) for r in ("base", "hidden", "followers", "new")},
+                }
+            )
         fringe_major = {int(cl) for cl, x in zip(np.unique(full), comp) if x["fringe_share"] > 0.5}
         rows = {}
         for route in ("base", "hidden", "new", "followers"):
             m = cat == route
             if not m.any():
                 continue
-            row = {"n": int(m.sum()), "consistency": float(np.median(cons[m])), "unstable_share": float((cons[m] < 0.5).mean()),
-                   "nn_text": float(np.median(nn_text[m])), "nn_refs": float(np.median(nn_refs[m])),
-                   "in_fringe_clusters": float(np.mean([full[i] in fringe_major for i in np.flatnonzero(m)])),
-                   "citations_per_year": float(np.median(cites[m]))}
+            row = {
+                "n": int(m.sum()),
+                "consistency": float(np.median(cons[m])),
+                "unstable_share": float((cons[m] < 0.5).mean()),
+                "nn_text": float(np.median(nn_text[m])),
+                "nn_refs": float(np.median(nn_refs[m])),
+                "in_fringe_clusters": float(np.mean([full[i] in fringe_major for i in np.flatnonzero(m)])),
+                "citations_per_year": float(np.median(cites[m])),
+            }
             if route != "base":
                 for key, arr in (("consistency", cons), ("nn_text", nn_text), ("nn_refs", nn_refs)):
                     row[f"p_{key}"] = float(mannwhitneyu(arr[m], arr[cat == "base"]).pvalue)
             rows[route] = row
         ids_all = base_ids + sorted(keep)
         titles = {a: v["title"] for a, v in parse(topic)[4].items()}
-        papers = [{"id": ids_all[i], "route": str(cat[i]), "title": recs[i].get("title") or titles.get(ids_all[i], ""),
-                   "year": recs[i].get("year"),
-                   "cluster": int(full[i]), "consistency": round(float(cons[i]), 3), "nn_text": round(float(nn_text[i]), 3),
-                   "nn_refs": round(float(nn_refs[i]), 3), "citations_per_year": round(float(cites[i]), 1)} for i in range(n)]
-        results[str(got)] = {"clusters": got, "routes": rows, "composition": comp, "papers": papers,
-                             "base_ari_with_vs_without_fringe": float(ari(base_only, full[:nb]))}
-        print(f"\n{got} clusters (base-paper ARI with vs without fringe: {results[str(got)]['base_ari_with_vs_without_fringe']:.2f})")
-        print(f"  {'route':9} {'n':>4} {'consist':>8} {'<0.5':>6} {'nn text':>8} {'nn refs':>8} {'in fringe cl':>12} {'cites/yr':>9}  p(consist, text, refs)")
+        papers = [
+            {
+                "id": ids_all[i],
+                "route": str(cat[i]),
+                "title": recs[i].get("title") or titles.get(ids_all[i], ""),
+                "year": recs[i].get("year"),
+                "cluster": int(full[i]),
+                "consistency": round(float(cons[i]), 3),
+                "nn_text": round(float(nn_text[i]), 3),
+                "nn_refs": round(float(nn_refs[i]), 3),
+                "citations_per_year": round(float(cites[i]), 1),
+            }
+            for i in range(n)
+        ]
+        results[str(got)] = {
+            "clusters": got,
+            "routes": rows,
+            "composition": comp,
+            "papers": papers,
+            "base_ari_with_vs_without_fringe": float(ari(base_only, full[:nb])),
+        }
+        print(
+            f"\n{got} clusters (base-paper ARI with vs without fringe: {results[str(got)]['base_ari_with_vs_without_fringe']:.2f})"
+        )
+        print(
+            f"  {'route':9} {'n':>4} {'consist':>8} {'<0.5':>6} {'nn text':>8} {'nn refs':>8} {'in fringe cl':>12} {'cites/yr':>9}  p(consist, text, refs)"
+        )
         for route, r in rows.items():
             ps = "" if route == "base" else f"  {r['p_consistency']:.3f} {r['p_nn_text']:.3f} {r['p_nn_refs']:.3f}"
-            print(f"  {route:9} {r['n']:>4} {r['consistency']:>8.2f} {r['unstable_share']:>6.2f} {r['nn_text']:>8.3f} {r['nn_refs']:>8.3f} "
-                  f"{r['in_fringe_clusters']:>12.2f} {r['citations_per_year']:>9.1f}{ps}")
-        print("  clusters with a fringe majority: " + (", ".join(f"{x['size']} papers {x['routes']}" for x in comp if x["fringe_share"] > 0.5) or "none"))
+            print(
+                f"  {route:9} {r['n']:>4} {r['consistency']:>8.2f} {r['unstable_share']:>6.2f} {r['nn_text']:>8.3f} {r['nn_refs']:>8.3f} "
+                f"{r['in_fringe_clusters']:>12.2f} {r['citations_per_year']:>9.1f}{ps}"
+            )
+        print(
+            "  clusters with a fringe majority: "
+            + (", ".join(f"{x['size']} papers {x['routes']}" for x in comp if x["fringe_share"] > 0.5) or "none")
+        )
     (d / "fringe-analysis.json").write_text(json.dumps({"in_scope": len(keep), "results": results}, indent=1))
     print(f"\nwrote {(d / 'fringe-analysis.json').relative_to(ROOT)}")
 

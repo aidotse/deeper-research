@@ -73,8 +73,17 @@ CLUSTER_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 SURVEY_SECTIONS = ["Retrieval log", "Clusters", "Coreset", "Pool", "Open work"]
 POOL_COLUMNS = ["paper", "year", "cluster", "citations", "cites"]
-CORESET_COLUMNS = ["paper", "venue+year", "role", "selected because", "method name", "method summary",
-                   "datasets / models", "metric", "result"]
+CORESET_COLUMNS = [
+    "paper",
+    "venue+year",
+    "role",
+    "selected because",
+    "method name",
+    "method summary",
+    "datasets / models",
+    "metric",
+    "result",
+]
 ALIGNMENTS = {"high", "medium", "low"}
 ROLES = {"anchor", "frontier", "dissent", "fringe"}
 NEEDED = {"high": ("anchor", "frontier", "dissent"), "medium": ("anchor", "frontier"), "low": ("anchor",)}
@@ -84,8 +93,11 @@ SOURCES = {"abstract", "full-text"}
 # Legacy surveys were verified against snippets, before quotes had to come from the fetched full text.
 LEGACY_SOURCES = SOURCES | {"snippet"}
 # Phrases that claim absence, which only a probe may support (docs/verification.md, "Probes").
-ABSENCE = re.compile(r"\b(?:has not been (?:studied|explored|addressed)|no (?:prior )?work (?:on|has)|nobody has|"
-                     r"no one has|has never been)\b", re.I)
+ABSENCE = re.compile(
+    r"\b(?:has not been (?:studied|explored|addressed)|no (?:prior )?work (?:on|has)|nobody has|"
+    r"no one has|has never been)\b",
+    re.I,
+)
 
 
 def read(path):
@@ -103,7 +115,8 @@ def link(pid):
 
 def arxiv_of(rec):
     """The arXiv ID of a Semantic Scholar API record. Some records omit it from `externalIds` though their open-access
-    PDF is on arXiv: often a preprint whose venue version is a separate record."""
+    PDF is on arXiv: often a preprint whose venue version is a separate record.
+    """
     ext = (rec or {}).get("externalIds") or {}
     if ext.get("ArXiv"):
         return ext["ArXiv"]
@@ -198,23 +211,29 @@ def check_coreset(table, dims, layout, failures, notes):
         failures.append(f"rows without a parsable `source` last column: {bad}")
     snip = [row_id(l) for (_, c, _, l) in rows if c[-1] == "snippet" and layout == "coreset"]
     if snip:
-        failures.append(f"rows with `source` `snippet`, which is not a source: verify against the fetched full text, "
-                        f"or leave the row `abstract` (docs/verification.md): {snip[:8]}")
+        failures.append(
+            f"rows with `source` `snippet`, which is not a source: verify against the fetched full text, "
+            f"or leave the row `abstract` (docs/verification.md): {snip[:8]}"
+        )
     tally = {k: sources.count(k) for k in sorted(set(sources) & allowed)}
     print(f"source:  {tally}")
     print(f"arXiv:   {sum(1 for i in unique if ARXIV_ONLY.match(i))} of {len(unique)} coreset papers have an arXiv ID")
 
     if layout == "coreset" and rows:
         share = sources.count("abstract") / len(rows)
-        print(f"         {share:.0%} abstract-sourced; after step 5, more than {ABSTRACT_SHARE:.0%} halts the pass (H10)")
+        print(
+            f"         {share:.0%} abstract-sourced; after step 5, more than {ABSTRACT_SHARE:.0%} halts the pass (H10)"
+        )
         for h in {tuple(h) for h, _, _, _ in rows}:
             missing = [c for c in CORESET_COLUMNS if c not in h]
             if missing:
                 failures.append(f"Coreset table lacks required column(s): {missing}")
             extra = [c for c in h if c not in CORESET_COLUMNS and c != "source" and c not in dims]
             if extra:
-                notes.append(f"Coreset column(s) {extra} are not dimensions, declared in the input or proposed in the "
-                             f"log; values unchecked")
+                notes.append(
+                    f"Coreset column(s) {extra} are not dimensions, declared in the input or proposed in the "
+                    f"log; values unchecked"
+                )
 
     header = rows[0][0] if rows else []
     for i, n in [(i, n) for i, n in enumerate(header) if n in dims]:
@@ -254,7 +273,9 @@ def read_clusters(secs, failures):
             if row["computed"] in computed:
                 failures.append(f"computed cluster {row['computed']} is named twice in the Clusters table")
             computed[row["computed"]] = cid
-    print(f"clusters: {len(clusters)} ({', '.join(f'{a} {list(clusters.values()).count(a)}' for a in ['high', 'medium', 'low'])})")
+    print(
+        f"clusters: {len(clusters)} ({', '.join(f'{a} {list(clusters.values()).count(a)}' for a in ['high', 'medium', 'low'])})"
+    )
     return clusters, computed, rows
 
 
@@ -271,8 +292,10 @@ def read_pool(secs, clusters, failures):
                 failures.append(f"Pool table lacks required column(s): {missing}")
         pid = row_id(l)
         if pid is None:
-            failures.append(f"pool row whose link is neither arxiv.org/abs/<id> nor api.semanticscholar.org/CorpusId:<n>: "
-                            f"{c[0][:60]!r}")
+            failures.append(
+                f"pool row whose link is neither arxiv.org/abs/<id> nor api.semanticscholar.org/CorpusId:<n>: "
+                f"{c[0][:60]!r}"
+            )
             continue
         titles[pid] = c[0]
         if pid in pool_cluster:
@@ -282,7 +305,9 @@ def read_pool(secs, clusters, failures):
             failures.append(f"pool {pid}: cluster {cl!r} is not a known cluster")
         pool_cluster[pid] = cl
         cites[pid] = set(BARE_ID.findall(c[h.index("cites")])) if "cites" in h else set()
-    print(f"pool:    {len(pool_cluster)} papers, {sum(1 for p in pool_cluster if ARXIV_ONLY.match(p))} with an arXiv ID")
+    print(
+        f"pool:    {len(pool_cluster)} papers, {sum(1 for p in pool_cluster if ARXIV_ONLY.match(p))} with an arXiv ID"
+    )
     return set(pool_cluster), pool_cluster, cites, titles
 
 
@@ -300,7 +325,8 @@ def same_title(a, b):
     """Whether two titles, as lists of `words`, name one paper. Either they are the same once spaces are dropped (text
     extraction splits words, as in "S ELF -I MPROVING"), or, at four words or more, they share the first word and their
     character-level similarity is at least SAME_TITLE: a venue version often changes a word ("Arbitrage", "Arbitration").
-    A differing first word is a different paper, such as "Comment on: <title>"."""
+    A differing first word is a different paper, such as "Comment on: <title>".
+    """
     if not a or not b:
         return False
     if "".join(a) == "".join(b):
@@ -331,11 +357,13 @@ def check_duplicates(topic, titles, failures, notes):
         exact.setdefault(" ".join(w), []).append(pid)
     for t, same in exact.items():
         if t and len(same) > 1:
-            failures.append(f"pool rows with the same title, probably one paper twice: {same}; keep the arXiv record, "
-                            "merge the other into it, and log it under `Corrections to existing rows`")
+            failures.append(
+                f"pool rows with the same title, probably one paper twice: {same}; keep the arXiv record, "
+                "merge the other into it, and log it under `Corrections to existing rows`"
+            )
     pids = sorted(keyed)
     for i, a in enumerate(pids):
-        for b in pids[i + 1:]:
+        for b in pids[i + 1 :]:
             if keyed[a] != keyed[b] and same_title(keyed[a], keyed[b]):
                 notes.append(f"pool rows with near-identical titles: {a}, {b}; one paper twice?")
 
@@ -355,16 +383,22 @@ def check_computed(topic, pool, pool_cluster, clusters, computed, failures, note
     assigned.update({p: x["cluster"] for p, x in report.get("late", {}).items()})
     if not clusters:
         if unclustered:
-            notes.append(f"{len(unclustered)} pool paper(s) have no cluster yet: name the computed clusters (step 3), "
-                         f"then run `uv run python -m deeper_research.assign clusters {topic}`")
+            notes.append(
+                f"{len(unclustered)} pool paper(s) have no cluster yet: name the computed clusters (step 3), "
+                f"then run `uv run python -m deeper_research.assign clusters {topic}`"
+            )
         return report
     if not computed:
-        failures.append("the Clusters table has no `computed` column, so pool clusters cannot be checked against "
-                        "clusters.json (docs/formats.md, Clusters)")
+        failures.append(
+            "the Clusters table has no `computed` column, so pool clusters cannot be checked against "
+            "clusters.json (docs/formats.md, Clusters)"
+        )
         return report
     if report.get("previous") and not report["previous"].get("remapped"):
-        failures.append(f"clusters.json is a new clustering whose names have not been carried over; run "
-                        f"`uv run python -m deeper_research.assign remap {topic}`, then `uv run python -m deeper_research.assign clusters {topic}`")
+        failures.append(
+            f"clusters.json is a new clustering whose names have not been carried over; run "
+            f"`uv run python -m deeper_research.assign remap {topic}`, then `uv run python -m deeper_research.assign clusters {topic}`"
+        )
         return report
     known = set(report.get("assignment", {}).values())
     orphans = [cid for cid in clusters if cid not in computed.values()]
@@ -376,26 +410,35 @@ def check_computed(topic, pool, pool_cluster, clusters, computed, failures, note
     unnamed = sorted(known - set(computed), key=lambda x: int(x[1:]) if x[1:].isdigit() else 0)
     if unnamed:
         failures.append(f"computed cluster(s) {unnamed} have no row in the Clusters table")
-    wrong = sorted(p for p in pool if p in assigned and pool_cluster.get(p)
-                   and computed.get(assigned[p]) != pool_cluster[p])
+    wrong = sorted(
+        p for p in pool if p in assigned and pool_cluster.get(p) and computed.get(assigned[p]) != pool_cluster[p]
+    )
     if wrong:
-        failures.append(f"pool cluster differs from the computed assignment for {wrong[:10]}"
-                        + (f" and {len(wrong) - 10} more" if len(wrong) > 10 else "")
-                        + f"; run `uv run python -m deeper_research.assign clusters {topic}`, never edit by hand")
+        failures.append(
+            f"pool cluster differs from the computed assignment for {wrong[:10]}"
+            + (f" and {len(wrong) - 10} more" if len(wrong) > 10 else "")
+            + f"; run `uv run python -m deeper_research.assign clusters {topic}`, never edit by hand"
+        )
     blank = sorted(p for p in pool if p in assigned and not pool_cluster.get(p))
     if blank:
-        notes.append(f"{len(blank)} pool paper(s) are assigned in clusters.json but their Pool cell is empty; run "
-                     f"`uv run python -m deeper_research.assign clusters {topic}`")
+        notes.append(
+            f"{len(blank)} pool paper(s) are assigned in clusters.json but their Pool cell is empty; run "
+            f"`uv run python -m deeper_research.assign clusters {topic}`"
+        )
     sidecar = read(ROOT / "graphs" / topic / "pool.json")
     records = json.loads(sidecar)["papers"] if sidecar else {}
     unclusterable = sorted(p for p in pool if p in records and not records[p].get("embedding"))
     if unclusterable:
-        notes.append(f"pool paper(s) without a SPECTER2 embedding, which no clustering can place: {unclusterable}; "
-                     "record them in Open work (docs/formats.md, \"Paper IDs\")")
+        notes.append(
+            f"pool paper(s) without a SPECTER2 embedding, which no clustering can place: {unclusterable}; "
+            'record them in Open work (docs/formats.md, "Paper IDs")'
+        )
     late = sorted(p for p in pool if p not in assigned and p not in unclusterable)
     if late:
-        notes.append(f"late papers awaiting assignment ({len(late)}): {late}; run `uv run python -m deeper_research.assign late {topic}` "
-                     "(docs/process.md, \"Late papers\")")
+        notes.append(
+            f"late papers awaiting assignment ({len(late)}): {late}; run `uv run python -m deeper_research.assign late {topic}` "
+            '(docs/process.md, "Late papers")'
+        )
     return report
 
 
@@ -404,7 +447,9 @@ def leaders(cid, pool, pool_cluster, indeg):
     members = [p for p in pool if pool_cluster.get(p) == cid]
     top = max((indeg[p] for p in members), default=0)
     lead = {p for p in members if indeg[p] == top} if top > 0 else set()
-    print(f"    in-degree leader(s) within the pool: {', '.join(sorted(lead)) or 'none'}" + (f" ({top})" if top else ""))
+    print(
+        f"    in-degree leader(s) within the pool: {', '.join(sorted(lead)) or 'none'}" + (f" ({top})" if top else "")
+    )
     return lead, top
 
 
@@ -418,17 +463,28 @@ def check_structure(topic, secs, rows, coreset_ids, failures, notes):
     sidecar = read(ROOT / "graphs" / topic / "pool.json")
     unfetched = sorted(pool - set(json.loads(sidecar)["papers"] if sidecar else ()))
     if unfetched:
-        notes.append(f"{len(unfetched)} pool paper(s) are not in graphs/{topic}/pool.json; run "
-                     f"`uv run python -m deeper_research.pool {topic}`")
+        notes.append(
+            f"{len(unfetched)} pool paper(s) are not in graphs/{topic}/pool.json; run "
+            f"`uv run python -m deeper_research.pool {topic}`"
+        )
 
-    indeg = {p: 0 for p in pool}
+    indeg = dict.fromkeys(pool, 0)
     for p, cs in cites.items():
         for q in cs & pool:
             if q != p:
                 indeg[q] += 1
 
-    out = {"clusters": clusters, "computed": computed, "cluster_rows": cluster_rows, "pool": pool,
-           "pool_cluster": pool_cluster, "titles": titles, "report": report, "roles": {}, "bridges": set()}
+    out = {
+        "clusters": clusters,
+        "computed": computed,
+        "cluster_rows": cluster_rows,
+        "pool": pool,
+        "pool_cluster": pool_cluster,
+        "titles": titles,
+        "report": report,
+        "roles": {},
+        "bridges": set(),
+    }
     if not rows:
         for cid, alignment in clusters.items():
             print(f"  {cid} [{alignment}]: pool {sum(1 for p in pool if pool_cluster.get(p) == cid)}")
@@ -440,8 +496,10 @@ def check_structure(topic, secs, rows, coreset_ids, failures, notes):
         failures.append("Coreset section has no `role` column")
         return out
     ri = header.index("role") if rows else None
-    order = [b.split(" — ")[0].strip() for b in
-             (line[4:].strip() for line in secs["Coreset"].splitlines() if line.startswith("### "))]
+    order = [
+        b.split(" — ")[0].strip()
+        for b in (line[4:].strip() for line in secs["Coreset"].splitlines() if line.startswith("### "))
+    ]
     known_order = [b for b in order if b in clusters]
     if known_order != [cid for cid in clusters if cid in known_order]:
         failures.append(f"Coreset blocks are not in the Clusters table's order: {known_order}")
@@ -468,8 +526,10 @@ def check_structure(topic, secs, rows, coreset_ids, failures, notes):
         if role == "anchor":
             anchors[cid].add(pid)
         if pool_cluster.get(pid) and pool_cluster[pid] != cid:
-            failures.append(f"row {pid} sits in block {cid!r} but was computed into {pool_cluster[pid]!r}; "
-                            "membership is never changed by hand")
+            failures.append(
+                f"row {pid} sits in block {cid!r} but was computed into {pool_cluster[pid]!r}; "
+                "membership is never changed by hand"
+            )
 
     missing = sorted(coreset_ids - pool)
     if missing:
@@ -479,12 +539,16 @@ def check_structure(topic, secs, rows, coreset_ids, failures, notes):
         r = roles[cid]
         shown = ", ".join(f"{k} {v}" for k, v in sorted(r.items())) or "no rows"
         gaps = [k for k in NEEDED.get(alignment, ()) if not r.get(k)]
-        print(f"  {cid} [{alignment}]: pool {sum(1 for p in pool if pool_cluster.get(p) == cid)}; coreset {shown}"
-              + (f"; missing {', '.join(gaps)}" if gaps else ""))
+        print(
+            f"  {cid} [{alignment}]: pool {sum(1 for p in pool if pool_cluster.get(p) == cid)}; coreset {shown}"
+            + (f"; missing {', '.join(gaps)}" if gaps else "")
+        )
         lead, top = leaders(cid, pool, pool_cluster, indeg)
         if anchors[cid] and lead and not anchors[cid] & lead:
-            notes.append(f"{cid}: anchor {sorted(anchors[cid])} is not the in-degree leader {sorted(lead)} ({top}); "
-                         "fine if deliberate")
+            notes.append(
+                f"{cid}: anchor {sorted(anchors[cid])} is not the in-degree leader {sorted(lead)} ({top}); "
+                "fine if deliberate"
+            )
 
     out.update(roles=roles, bridges=bridges)
     return out
@@ -506,31 +570,47 @@ def check_output(output, coreset_ids, abstract, layout, targets, failures, notes
         if m.group(1) in abstract and not MARKED.match(output, m.end()):
             unmarked.setdefault(m.group(1), []).append(output.count("\n", 0, m.start()) + 1)
     for aid, lines in sorted(unmarked.items()):
-        failures.append(f"output cites abstract-sourced {aid} without an [abstract-only] marker "
-                        f"(line {', '.join(map(str, sorted(set(lines))))})")
+        failures.append(
+            f"output cites abstract-sourced {aid} without an [abstract-only] marker "
+            f"(line {', '.join(map(str, sorted(set(lines))))})"
+        )
     # The reverse: a marker that follows no citation marks nothing. The legend before the first section is exempt.
-    covered = {mk.end() for m in list(LINK.finditer(output)) + list(BARE_ID.finditer(output))
-               if (mk := MARKED.match(output, m.end()))}
+    covered = {
+        mk.end()
+        for m in list(LINK.finditer(output)) + list(BARE_ID.finditer(output))
+        if (mk := MARKED.match(output, m.end()))
+    }
     body = output.find("\n## ")
-    stray = sorted({output.count("\n", 0, m.start()) + 1 for m in re.finditer(r"\[abstract-only\]", output)
-                    if m.end() not in covered and 0 <= body < m.start()})
+    stray = sorted(
+        {
+            output.count("\n", 0, m.start()) + 1
+            for m in re.finditer(r"\[abstract-only\]", output)
+            if m.end() not in covered and 0 <= body < m.start()
+        }
+    )
     if stray and layout == "coreset":
-        failures.append(f"output has an [abstract-only] marker that follows no cited paper ID (line "
-                        f"{', '.join(map(str, stray))})")
+        failures.append(
+            f"output has an [abstract-only] marker that follows no cited paper ID (line {', '.join(map(str, stray))})"
+        )
     if risky and "[abstract-only]" not in output.split("\n## ")[0]:
-        failures.append("output cites abstract-sourced papers but has no legend for [abstract-only] "
-                        "before its first section")
+        failures.append(
+            "output cites abstract-sourced papers but has no legend for [abstract-only] before its first section"
+        )
     if risky:
         notes.append(f"{len(risky)} abstract-sourced paper(s) cited in the output: {risky}")
     if layout == "coreset":
         missing = [s for s in targets + ["Questions", "Reading"] if s not in sections(output)]
         if missing:
-            failures.append(f"output lacks required section(s): {missing}: one per target, then Questions and Reading "
-                            "(docs/formats.md, outputs)")
+            failures.append(
+                f"output lacks required section(s): {missing}: one per target, then Questions and Reading "
+                "(docs/formats.md, outputs)"
+            )
         absent = sorted({output.count("\n", 0, m.start()) + 1 for m in ABSENCE.finditer(output)})
         if absent:
-            notes.append(f"output claims absence (line {', '.join(map(str, absent))}); only a probe supports that, and "
-                         "an unrepresented connection is \"not represented in the coreset\"")
+            notes.append(
+                f"output claims absence (line {', '.join(map(str, absent))}); only a probe supports that, and "
+                'an unrepresented connection is "not represented in the coreset"'
+            )
 
 
 def print_section(topic, survey, what):
@@ -541,8 +621,10 @@ def print_section(topic, survey, what):
     heads = [(i, l[3:].strip()) for i, l in enumerate(lines) if l.startswith("## ")]
     match = [(i, h) for i, h in heads if h.lower() == key]
     if not match:
-        print(f"usage error: no section {name!r} in surveys/{topic}.md; it has: {', '.join(h for _, h in heads)}",
-              file=sys.stderr)
+        print(
+            f"usage error: no section {name!r} in surveys/{topic}.md; it has: {', '.join(h for _, h in heads)}",
+            file=sys.stderr,
+        )
         return 2
     start = match[0][0]
     end = next((i for i, _ in heads if i > start), len(lines))
@@ -551,8 +633,9 @@ def print_section(topic, survey, what):
         hit = [i for i in subs if lines[i][4:].split(" — ")[0].strip() == block.strip()]
         if not hit:
             ids = [lines[i][4:].split(" — ")[0].strip() for i in subs]
-            print(f"usage error: no block {block!r} in {match[0][1]}; it has: {', '.join(ids) or 'none'}",
-                  file=sys.stderr)
+            print(
+                f"usage error: no block {block!r} in {match[0][1]}; it has: {', '.join(ids) or 'none'}", file=sys.stderr
+            )
             return 2
         start, end = hit[0], next((i for i in subs if i > hit[0]), end)
     while end > start + 1 and not lines[end - 1].strip():
@@ -565,7 +648,7 @@ def print_section(topic, survey, what):
 def main(argv):
     if "--print" in argv:
         i = argv.index("--print")
-        rest = argv[:i] + argv[i + 2:]
+        rest = argv[:i] + argv[i + 2 :]
         if i + 1 >= len(argv) or len(rest) != 1 or rest[0].startswith("--"):
             print(__doc__.strip())
             return 2
@@ -589,6 +672,7 @@ def main(argv):
     output = read(ROOT / "outputs" / f"{topic}.md")
 
     from deeper_research.inputs import read_input, read_targets
+
     dims, steering, problems = read_input(topic)
     targets, more = read_targets(topic)
     dims = dims or {}
@@ -600,6 +684,7 @@ def main(argv):
     proposed = layout == "coreset" and not dims
     if proposed:
         from deeper_research import gates
+
         entries = gates.log_entries(secs.get("Retrieval log", ""))
         dims = gates.proposed_dimensions(" ".join(entries[-1]["lines"].get("Dimensions", []))) if entries else {}
         if dims:
@@ -640,14 +725,17 @@ def main(argv):
 
     if layout == "coreset":
         from deeper_research import gates
+
         ctx = gates.Ctx(topic, secs, structure, rows, coreset_ids, abstract, output, dims, steering, targets, proposed)
         g_fail, g_notes = gates.run(ctx, int(gate[1]) if gate else None, status)
         failures += g_fail
         notes += g_notes
         # Only now is every failure known: integrity, gates and history alike.
         if gate and not failures:
-            notes.append(f"{gate} passed" + ("" if int(gate[1]) in ctx.declared
-                                              else f": add `{gate} <today>` to the log's `Gates` line"))
+            notes.append(
+                f"{gate} passed"
+                + ("" if int(gate[1]) in ctx.declared else f": add `{gate} <today>` to the log's `Gates` line")
+            )
     elif gate or status:
         failures.append("gates apply only to surveys in the coreset layout")
 

@@ -51,11 +51,11 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-from deeper_research.check import ID, cells_of, link, row_id, sections, table_rows  # noqa: E402
+from deeper_research.check import ID, link, row_id, sections, table_rows  # noqa: E402
 
-N_DRAW = 10          # pool papers drawn per round; the recency query adds to these (docs/process.md: 10-15 in all)
-QUARTER = 0.25       # the worst-covered share of the eligible pool papers that the draw is made from
-WORST = 10           # worst-covered papers listed by `radius`
+N_DRAW = 10  # pool papers drawn per round; the recency query adds to these (docs/process.md: 10-15 in all)
+QUARTER = 0.25  # the worst-covered share of the eligible pool papers that the draw is made from
+WORST = 10  # worst-covered papers listed by `radius`
 COLUMNS = ["paper", "drawn as", "distance", "nearest row", "verdict", "reason"]
 VERDICT = re.compile(r"^(no change|new cluster|changes (.+))$")
 
@@ -94,8 +94,9 @@ def upper_bound(k, n, conf=0.95):
     if k >= n:
         return 1.0
 
-    def tail(p):   # P(X <= k) for X ~ Bin(n, p)
+    def tail(p):  # P(X <= k) for X ~ Bin(n, p)
         return sum(math.comb(n, i) * p**i * (1 - p) ** (n - i) for i in range(k + 1))
+
     lo, hi = k / n, 1.0
     for _ in range(60):
         mid = (lo + hi) / 2
@@ -111,13 +112,19 @@ def upper_bound(k, n, conf=0.95):
 
 def distances(topic):
     """(pool ids, coreset ids, D) where D[i][j] is the distance of pool paper i from coreset row j. Papers without an
-    embedding are left out, as they are from the clustering."""
+    embedding are left out, as they are from the clustering.
+    """
     import numpy as np
+
     from deeper_research.cluster import C_REFS, combined_sim, refs_sim, text_sim
     from deeper_research.graph import parse
+
     survey = ROOT / "surveys" / f"{topic}.md"
     pool_path = ROOT / "graphs" / topic / "pool.json"
-    for path, then in ((survey, "steps 0-5 of docs/process.md"), (pool_path, f"`uv run python -m deeper_research.pool {topic}`")):
+    for path, then in (
+        (survey, "steps 0-5 of docs/process.md"),
+        (pool_path, f"`uv run python -m deeper_research.pool {topic}`"),
+    ):
         if not path.exists():
             sys.exit(f"no {path.relative_to(ROOT)}; run {then} first")
     secs = sections(survey.read_text())
@@ -134,21 +141,25 @@ def distances(topic):
 
 def summary(d):
     import numpy as np
+
     return float(d.max()), float(np.percentile(d, 90)), float(d.mean())
 
 
 def radius(topic, loo):
     import numpy as np
+
     ids, core, D, in_core = distances(topic)
     outside = ~in_core
     near = D[outside].min(axis=1)
     arg = D[outside].argmin(axis=1)
     mx, p90, mean = summary(near)
     out_ids = [a for a, c in zip(ids, in_core) if not c]
-    print(f"{topic}: {len(core)} coreset rows cover {len(out_ids)} other pool papers (combined measure; a distance is "
-          f"the nearest coreset row's rank among the paper's neighbours, as a share of the pool)")
+    print(
+        f"{topic}: {len(core)} coreset rows cover {len(out_ids)} other pool papers (combined measure; a distance is "
+        f"the nearest coreset row's rank among the paper's neighbours, as a share of the pool)"
+    )
     print(f"radius: max {mx:.3f}, p90 {p90:.3f}, mean {mean:.3f}")
-    print(f"\nworst covered:")
+    print("\nworst covered:")
     for i in np.argsort(-near)[:WORST]:
         print(f"  {out_ids[i]}  {near[i]:.3f}  nearest row {core[arg[i]]}")
     if loo:
@@ -178,14 +189,21 @@ def earlier(topic, r):
 
 def write_sheet(path, topic, r, header, rows):
     """Write a coverage sheet: a title, the header paragraph, and the table of `rows` ([{column: cell}])."""
-    lines = [f"# Coverage test, round {r}: {topic}", "", header, "",
-             "| " + " | ".join(COLUMNS) + " |", "| " + " | ".join("--" for _ in COLUMNS) + " |"]
+    lines = [
+        f"# Coverage test, round {r}: {topic}",
+        "",
+        header,
+        "",
+        "| " + " | ".join(COLUMNS) + " |",
+        "| " + " | ".join("--" for _ in COLUMNS) + " |",
+    ]
     lines += ["| " + " | ".join(row.get(c, "") for c in COLUMNS) + " |" for row in rows]
     path.write_text("\n".join(lines) + "\n")
 
 
 def titles(topic):
     from deeper_research.graph import parse
+
     return {a: v.get("title") or a for a, v in parse(topic)[4].items()}
 
 
@@ -194,11 +212,13 @@ def cell(text):
 
 
 def draw(topic, r, n, seed):
-    import numpy as np
+
     path = sheet_path(topic, r)
     if path.exists():
-        sys.exit(f"{path.relative_to(ROOT)} exists; a round's sample is drawn once. Judge it with "
-                 f"`uv run python -m deeper_research.coverage judge {topic} {r}`, or draw round {r + 1}")
+        sys.exit(
+            f"{path.relative_to(ROOT)} exists; a round's sample is drawn once. Judge it with "
+            f"`uv run python -m deeper_research.coverage judge {topic} {r}`, or draw round {r + 1}"
+        )
     ids, core, D, in_core = distances(topic)
     seen = earlier(topic, r)
     near, arg = D.min(axis=1), D.argmin(axis=1)
@@ -212,16 +232,27 @@ def draw(topic, r, n, seed):
     names = titles(topic)
     out_near = near[[i for i in range(len(ids)) if not in_core[i]]]
     mx, p90, mean = summary(out_near)
-    header = (f"Drawn {date.today().isoformat()} by `deeper_research/coverage.py draw`, seed {seed}: {n} pool papers at random "
-              f"from the {m} worst-covered of the {len(eligible)} pool papers outside the coreset and not sampled in an "
-              f"earlier round (distance at least {near[worst[-1]]:.3f}). Coverage of the pool by the coreset's "
-              f"{len(core)} rows: max {mx:.3f}, p90 {p90:.3f}, mean {mean:.3f}. Judge each row with "
-              f"`uv run python -m deeper_research.coverage judge {topic} {r}`; add the recency query's candidates with `--recency`.")
-    rows = [{"paper": f"[{cell(names.get(ids[i], ids[i]))}]({link(ids[i])})", "drawn as": "worst-covered",
-             "distance": f"{near[i]:.3f}", "nearest row": core[arg[i]]} for i in picked]
+    header = (
+        f"Drawn {date.today().isoformat()} by `deeper_research/coverage.py draw`, seed {seed}: {n} pool papers at random "
+        f"from the {m} worst-covered of the {len(eligible)} pool papers outside the coreset and not sampled in an "
+        f"earlier round (distance at least {near[worst[-1]]:.3f}). Coverage of the pool by the coreset's "
+        f"{len(core)} rows: max {mx:.3f}, p90 {p90:.3f}, mean {mean:.3f}. Judge each row with "
+        f"`uv run python -m deeper_research.coverage judge {topic} {r}`; add the recency query's candidates with `--recency`."
+    )
+    rows = [
+        {
+            "paper": f"[{cell(names.get(ids[i], ids[i]))}]({link(ids[i])})",
+            "drawn as": "worst-covered",
+            "distance": f"{near[i]:.3f}",
+            "nearest row": core[arg[i]],
+        }
+        for i in picked
+    ]
     write_sheet(path, topic, r, header, rows)
-    print(f"wrote {path.relative_to(ROOT)}: {n} candidates, seed {seed}, from the {m} worst-covered of "
-          f"{len(eligible)} eligible pool papers")
+    print(
+        f"wrote {path.relative_to(ROOT)}: {n} candidates, seed {seed}, from the {m} worst-covered of "
+        f"{len(eligible)} eligible pool papers"
+    )
     print(f"radius: max {mx:.3f}, p90 {p90:.3f}, mean {mean:.3f}")
     for i in picked:
         print(f"  {ids[i]}  {near[i]:.3f}  nearest row {core[arg[i]]}")
@@ -240,6 +271,7 @@ def read_sheet(topic, r):
 
 def judge(topic, r, recency):
     from deeper_research.inputs import read_targets
+
     targets = read_targets(topic)[0]
     path, text = read_sheet(topic, r)
     rows = sheet(text)
@@ -250,22 +282,26 @@ def judge(topic, r, recency):
             continue
         parts = line.rstrip("\n").split("\t", 3 if recency else 2)
         if len(parts) < (4 if recency else 3):
-            problems.append(f"line {k}: expected `<id><TAB><verdict><TAB><reason>`"
-                            + ("`<TAB><title>`" if recency else ""))
+            problems.append(
+                f"line {k}: expected `<id><TAB><verdict><TAB><reason>`" + ("`<TAB><title>`" if recency else "")
+            )
             continue
         pid, v, reason = parts[0].strip(), cell(parts[1]).lower(), cell(parts[2])
         title = cell(parts[3]) if recency else None
         m = VERDICT.match(v)
         if recency and not ID.match(pid):
-            problems.append(f"line {k}: {pid!r} is not a paper ID (docs/formats.md, \"Paper IDs\"); a candidate "
-                            "without one cannot join the pool, so draw another")
+            problems.append(
+                f'line {k}: {pid!r} is not a paper ID (docs/formats.md, "Paper IDs"); a candidate '
+                "without one cannot join the pool, so draw another"
+            )
         elif recency and pid in by_id:
             problems.append(f"line {k}: {pid} is already on the sheet; judge it without --recency")
         elif not recency and pid not in by_id:
             problems.append(f"line {k}: {pid!r} is not on the sheet; a recency-query candidate is added with --recency")
         elif not m:
-            problems.append(f"line {k}: verdict {parts[1].strip()!r} is not `no change`, `changes <target>` or "
-                            "`new cluster`")
+            problems.append(
+                f"line {k}: verdict {parts[1].strip()!r} is not `no change`, `changes <target>` or `new cluster`"
+            )
         elif m.group(2) and m.group(2).lower() not in {t.lower() for t in targets}:
             problems.append(f"line {k}: {m.group(2)!r} is not a target; the targets are {', '.join(targets)}")
         elif not reason or len(reason.split()) < 3:
@@ -285,8 +321,15 @@ def judge(topic, r, recency):
     replaced = []
     for pid, (v, reason, title) in given.items():
         if recency:
-            rows.append({"paper": f"[{title}]({link(pid)})", "drawn as": "recency query",
-                         "distance": "", "nearest row": "", "id": pid})
+            rows.append(
+                {
+                    "paper": f"[{title}]({link(pid)})",
+                    "drawn as": "recency query",
+                    "distance": "",
+                    "nearest row": "",
+                    "id": pid,
+                }
+            )
             by_id[pid] = rows[-1]
         elif by_id[pid].get("verdict") and (by_id[pid]["verdict"], by_id[pid].get("reason")) != (v, reason):
             replaced.append(f"{pid} ({by_id[pid]['verdict']} -> {v})")
@@ -295,11 +338,17 @@ def judge(topic, r, recency):
     header = "\n".join(head.splitlines()[2:]).strip()
     write_sheet(path, topic, r, header, rows)
     left = [row["id"] for row in rows if not row.get("verdict")]
-    print(f"{path.relative_to(ROOT)}: {len(given)} verdict(s) written" + (" (recency-query rows added)" if recency else "")
-          + f"; {len(rows)} row(s), {len(left)} still unjudged" + (f": {', '.join(left)}" if left else ""))
+    print(
+        f"{path.relative_to(ROOT)}: {len(given)} verdict(s) written"
+        + (" (recency-query rows added)" if recency else "")
+        + f"; {len(rows)} row(s), {len(left)} still unjudged"
+        + (f": {', '.join(left)}" if left else "")
+    )
     if replaced:
-        print(f"replaced an earlier verdict: {', '.join(replaced)}; paste the round's line again from "
-              f"`uv run python -m deeper_research.coverage line {topic} {r}`")
+        print(
+            f"replaced an earlier verdict: {', '.join(replaced)}; paste the round's line again from "
+            f"`uv run python -m deeper_research.coverage line {topic} {r}`"
+        )
     return 0
 
 
@@ -323,18 +372,28 @@ def render(text, r):
     if left:
         return None, f"{len(left)} row(s) without a verdict: {', '.join(left)}", None
     if not RECENCY.search(text.split("\n| paper |")[0]):
-        return None, "the recency query is not recorded; run `uv run python -m deeper_research.coverage query` first", None
+        return (
+            None,
+            "the recency query is not recorded; run `uv run python -m deeper_research.coverage query` first",
+            None,
+        )
     changed, new = counted(rows)
-    parts = ", ".join(f"{row['id']}: {row['verdict'][8:]}: {row['reason'].replace(';', ',').rstrip('. ')}"
-                      for row in changed)
+    parts = ", ".join(
+        f"{row['id']}: {row['verdict'][8:]}: {row['reason'].replace(';', ',').rstrip('. ')}" for row in changed
+    )
     proposed = ", ".join(row["id"] for row in new)
-    text_ = (f"round {r}: {len(changed)} of {len(rows)} sampled candidates changed the output"
-             + (f" ({parts})" if parts else "")
-             + "; new clusters: " + (f"<the proposed cluster, from {proposed}>" if new else "none"))
+    text_ = (
+        f"round {r}: {len(changed)} of {len(rows)} sampled candidates changed the output"
+        + (f" ({parts})" if parts else "")
+        + "; new clusters: "
+        + (f"<the proposed cluster, from {proposed}>" if new else "none")
+    )
     drawn = [row for row in rows if row.get("drawn as") == "worst-covered"]
     k = sum(1 for row in drawn if row in changed)
-    bound = (f"bound: {k} of the {len(drawn)} drawn candidates changed the output, so at 95% confidence at most "
-             f"{100 * upper_bound(k, len(drawn)):.0f}% of the worst-covered papers would (one-sided Clopper-Pearson)")
+    bound = (
+        f"bound: {k} of the {len(drawn)} drawn candidates changed the output, so at 95% confidence at most "
+        f"{100 * upper_bound(k, len(drawn)):.0f}% of the worst-covered papers would (one-sided Clopper-Pearson)"
+    )
     return text_, bound, proposed
 
 
@@ -382,8 +441,10 @@ def main(argv):
         return judge(topic, r, "--recency" in rest)
     if cmd == "query":
         if len(rest) != 3 or not rest[2].isdigit():
-            usage("query takes the query, the window and the number of results, e.g. "
-                  f"`query {topic} {r} \"reasoning monitors\" \"2026-04-09 to 2026-10-10\" 14`")
+            usage(
+                "query takes the query, the window and the number of results, e.g. "
+                f'`query {topic} {r} "reasoning monitors" "2026-04-09 to 2026-10-10" 14`'
+            )
         return query(topic, r, rest[0], rest[1], int(rest[2]))
     if rest:
         usage(f"unknown option(s) {rest}")

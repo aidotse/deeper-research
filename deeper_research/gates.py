@@ -36,22 +36,48 @@ import re
 import subprocess
 import unicodedata
 
+from deeper_research.check import (
+    ABSTRACT_SHARE,
+    BARE_ID,
+    CORESET_COLUMNS,
+    FRINGE_QUOTA,
+    NEEDED,
+    ROOT,
+    read,
+    row_id,
+    sections,
+    table_rows,
+    words,
+)
 from deeper_research.screen import judged, verdicts
-from deeper_research.check import (ABSTRACT_SHARE, BARE_ID, CORESET_COLUMNS, FRINGE_QUOTA, NEEDED, ROOT, read, row_id, sections,
-                   table_rows, words)
 
-GATES = [("G0", "ready"), ("G1", "pool complete"), ("G2", "clusters named"), ("G3", "coreset selected"),
-         ("G4", "verified"), ("G5", "pass ended")]
-PREFLIGHT = ["snippet_search", "search_papers_by_relevance", "get_paper", "get_citations", "WebSearch", "Graph API",
-             "arXiv", "uv", "Asta key"]
+GATES = [
+    ("G0", "ready"),
+    ("G1", "pool complete"),
+    ("G2", "clusters named"),
+    ("G3", "coreset selected"),
+    ("G4", "verified"),
+    ("G5", "pass ended"),
+]
+PREFLIGHT = [
+    "snippet_search",
+    "search_papers_by_relevance",
+    "get_paper",
+    "get_citations",
+    "WebSearch",
+    "Graph API",
+    "arXiv",
+    "uv",
+    "Asta key",
+]
 PLACEHOLDER = re.compile(r"<[a-z][^<>\n]{0,80}>")
 COMPUTED_ID = re.compile(r"\bc\d+\b")
 QUOTE = re.compile(r"[\"“][^\"”]{12,}[\"”]")
 REPEATABLE = {"Coverage test"}
-SOURCE_RANK = {"abstract": 0, "snippet": 1, "full-text": 1}   # `snippet` only in legacy surveys and old commits
-QUOTE_WORDS = 6        # the fewest words in each part of an evidence quote, so that a quote cannot be vacuous
-QUOTE_WINDOW = 3000    # the most characters of normalised text between two parts of an elided quote
-COVERAGE_SAMPLE = 10   # the fewest sampled candidates in a coverage-test round (docs/process.md: 10-15)
+SOURCE_RANK = {"abstract": 0, "snippet": 1, "full-text": 1}  # `snippet` only in legacy surveys and old commits
+QUOTE_WORDS = 6  # the fewest words in each part of an evidence quote, so that a quote cannot be vacuous
+QUOTE_WINDOW = 3000  # the most characters of normalised text between two parts of an elided quote
+COVERAGE_SAMPLE = 10  # the fewest sampled candidates in a coverage-test round (docs/process.md: 10-15)
 TOKENS = re.compile(r"^[^:,]+:\s*~?\d[\d,.]*\s*[kKM]?$")
 
 
@@ -60,7 +86,8 @@ TOKENS = re.compile(r"^[^:,]+:\s*~?\d[\d,.]*\s*[kKM]?$")
 
 def labelled(lines):
     """Map each `- **Label:** value` bullet to its values (one per occurrence), joined with its continuation lines.
-    A parenthesis after the label is dropped: `Orientation (WebSearch)` is `Orientation`."""
+    A parenthesis after the label is dropped: `Orientation (WebSearch)` is `Orientation`.
+    """
     out, item = {}, None
     for line in lines:
         m = re.match(r"^- \*\*([^*]+?):\*\*\s*(.*)$", line)
@@ -92,7 +119,8 @@ def log_entries(log_text):
 
 def halts(lines):
     """{halt id: [decision, ...]} from the `Halts` line: entries `<id> — <what happened> — <decision>`, separated by
-    `;`. The decision is what follows the entry's last `—`, since what happened may itself contain one."""
+    `;`. The decision is what follows the entry's last `—`, since what happened may itself contain one.
+    """
     text = " ".join(lines.get("Halts", []))
     out = {}
     for entry in re.split(r";\s*(?=H\d+\s*—)", text):
@@ -112,7 +140,8 @@ def waivers(lines):
 
 def proposed_dimensions(text):
     """{name: set of values} from a `Dimensions` line that proposes them, in the input's form:
-    `proposed: `name` — values: `a`, `b`; `other` — values: `c`, `d``."""
+    `proposed: `name` — values: `a`, `b`; `other` — values: `c`, `d``.
+    """
     out = {}
     for part in text.partition("proposed")[2].split(";"):
         m = re.search(r"`([a-z0-9][a-z0-9-]*)`\s*—\s*values:(.*)$", part)
@@ -132,8 +161,9 @@ def mentions(text, *parts):
 class Ctx:
     """Everything the requirements read, gathered once by deeper_research/check.py."""
 
-    def __init__(self, topic, secs, structure, rows, coreset_ids, abstract, output, dims, steering, targets,
-                 proposed=False):
+    def __init__(
+        self, topic, secs, structure, rows, coreset_ids, abstract, output, dims, steering, targets, proposed=False
+    ):
         self.topic, self.secs, self.output = topic, secs, output
         # The dimensions: declared in the input, or, when it declares none, proposed in the `Dimensions` line.
         self.dims, self.proposed, self.steering, self.targets = dims, proposed, steering or {}, targets
@@ -180,7 +210,7 @@ class Ctx:
 
 
 def need_lines(c, *labels):
-    missing = [l for l in labels if not any(v.strip() for v in c.L.get(l, []))]   # an empty line is a missing one
+    missing = [l for l in labels if not any(v.strip() for v in c.L.get(l, []))]  # an empty line is a missing one
     return f"the log entry of {c.date} has no `{'`, `'.join(missing)}` line" if missing else None
 
 
@@ -200,7 +230,7 @@ def r_labels(c):
 
 
 def r_dimensions(c):
-    if (m := need_lines(c, "Dimensions")):
+    if m := need_lines(c, "Dimensions"):
         return m
     text = c.line("Dimensions")
     if not c.proposed:
@@ -216,7 +246,7 @@ def r_dimensions(c):
 
 
 def r_preflight(c):
-    if (m := need_lines(c, "Preflight")):
+    if m := need_lines(c, "Preflight"):
         return m
     bad = []
     for name in PREFLIGHT:
@@ -227,16 +257,19 @@ def r_preflight(c):
 
 
 def r_orientation(c):
-    if (m := need_lines(c, "Orientation", "Recency window")):
+    if m := need_lines(c, "Orientation", "Recency window"):
         return m
     from deeper_research.expand import orientation_parts
+
     seeds, ids, themes = orientation_parts(c.line("Orientation"))
     problems = []
     if not (seeds or ids):
-        problems.append("`Orientation` lists neither seeds (`seeds from the input: <id>, ...`) nor frontier candidates "
-                        "(`frontier candidates: <id>, ...`) by ID, so expansion has nothing to traverse from")
+        problems.append(
+            "`Orientation` lists neither seeds (`seeds from the input: <id>, ...`) nor frontier candidates "
+            "(`frontier candidates: <id>, ...`) by ID, so expansion has nothing to traverse from"
+        )
     if not themes:
-        problems.append("`Orientation` names no themes (`themes: \"<phrase>\", ...`), so expansion has nothing to search")
+        problems.append('`Orientation` names no themes (`themes: "<phrase>", ...`), so expansion has nothing to search')
     out = sorted(set(ids) - c.pool)
     if out:
         problems.append(f"frontier candidates not in the pool: {out}; add them with `deeper_research/assign.py add`")
@@ -255,27 +288,41 @@ def r_expansion_collected(c):
     if not first:
         return f"expansion was not collected this pass ({c.date}): run `uv run python -m deeper_research.expand collect {c.topic}`"
     from deeper_research.expand import orientation_parts
+
     seeds, ids, themes = orientation_parts(c.line("Orientation"))
     have = {(x["kind"], x.get("from") or x.get("query")) for x in first[-1]["sources"]}
-    missing = ([f"backward from {i}" for i in dict.fromkeys(seeds + ids) if ("backward", i) not in have]
-               + [f"forward from {i}" for i in dict.fromkeys(seeds + ids) if ("forward", i) not in have]
-               + [f'query "{t}"' for t in themes if ("search", t) not in have])
+    missing = (
+        [f"backward from {i}" for i in dict.fromkeys(seeds + ids) if ("backward", i) not in have]
+        + [f"forward from {i}" for i in dict.fromkeys(seeds + ids) if ("forward", i) not in have]
+        + [f'query "{t}"' for t in themes if ("search", t) not in have]
+    )
     # A paper Semantic Scholar does not know was not traversed; it passes only once Open work records it.
-    unknown = sorted({x["from"] for _, r in expand_rounds(c) for x in r["sources"]
-                      if x.get("error") and x["from"] not in c.ow("Papers that could not enter the pool")})
+    unknown = sorted(
+        {
+            x["from"]
+            for _, r in expand_rounds(c)
+            for x in r["sources"]
+            if x.get("error") and x["from"] not in c.ow("Papers that could not enter the pool")
+        }
+    )
     problems = []
     if missing:
-        problems.append(f"this pass's expansion did not collect these, which `Orientation` names: {missing[:6]}; rerun "
-                        f"`uv run python -m deeper_research.expand collect {c.topic}`")
+        problems.append(
+            f"this pass's expansion did not collect these, which `Orientation` names: {missing[:6]}; rerun "
+            f"`uv run python -m deeper_research.expand collect {c.topic}`"
+        )
     if unknown:
-        problems.append(f"Semantic Scholar did not find these, so they were not traversed: {unknown}; record them in "
-                        "Open work's `Papers that could not enter the pool`")
+        problems.append(
+            f"Semantic Scholar did not find these, so they were not traversed: {unknown}; record them in "
+            "Open work's `Papers that could not enter the pool`"
+        )
     return "; ".join(problems) or None
 
 
 def expand_mine(c):
     """{s2: (verdict, reason)} for the sheet rows of this pass's candidates."""
     from deeper_research.expand import pass_candidates
+
     said = verdicts(c.expand_screen)
     return {s: said.get(s) for s in pass_candidates(c.expand, c.date)}
 
@@ -284,15 +331,17 @@ def r_expansion_screened(c):
     if not c.expand_screen:
         return f"graphs/{c.topic}/expand-screen.md does not exist"
     if not c.expand:
-        return None   # g1.expansion-collected reports it
+        return None  # g1.expansion-collected reports it
     mine = expand_mine(c)
     # Every collected candidate needs its row: deleting rows must not shorten the screening.
     absent = sorted(s for s, v in mine.items() if v is None)
     bad = [s for s, v in mine.items() if v is not None and not judged(*v)]
     problems = []
     if absent:
-        problems.append(f"{len(absent)} candidate(s) in expand.json have no row in expand-screen.md: {absent[:4]}; rerun "
-                        f"`uv run python -m deeper_research.expand collect {c.topic}`, which restores them")
+        problems.append(
+            f"{len(absent)} candidate(s) in expand.json have no row in expand-screen.md: {absent[:4]}; rerun "
+            f"`uv run python -m deeper_research.expand collect {c.topic}`, which restores them"
+        )
     if bad:
         problems.append(f"{len(bad)} row(s) of expand-screen.md without a `yes` or `no` and a reason of a few words")
     return "; ".join(problems) or None
@@ -302,6 +351,7 @@ def r_expansion_added(c):
     if not (c.expand and c.expand_screen):
         return None  # g1.expansion-collected and g1.expansion-screened report it
     from deeper_research.expand import canonical
+
     cands = c.expand.get("candidates", {})
     pool_titles = {" ".join(words(t)) for t in c.titles.values()}
     rejected = {row_id(l) for h, _, _, l in table_rows(c.rejected or "") if h and h[0] == "paper"}
@@ -312,8 +362,12 @@ def r_expansion_added(c):
             continue
         x = cands.get(s, {})
         pid = canonical(x)
-        if v[0].startswith("yes") and not (pid in c.pool or " ".join(words(x.get("title", ""))) in pool_titles
-                                           or (pid and pid in unseen) or (x.get("title") and x["title"] in unseen)):
+        if v[0].startswith("yes") and not (
+            pid in c.pool
+            or " ".join(words(x.get("title", ""))) in pool_titles
+            or (pid and pid in unseen)
+            or (x.get("title") and x["title"] in unseen)
+        ):
             missing.append(pid or s)
         elif v[0].startswith("no") and pid and pid in c.pool:
             conflict.append(pid)
@@ -321,39 +375,48 @@ def r_expansion_added(c):
             unrecorded.append(pid)
     problems = []
     if missing:
-        problems.append(f"{len(missing)} in-scope candidate(s) of expand-screen.md neither in the pool nor in Open work: "
-                        f"{missing[:6]}; run `uv run python -m deeper_research.assign add-expand {c.topic}`")
+        problems.append(
+            f"{len(missing)} in-scope candidate(s) of expand-screen.md neither in the pool nor in Open work: "
+            f"{missing[:6]}; run `uv run python -m deeper_research.assign add-expand {c.topic}`"
+        )
     if unrecorded:
-        problems.append(f"{len(unrecorded)} rejected candidate(s) of expand-screen.md not in rejected.md: "
-                        f"{unrecorded[:6]}; run `uv run python -m deeper_research.assign add-expand {c.topic}`")
+        problems.append(
+            f"{len(unrecorded)} rejected candidate(s) of expand-screen.md not in rejected.md: "
+            f"{unrecorded[:6]}; run `uv run python -m deeper_research.assign add-expand {c.topic}`"
+        )
     if conflict:
-        problems.append(f"judged `no` on expand-screen.md but in the pool: {conflict[:6]}; re-judge the row with "
-                        f"`uv run python -m deeper_research.expand judge {c.topic}`, or ask the user to take the paper out (H12)")
+        problems.append(
+            f"judged `no` on expand-screen.md but in the pool: {conflict[:6]}; re-judge the row with "
+            f"`uv run python -m deeper_research.expand judge {c.topic}`, or ask the user to take the paper out (H12)"
+        )
     return "; ".join(problems) or None
 
 
 def r_expansion_line(c):
-    if (m := need_lines(c, "Expansion")):
+    if m := need_lines(c, "Expansion"):
         return m
     if not (c.expand and c.expand_screen):
         return None
     from deeper_research.expand import expansion_line
+
     want = expansion_line(c.expand, verdicts(c.expand_screen), c.date).split(":** ", 1)[1]
     if " ".join(c.line("Expansion").split()) != " ".join(want.split()):
-        return (f"`Expansion` disagrees with expand.json and the sheet; paste the line "
-                f"`uv run python -m deeper_research.assign add-expand {c.topic}` prints")
+        return (
+            f"`Expansion` disagrees with expand.json and the sheet; paste the line "
+            f"`uv run python -m deeper_research.assign add-expand {c.topic}` prints"
+        )
     return None
 
 
 def r_errored(c):
-    if (m := need_lines(c, "Errored queries")):
+    if m := need_lines(c, "Errored queries"):
         return m
     text = c.line("Errored queries")
     entries = re.findall(r"\"[^\"]*\"\s*\(([^()]*)\)", text)
     if not entries and text.strip().lower().startswith("none"):
-        return None   # a `none` followed by entries is read by its entries
+        return None  # a `none` followed by entries is read by its entries
     if not entries:
-        return "`Errored queries` is neither `none` nor in the form `\"<query>\" (...; retried at the end of the step: ok | failed)`"
+        return '`Errored queries` is neither `none` nor in the form `"<query>" (...; retried at the end of the step: ok | failed)`'
     if any("retried at the end of the step:" not in e for e in entries):
         return "an errored query has no retry outcome (`retried at the end of the step: ok | failed`)"
     if any(re.search(r"retried at the end of the step:\s*failed", e) for e in entries) and "H2" not in c.halts:
@@ -363,7 +426,8 @@ def r_errored(c):
 
 def pool_step(c):
     """What fetches papers added to the pool and prints the `Pool` line: `pool.py` before this pass's clustering, and
-    `assign.py late` after it, which also places them in their nearest cluster."""
+    `assign.py late` after it, which also places them in their nearest cluster.
+    """
     if c.report and c.report.get("generated", "") >= c.date:
         return f"`uv run python -m deeper_research.assign late {c.topic}`"
     return f"`uv run python -m deeper_research.pool {c.topic}`"
@@ -371,8 +435,11 @@ def pool_step(c):
 
 def r_fetched(c):
     out = sorted(c.pool - set(c.records))
-    return (f"{len(out)} pool paper(s) not fetched: {out[:8]}; run {pool_step(c)} and paste the `Pool` line it prints"
-            if out else None)
+    return (
+        f"{len(out)} pool paper(s) not fetched: {out[:8]}; run {pool_step(c)} and paste the `Pool` line it prints"
+        if out
+        else None
+    )
 
 
 def screened(c):
@@ -397,7 +464,9 @@ def r_fringe_screened(c):
     bad = [k for k, (v, r) in s.items() if not judged(v, r)]
     problems = []
     if absent:
-        problems.append(f"{len(absent)} fringe candidate(s) in fringe.json have no row in the screening sheet: {absent[:4]}")
+        problems.append(
+            f"{len(absent)} fringe candidate(s) in fringe.json have no row in the screening sheet: {absent[:4]}"
+        )
     if bad:
         problems.append(f"{len(bad)} fringe candidate(s) without an `in scope` judgement and a reason of a few words")
     return "; ".join(problems) or None
@@ -415,15 +484,23 @@ def r_fringe_added(c):
         pid = x.get("arxiv") or x.get("corpus")
         if pid in c.pool or " ".join(words(x.get("title", ""))) in pool_titles:
             continue
-        if (x.get("title") or s) in c.ow("Papers that could not enter the pool") or (pid and pid in c.ow("Papers that could not enter the pool")):
+        if (x.get("title") or s) in c.ow("Papers that could not enter the pool") or (
+            pid and pid in c.ow("Papers that could not enter the pool")
+        ):
             continue
         missing.append(pid or s)
-    return (f"{len(missing)} in-scope fringe candidate(s) neither in the pool nor in Open work: {missing[:6]}; run "
-            f"`uv run python -m deeper_research.assign add-fringe {c.topic}`") if missing else None
+    return (
+        (
+            f"{len(missing)} in-scope fringe candidate(s) neither in the pool nor in Open work: {missing[:6]}; run "
+            f"`uv run python -m deeper_research.assign add-fringe {c.topic}`"
+        )
+        if missing
+        else None
+    )
 
 
 def r_fringe_line(c):
-    if (m := need_lines(c, "Fringe")):
+    if m := need_lines(c, "Fringe"):
         return m
     if not c.fringe:
         return None
@@ -437,7 +514,11 @@ def r_fringe_line(c):
     s = re.search(r"in scope (\d+)", text)
     if not s or int(s.group(1)) != yes:
         problems.append(f"in scope is not {yes}")
-    return f"`Fringe` disagrees with the files: {'; '.join(problems)}; paste the line `add-fringe` prints" if problems else None
+    return (
+        f"`Fringe` disagrees with the files: {'; '.join(problems)}; paste the line `add-fringe` prints"
+        if problems
+        else None
+    )
 
 
 def fetched_range(c):
@@ -447,7 +528,7 @@ def fetched_range(c):
 
 
 def r_pool_line(c):
-    if (m := need_lines(c, "Pool")):
+    if m := need_lines(c, "Pool"):
         return m
     text, problems = c.line("Pool"), []
     n = re.search(r"(\d+) papers in scope", text)
@@ -471,26 +552,37 @@ def r_named(c):
     if not c.cluster_rows:
         return "the Clusters table has no rows"
     cols = ["id", "name", "definition", "alignment", "alignment reason", "computed"]
-    bad = sorted({r.get("id", "?") for r in c.cluster_rows for k in cols if not r.get(k) or PLACEHOLDER.search(r.get(k, ""))})
+    bad = sorted(
+        {r.get("id", "?") for r in c.cluster_rows for k in cols if not r.get(k) or PLACEHOLDER.search(r.get(k, ""))}
+    )
     return f"Clusters rows with an empty or placeholder cell: {bad}" if bad else None
 
 
 def r_central_claim(c):
     """Each `high` cluster's definition states its central claim in a second sentence, which dissent is judged against."""
-    short = sorted(r.get("id", "?") for r in c.cluster_rows if r.get("alignment") == "high"
-                   and len([s for s in re.split(r"(?<=[.!?])\s+", r.get("definition", "").strip()) if s]) < 2)
-    return (f"`high` clusters whose definition has no second sentence stating the central claim: {short}"
-            if short else None)
+    short = sorted(
+        r.get("id", "?")
+        for r in c.cluster_rows
+        if r.get("alignment") == "high"
+        and len([s for s in re.split(r"(?<=[.!?])\s+", r.get("definition", "").strip()) if s]) < 2
+    )
+    return (
+        f"`high` clusters whose definition has no second sentence stating the central claim: {short}" if short else None
+    )
 
 
 def r_written(c):
     a = c.assigned()
     blank = sorted(p for p in c.pool if p in a and not c.pool_cluster.get(p))
-    return f"{len(blank)} pool paper(s) have no cluster written: run `uv run python -m deeper_research.assign clusters {c.topic}`" if blank else None
+    return (
+        f"{len(blank)} pool paper(s) have no cluster written: run `uv run python -m deeper_research.assign clusters {c.topic}`"
+        if blank
+        else None
+    )
 
 
 def r_cluster_lines(c):
-    if (m := need_lines(c, "Clustering", "Clustering rationale", "Clusters")):
+    if m := need_lines(c, "Clustering", "Clustering rationale", "Clusters"):
         return m
     ids = sorted(set(COMPUTED_ID.findall(c.line("Clustering"))))
     if ids:
@@ -557,16 +649,25 @@ def r_roles(c):
         for role in NEEDED.get(alignment, ()):
             if not c.roles.get(cid, {}).get(role) and not mentions(empty_roles(c), cid, role):
                 out.append(f"{cid}: {role}")
-    return (f"roles neither filled nor recorded under Open work's `Empty roles` (`<cluster> — <role> — <what was "
-            f"searched>`): {out}") if out else None
+    return (
+        (
+            f"roles neither filled nor recorded under Open work's `Empty roles` (`<cluster> — <role> — <what was "
+            f"searched>`): {out}"
+        )
+        if out
+        else None
+    )
 
 
 def dissent_searches(c):
     """{cluster id: [found ids] or None for `none found`} from `Dissent searches`, whose entries read
-    `<cluster id>: <what was searched> -> found: <id>, ... | none found`, separated by `|` or `;`."""
+    `<cluster id>: <what was searched> -> found: <id>, ... | none found`, separated by `|` or `;`.
+    """
     out = {}
-    for m in re.finditer(r"(?:^|[|;])\s*([a-z0-9]+(?:-[a-z0-9]+)*):\s*([^|;]*?)->\s*(found:[^|;]*|none found)",
-                         c.line("Dissent searches")):
+    for m in re.finditer(
+        r"(?:^|[|;])\s*([a-z0-9]+(?:-[a-z0-9]+)*):\s*([^|;]*?)->\s*(found:[^|;]*|none found)",
+        c.line("Dissent searches"),
+    ):
         found = None if m.group(3).startswith("none") else BARE_ID.findall(m.group(3))
         out.setdefault(m.group(1), []).append(found)
     return out
@@ -576,8 +677,10 @@ def r_dissent_searched(c):
     searches, problems = dissent_searches(c), []
     missing = [cid for cid, a in c.clusters.items() if a == "high" and cid not in searches]
     if missing:
-        problems.append(f"high-alignment clusters missing from `Dissent searches` (`<cluster id>: <what was searched> "
-                        f"-> found: <id> | none found`): {missing}")
+        problems.append(
+            f"high-alignment clusters missing from `Dissent searches` (`<cluster id>: <what was searched> "
+            f"-> found: <id> | none found`): {missing}"
+        )
     _, rows = coreset_cells(c)
     dissent = {(r["_block"], r["_id"]) for r in rows if r.get("role") == "dissent"}
     demoted = c.line("Demotions")
@@ -592,14 +695,20 @@ def r_dissent_searched(c):
 
 def coreset_cells(c):
     header = c.rows[0][0] if c.rows else []
-    return header, [dict(zip(header, cs)) | {"_id": row_id(l), "_block": (b or "").split(" — ")[0].strip()}
-                    for _, cs, b, l in c.rows]
+    return header, [
+        dict(zip(header, cs)) | {"_id": row_id(l), "_block": (b or "").split(" — ")[0].strip()}
+        for _, cs, b, l in c.rows
+    ]
 
 
 def r_dissent_quoted(c):
     _, rows = coreset_cells(c)
     out = [r["_id"] for r in rows if r.get("role") == "dissent" and not QUOTE.search(r.get("selected because", ""))]
-    return f"dissent rows whose `selected because` does not quote the claim that contradicts the cluster: {out}" if out else None
+    return (
+        f"dissent rows whose `selected because` does not quote the claim that contradicts the cluster: {out}"
+        if out
+        else None
+    )
 
 
 def r_bridges(c):
@@ -622,12 +731,22 @@ def r_divided(c):
         if not cl.get("divided") or c.clusters.get(cid) != "high":
             continue
         r = c.roles.get(cid, {})
-        if r.get("frontier", 0) >= 2 or r.get("bridge") or mentions(empty_roles(c), cid, "frontier") \
-                or mentions(empty_roles(c), cid, "bridge"):
+        if (
+            r.get("frontier", 0) >= 2
+            or r.get("bridge")
+            or mentions(empty_roles(c), cid, "frontier")
+            or mentions(empty_roles(c), cid, "bridge")
+        ):
             continue
         out.append(cid)
-    return (f"internally divided high-alignment clusters with neither a second frontier nor a bridge, nor an "
-            f"`Empty roles` entry: {out}") if out else None
+    return (
+        (
+            f"internally divided high-alignment clusters with neither a second frontier nor a bridge, nor an "
+            f"`Empty roles` entry: {out}"
+        )
+        if out
+        else None
+    )
 
 
 def r_fringe_quota(c):
@@ -645,7 +764,11 @@ def r_cells(c):
 
 def r_assigned(c):
     out = sorted(i for i in c.coreset_ids if not c.pool_cluster.get(i))
-    return f"coreset rows for papers with no cluster yet (late papers take a role only once assigned): {out}" if out else None
+    return (
+        f"coreset rows for papers with no cluster yet (late papers take a role only once assigned): {out}"
+        if out
+        else None
+    )
 
 
 def r_dimension_columns(c):
@@ -657,8 +780,10 @@ def r_dimension_columns(c):
     absent = sorted(d for d in c.dims if d not in header)
     problems = []
     if extra:
-        problems.append(f"Coreset columns that are not dimensions (declared in the input, or proposed in the "
-                        f"`Dimensions` line): {extra}")
+        problems.append(
+            f"Coreset columns that are not dimensions (declared in the input, or proposed in the "
+            f"`Dimensions` line): {extra}"
+        )
     if absent:
         problems.append(f"dimensions without a Coreset column: {absent}")
     return "; ".join(problems) or None
@@ -678,7 +803,7 @@ def r_h10(c):
     return None
 
 
-CLAIM_CELLS = ["method name", "method summary", "datasets / models", "metric", "result"]   # each needs evidence
+CLAIM_CELLS = ["method name", "method summary", "datasets / models", "metric", "result"]  # each needs evidence
 EVIDENCE_LINE = re.compile(r"^((?:`[^`]+`\s*,?\s*)+)\s*—\s*(snippet|full-text|abstract)\b([^—]*)—\s*(.+)$", re.S)
 ELLIPSIS = re.compile(r"\s*(?:\.\.\.|…|\[\.\.\.\])\s*")
 
@@ -689,7 +814,8 @@ def evidence_path(c, pid):
 
 def evidence_entries(text):
     """[(cells, source, locator, quote)] from an evidence file: bullets `- `cell`, ... — source[, where] — "quote"`,
-    joined with their wrapped continuation lines."""
+    joined with their wrapped continuation lines.
+    """
     out, cur = [], None
     for line in text.splitlines():
         if line.startswith("- "):
@@ -704,7 +830,7 @@ def evidence_entries(text):
         m = EVIDENCE_LINE.match(b)
         if m:
             q = m.group(4).strip()
-            q = q[1:-1] if len(q) > 1 and q[0] in "\"“" and q[-1] in "\"”" else q
+            q = q[1:-1] if len(q) > 1 and q[0] in '"“' and q[-1] in '"”' else q
             entries.append((re.findall(r"`([^`]+)`", m.group(1)), m.group(2), m.group(3).strip(" ,"), q))
         else:
             entries.append((None, None, None, b))
@@ -714,7 +840,8 @@ def evidence_entries(text):
 def normalised(text):
     """Lower-case words, split on anything else, padded with spaces, so that a word matches only a whole word. Two
     readings of the text: with words hyphenated across a line break joined (`im-\nproves`), and without, so that a
-    compound broken at its hyphen (`state-of-\nthe-art`) also matches."""
+    compound broken at its hyphen (`state-of-\nthe-art`) also matches.
+    """
     text = unicodedata.normalize("NFKC", text).lower()
     joined = re.sub(r"([a-z0-9])-[ \t]*\n\s*([a-z0-9])", r"\1\2", text)
     return [" " + " ".join(re.findall(r"[a-z0-9]+", v)) + " " for v in (joined, text)]
@@ -722,8 +849,14 @@ def normalised(text):
 
 def quote_parts(quote):
     """The parts of a quote elided with `...`, normalised; empty parts dropped."""
-    return [p for p in (" " + " ".join(re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKC", x).lower())) + " "
-                        for x in ELLIPSIS.split(quote)) if p.strip()]
+    return [
+        p
+        for p in (
+            " " + " ".join(re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKC", x).lower())) + " "
+            for x in ELLIPSIS.split(quote)
+        )
+        if p.strip()
+    ]
 
 
 def too_short(quote):
@@ -755,7 +888,8 @@ def found_in(quote, readings):
 def r_evidence(c):
     """Every row verified against the full text keeps the quotes it rests on (docs/verification.md): one for each
     claim cell and each dimension not `n/a`. Its file is headed by its own ID, and its method rests on the full text. A full-text quote must be in the fetched full text, at least QUOTE_WORDS words per part and its parts in
-    order; no quote may come from a snippet, which nothing can check afterwards."""
+    order; no quote may come from a snippet, which nothing can check afterwards.
+    """
     header, rows = coreset_cells(c)
     dims = [k for k in header if k in c.dims]
     missing, malformed, unfound, unchecked, snippets, short, foreign, no_text = [], [], [], [], [], [], [], []
@@ -780,8 +914,9 @@ def r_evidence(c):
         if [n for n in need if n not in covered]:
             missing.append(f"{r['_id']} ({', '.join(n for n in need if n not in covered)})")
         # The abstract may carry a number, never the method (docs/verification.md).
-        if r.get("source") == "full-text" and not any(s == "full-text" and "method summary" in (cells or [])
-                                                      for cells, s, _, _ in entries):
+        if r.get("source") == "full-text" and not any(
+            s == "full-text" and "method summary" in (cells or []) for cells, s, _, _ in entries
+        ):
             no_text.append(r["_id"])
         text = read(ROOT / "graphs" / c.topic / "fulltext" / (path.stem + ".txt"))
         readings = normalised(text) if text is not None else None
@@ -796,22 +931,30 @@ def r_evidence(c):
                 unfound.append(f"{r['_id']} ({', '.join(cells)})")
     problems = []
     if missing:
-        problems.append(f"verified rows without evidence for every cell not `n/a` (the claim cells and the dimensions): "
-                        f"{missing[:8]}")
+        problems.append(
+            f"verified rows without evidence for every cell not `n/a` (the claim cells and the dimensions): "
+            f"{missing[:8]}"
+        )
     if foreign:
         problems.append(f"evidence files not headed `# Evidence: <the row's ID>`: {foreign[:8]}")
     if malformed:
-        problems.append(f"evidence lines not in the form ``- `cell` — source[, where] — \"quote\"``: {malformed[:8]}")
+        problems.append(f'evidence lines not in the form ``- `cell` — source[, where] — "quote"``: {malformed[:8]}')
     if no_text:
         problems.append(f"`full-text` rows whose `method summary` has no full-text quote: {no_text[:8]}")
     if snippets:
-        problems.append(f"evidence quoted from snippets, which nothing can check afterwards: quote the fetched full text "
-                        f"instead (docs/verification.md): {snippets[:8]}")
+        problems.append(
+            f"evidence quoted from snippets, which nothing can check afterwards: quote the fetched full text "
+            f"instead (docs/verification.md): {snippets[:8]}"
+        )
     if short:
-        problems.append(f"full-text quotes with a part shorter than {QUOTE_WORDS} words, too short to show where a claim "
-                        f"comes from: {short[:8]}")
+        problems.append(
+            f"full-text quotes with a part shorter than {QUOTE_WORDS} words, too short to show where a claim "
+            f"comes from: {short[:8]}"
+        )
     if unfound:
-        problems.append(f"full-text quotes not found in the fetched full text, in order, so not verbatim: {unfound[:8]}")
+        problems.append(
+            f"full-text quotes not found in the fetched full text, in order, so not verbatim: {unfound[:8]}"
+        )
     if unchecked:
         c.unchecked = sorted(set(unchecked))
     return "; ".join(problems) or None
@@ -827,12 +970,15 @@ def r_dissent_evidence(c):
         ev = read(evidence_path(c, r["_id"]))
         if q and ev is not None and not any(found_in(q.group(0)[1:-1], [b]) for b in normalised(ev)):
             out.append(r["_id"])
-    return (f"verified dissent rows whose quoted claim (`selected because`) is not among their evidence quotes: "
-            f"{out}") if out else None
+    return (
+        (f"verified dissent rows whose quoted claim (`selected because`) is not among their evidence quotes: {out}")
+        if out
+        else None
+    )
 
 
 def r_coreset_line(c):
-    if (m := need_lines(c, "Coreset")):
+    if m := need_lines(c, "Coreset"):
         return m
     n = re.search(r"(\d+) rows", c.line("Coreset"))
     return None if n and int(n.group(1)) == len(c.rows) else f"`Coreset` does not say {len(c.rows)} rows"
@@ -870,12 +1016,22 @@ def r_cite_entries(c):
 def rounds(c):
     out = []
     for text in c.L.get("Coverage test", []):
-        m = re.search(r"round (\d+):\s*(\d+) of (\d+) sampled candidates changed the output(.*?)(?:;\s*new clusters:\s*(.*))?$", text)
+        m = re.search(
+            r"round (\d+):\s*(\d+) of (\d+) sampled candidates changed the output(.*?)(?:;\s*new clusters:\s*(.*))?$",
+            text,
+        )
         if m:
             # The IDs that open an entry, `(<id>: <what it changed>, <id>: ...)`, not IDs inside what it changed.
             ids = re.findall(rf"(?:\(|[,;]\s*){BARE_ID.pattern}\s*:", m.group(4) or "")
-            out.append({"r": int(m.group(1)), "k": int(m.group(2)), "n": int(m.group(3)), "ids": ids,
-                        "new": (m.group(5) or "").strip()})
+            out.append(
+                {
+                    "r": int(m.group(1)),
+                    "k": int(m.group(2)),
+                    "n": int(m.group(3)),
+                    "ids": ids,
+                    "new": (m.group(5) or "").strip(),
+                }
+            )
         else:
             out.append(None)
     return out
@@ -886,7 +1042,7 @@ def converged(r):
 
 
 def r_coverage(c):
-    if (m := need_lines(c, "Coverage test")):
+    if m := need_lines(c, "Coverage test"):
         return m
     rs = rounds(c)
     if None in rs:
@@ -896,7 +1052,9 @@ def r_coverage(c):
         if r["n"] < COVERAGE_SAMPLE:
             problems.append(f"round {i} sampled {r['n']} candidates, fewer than {COVERAGE_SAMPLE}")
         if r["k"] != len(set(r["ids"])) or r["k"] > r["n"]:
-            problems.append(f"round {i} says {r['k']} of {r['n']} changed the output but names {len(set(r['ids']))} paper ID(s)")
+            problems.append(
+                f"round {i} says {r['k']} of {r['n']} changed the output but names {len(set(r['ids']))} paper ID(s)"
+            )
         if not r["new"]:
             problems.append(f"round {i} does not say `new clusters: none | <which>`")
     return "; ".join(problems) or None
@@ -905,15 +1063,19 @@ def r_coverage(c):
 def r_coverage_sheets(c):
     """Each round's sheet, written by deeper_research/coverage.py, backs its `Coverage test` line: every candidate judged, N its
     rows, the IDs the line counts in K its `changes` rows, a proposed cluster not reported as `none`, and the line as
-    `coverage.py line` prints it, up to `new clusters:`."""
+    `coverage.py line` prints it, up to `new clusters:`.
+    """
     from deeper_research.coverage import counted, render, sheet
+
     texts = c.L.get("Coverage test", [])
     problems = []
     for r in (x for x in rounds(c) if x):
         path = ROOT / "graphs" / c.topic / f"coverage-{r['r']}.md"
         rows = sheet(read(path))
         if not rows:
-            problems.append(f"round {r['r']} has no sheet {path.relative_to(ROOT)} (`uv run python -m deeper_research.coverage draw`)")
+            problems.append(
+                f"round {r['r']} has no sheet {path.relative_to(ROOT)} (`uv run python -m deeper_research.coverage draw`)"
+            )
             continue
         left = [x["id"] for x in rows if not x.get("verdict")]
         changed, new = counted(rows)
@@ -922,26 +1084,33 @@ def r_coverage_sheets(c):
         if len(rows) != r["n"]:
             problems.append(f"round {r['r']} says {r['n']} sampled candidates, but its sheet has {len(rows)}")
         if {x["id"] for x in changed} != set(r["ids"]):
-            problems.append(f"round {r['r']} counts {sorted(set(r['ids']))} in K, but its sheet marks "
-                            f"{sorted(x['id'] for x in changed)} as changing a target")
+            problems.append(
+                f"round {r['r']} counts {sorted(set(r['ids']))} in K, but its sheet marks "
+                f"{sorted(x['id'] for x in changed)} as changing a target"
+            )
         if new and r["new"].strip().lower() == "none":
-            problems.append(f"round {r['r']}'s sheet proposes a new cluster ({', '.join(x['id'] for x in new)}), but "
-                            "the line says `new clusters: none`")
+            problems.append(
+                f"round {r['r']}'s sheet proposes a new cluster ({', '.join(x['id'] for x in new)}), but "
+                "the line says `new clusters: none`"
+            )
         printed, why, _ = render(read(path), r["r"])
         pasted = next((x for x in texts if re.match(rf"\s*round {r['r']}:", x)), "")
         head = lambda s: " ".join(s.split("; new clusters:")[0].split())
         if printed is None:
             problems.append(f"round {r['r']}'s sheet: {why}")
         elif head(pasted) != head(printed):
-            problems.append(f"round {r['r']}'s `Coverage test` line differs from its sheet; paste it again from "
-                            f"`uv run python -m deeper_research.coverage line {c.topic} {r['r']}`")
+            problems.append(
+                f"round {r['r']}'s `Coverage test` line differs from its sheet; paste it again from "
+                f"`uv run python -m deeper_research.coverage line {c.topic} {r['r']}`"
+            )
     return "; ".join(problems) or None
 
 
 def r_judgement_audit(c):
     """The `Judgement audit` line, as deeper_research/audit.py computes it from the two judged sheets."""
     from deeper_research.audit import summary
-    if (m := need_lines(c, "Judgement audit")):
+
+    if m := need_lines(c, "Judgement audit"):
         return m + " (`uv run python -m deeper_research.audit line`)"
     value, missing = summary(c.topic)
     if missing:
@@ -971,29 +1140,42 @@ def r_converged(c):
 
 def r_counted_rows(c):
     """Every paper a coverage round counted in K is an assigned coreset row, verified from the full text or marked
-    uncheckable: until then, Revise is not done (docs/process.md, step 7)."""
+    uncheckable: until then, Revise is not done (docs/process.md, step 7).
+    """
     ids = {i for r in rounds(c) if r for i in r["ids"]}
     rows = {row_id(l): dict(zip(h, cs)) for h, cs, _, l in c.rows}
     out = sorted(i for i in ids if i not in c.coreset_ids or not c.pool_cluster.get(i))
-    unverified = sorted(i for i in ids if i in rows and rows[i].get("source") != "full-text"
-                        and "(uncheckable:" not in rows[i].get("selected because", ""))
+    unverified = sorted(
+        i
+        for i in ids
+        if i in rows
+        and rows[i].get("source") != "full-text"
+        and "(uncheckable:" not in rows[i].get("selected because", "")
+    )
     problems = []
     if out:
-        problems.append(f"papers a coverage round counted are not yet assigned coreset rows: {out}; Revise gives them "
-                        "roles")
+        problems.append(
+            f"papers a coverage round counted are not yet assigned coreset rows: {out}; Revise gives them roles"
+        )
     if unverified:
-        problems.append(f"papers a coverage round counted are rows not yet verified: {unverified}; Revise verifies them")
+        problems.append(
+            f"papers a coverage round counted are rows not yet verified: {unverified}; Revise verifies them"
+        )
     return "; ".join(problems) or None
 
 
 def r_late_empty(c):
     a = c.assigned()
     out = sorted(p for p in c.pool if p not in a and (c.records.get(p) or {}).get("embedding"))
-    return f"late papers still awaiting assignment: {out[:8]}; run `uv run python -m deeper_research.assign late {c.topic}`" if out else None
+    return (
+        f"late papers still awaiting assignment: {out[:8]}; run `uv run python -m deeper_research.assign late {c.topic}`"
+        if out
+        else None
+    )
 
 
 def r_end_lines(c):
-    if (m := need_lines(c, "Tokens", "Halts", "Ended")):
+    if m := need_lines(c, "Tokens", "Halts", "Ended"):
         return m
     bad = [x.strip() for x in c.line("Tokens").split(",") if not TOKENS.match(x.strip())]
     if bad:
@@ -1002,27 +1184,68 @@ def r_end_lines(c):
 
 
 REQUIREMENTS = {
-    0: [("g0.entry", r_entry), ("g0.placeholders", r_placeholders), ("g0.labels", r_labels),
-        ("g0.dimensions", r_dimensions), ("g0.preflight", r_preflight),
-        ("g0.halts-waivers", lambda c: need_lines(c, "Halts", "Waivers"))],
-    1: [("g1.orientation", r_orientation), ("g1.expansion-collected", r_expansion_collected),
-        ("g1.expansion-screened", r_expansion_screened), ("g1.expansion-added", r_expansion_added),
-        ("g1.expansion-line", r_expansion_line), ("g1.errored", r_errored), ("g1.fetched", r_fetched), ("g1.fringe-collected", r_fringe_collected),
-        ("g1.fringe-screened", r_fringe_screened), ("g1.fringe-added", r_fringe_added), ("g1.fringe-line", r_fringe_line),
-        ("g1.pool-line", r_pool_line)],
-    2: [("g2.clustered", r_clustered), ("g2.named", r_named), ("g2.central-claim", r_central_claim), ("g2.written", r_written),
-        ("g2.lines", r_cluster_lines), ("g2.clustering-line", r_clustering_matches), ("g2.clusters-line", r_clusters_line),
-        ("g2.diagnosis-halts", r_diagnosis_halts), ("g2.review", r_review)],
-    3: [("g3.roles", r_roles), ("g3.dissent-searched", r_dissent_searched), ("g3.dissent-quoted", r_dissent_quoted),
-        ("g3.bridges", r_bridges), ("g3.divided", r_divided), ("g3.fringe-quota", r_fringe_quota), ("g3.cells", r_cells),
-        ("g3.assigned", r_assigned), ("g3.dimension-columns", r_dimension_columns)],
-    4: [("g4.evidence", r_evidence), ("g4.dissent-evidence", r_dissent_evidence), ("g4.abstract-listed", r_abstract_listed),
-        ("g4.h10", r_h10), ("g4.coreset-line", r_coreset_line),
-        ("g4.counted-rows", r_counted_rows)],
-    5: [("g5.output", r_output), ("g5.cite-entries", r_cite_entries), ("g5.coverage", r_coverage),
-        ("g5.coverage-sheets", r_coverage_sheets), ("g5.converged", r_converged),
+    0: [
+        ("g0.entry", r_entry),
+        ("g0.placeholders", r_placeholders),
+        ("g0.labels", r_labels),
+        ("g0.dimensions", r_dimensions),
+        ("g0.preflight", r_preflight),
+        ("g0.halts-waivers", lambda c: need_lines(c, "Halts", "Waivers")),
+    ],
+    1: [
+        ("g1.orientation", r_orientation),
+        ("g1.expansion-collected", r_expansion_collected),
+        ("g1.expansion-screened", r_expansion_screened),
+        ("g1.expansion-added", r_expansion_added),
+        ("g1.expansion-line", r_expansion_line),
+        ("g1.errored", r_errored),
+        ("g1.fetched", r_fetched),
+        ("g1.fringe-collected", r_fringe_collected),
+        ("g1.fringe-screened", r_fringe_screened),
+        ("g1.fringe-added", r_fringe_added),
+        ("g1.fringe-line", r_fringe_line),
+        ("g1.pool-line", r_pool_line),
+    ],
+    2: [
+        ("g2.clustered", r_clustered),
+        ("g2.named", r_named),
+        ("g2.central-claim", r_central_claim),
+        ("g2.written", r_written),
+        ("g2.lines", r_cluster_lines),
+        ("g2.clustering-line", r_clustering_matches),
+        ("g2.clusters-line", r_clusters_line),
+        ("g2.diagnosis-halts", r_diagnosis_halts),
+        ("g2.review", r_review),
+    ],
+    3: [
+        ("g3.roles", r_roles),
+        ("g3.dissent-searched", r_dissent_searched),
+        ("g3.dissent-quoted", r_dissent_quoted),
+        ("g3.bridges", r_bridges),
+        ("g3.divided", r_divided),
+        ("g3.fringe-quota", r_fringe_quota),
+        ("g3.cells", r_cells),
+        ("g3.assigned", r_assigned),
+        ("g3.dimension-columns", r_dimension_columns),
+    ],
+    4: [
+        ("g4.evidence", r_evidence),
+        ("g4.dissent-evidence", r_dissent_evidence),
+        ("g4.abstract-listed", r_abstract_listed),
+        ("g4.h10", r_h10),
+        ("g4.coreset-line", r_coreset_line),
+        ("g4.counted-rows", r_counted_rows),
+    ],
+    5: [
+        ("g5.output", r_output),
+        ("g5.cite-entries", r_cite_entries),
+        ("g5.coverage", r_coverage),
+        ("g5.coverage-sheets", r_coverage_sheets),
+        ("g5.converged", r_converged),
         ("g5.late-empty", r_late_empty),
-        ("g5.judgement-audit", r_judgement_audit), ("g5.end-lines", r_end_lines)],
+        ("g5.judgement-audit", r_judgement_audit),
+        ("g5.end-lines", r_end_lines),
+    ],
 }
 
 
@@ -1039,7 +1262,8 @@ def committed(path):
 
 def history(c):
     """Invariants against HEAD: earlier passes' entries intact, no pool paper or coreset row gone unrecorded, no
-    `source` lowered. Returns (failures, notes)."""
+    `source` lowered. Returns (failures, notes).
+    """
     failures, notes = [], []
     old = committed(ROOT / "surveys" / f"{c.topic}.md")
     if old is None:
@@ -1051,31 +1275,45 @@ def history(c):
             continue
         gone = [l for l in e["raw"] if l.strip() and l not in now]
         if gone:
-            failures.append(f"the log entry of {e['date']} was changed since the last commit (earlier entries are never "
-                            f"rewritten; add a pointer instead): {gone[0][:80]!r}")
+            failures.append(
+                f"the log entry of {e['date']} was changed since the last commit (earlier entries are never "
+                f"rewritten; add a pointer instead): {gone[0][:80]!r}"
+            )
     record = " ".join(c.L.get(k, [""])[0] for k in ("Halts", "Corrections to existing rows", "Demotions"))
     old_pool = {row_id(l) for h, _, _, l in table_rows(osecs.get("Pool", "")) if h and h[0] == "paper"} - {None}
     gone = sorted(p for p in old_pool - c.pool if p not in record)
     if gone:
         failures.append(f"pool papers removed since the last commit without H12 or a logged merge: {gone[:8]}")
-    old_rows = {row_id(l): dict(zip(h, cs)) for h, cs, _, l in table_rows(osecs.get("Coreset", ""))
-                if h and h[0] == "paper"}
+    old_rows = {
+        row_id(l): dict(zip(h, cs)) for h, cs, _, l in table_rows(osecs.get("Coreset", "")) if h and h[0] == "paper"
+    }
     gone = sorted(p for p in set(old_rows) - c.coreset_ids if p and p not in record)
     if gone:
-        failures.append(f"coreset rows removed since the last commit without a `Demotions` or `Corrections` entry: {gone[:8]}")
+        failures.append(
+            f"coreset rows removed since the last commit without a `Demotions` or `Corrections` entry: {gone[:8]}"
+        )
     now_rows = {row_id(l): dict(zip(h, cs)) for h, cs, _, l in c.rows}
     both = sorted(p for p in set(old_rows) & set(now_rows) if p)
-    lowered = [p for p in both if SOURCE_RANK.get(now_rows[p].get("source"), 0) < SOURCE_RANK.get(old_rows[p].get("source"), 0)]
+    lowered = [
+        p for p in both if SOURCE_RANK.get(now_rows[p].get("source"), 0) < SOURCE_RANK.get(old_rows[p].get("source"), 0)
+    ]
     if lowered:
         failures.append(f"`source` lowered since the last commit (it only ratchets up): {lowered}")
     # A verified row is edited only as a logged correction (docs/process.md, "Rules for re-runs"). A row still
     # `abstract` is a draft, and verification may rewrite it freely.
     corrections = " ".join(c.L.get("Corrections to existing rows", []))
-    edited = [p for p in both if old_rows[p].get("source") in ("snippet", "full-text") and p not in corrections
-              and any(k != "source" and k in now_rows[p] and now_rows[p][k] != v for k, v in old_rows[p].items())]
+    edited = [
+        p
+        for p in both
+        if old_rows[p].get("source") in ("snippet", "full-text")
+        and p not in corrections
+        and any(k != "source" and k in now_rows[p] and now_rows[p][k] != v for k, v in old_rows[p].items())
+    ]
     if edited:
-        failures.append(f"verified rows changed since the last commit without a `Corrections to existing rows` entry "
-                        f"naming them: {edited[:8]}")
+        failures.append(
+            f"verified rows changed since the last commit without a `Corrections to existing rows` entry "
+            f"naming them: {edited[:8]}"
+        )
     old_input = committed(ROOT / "inputs" / f"{c.topic}.md")
     if old_input is not None and old_input != read(ROOT / "inputs" / f"{c.topic}.md"):
         notes.append(f"inputs/{c.topic}.md changed since the last commit; only the user edits the input")
@@ -1090,8 +1328,7 @@ def inferred(c):
     L, g = c.L, -1
     if c.cur:
         g = 0
-    if any(k in L for k in ("Clustering", "Clustering rationale", "Clusters")) or \
-            (c.first_pass and c.cluster_rows):
+    if any(k in L for k in ("Clustering", "Clustering rationale", "Clusters")) or (c.first_pass and c.cluster_rows):
         g = max(g, 1)
     if any(k in L for k in ("Dissent searches", "Demotions")) or (c.first_pass and c.rows):
         g = max(g, 2)
@@ -1137,7 +1374,7 @@ def run(c, target=None, status=False):
     if stop:
         # A pass the user ended at a halt needs only the gates it declared, and to be closed (docs/gates.md).
         top = max(c.declared, default=0)
-        if (m := r_closed(c)):
+        if m := r_closed(c):
             failures.append(f"halted pass ({stop}) not closed: {m}")
     required = set(range(top + 1))
     if target is not None:
@@ -1147,9 +1384,12 @@ def run(c, target=None, status=False):
     passed = [g for g in range(6) if all(p is None or w for _, p, w in results[g])]
     nxt = next((g for g in range(6) if g not in passed), None)
 
-    print(f"gates:   pass of {c.date or 'none'}; declared {' '.join(f'G{g}' for g in sorted(c.declared)) or 'none'}; "
-          + (f"required G0–G{max(required)}" if required else "required none") + (f"; ended at {stop}" if stop else "")
-          + (f"; next G{nxt}" if nxt is not None else "; all passed"))
+    print(
+        f"gates:   pass of {c.date or 'none'}; declared {' '.join(f'G{g}' for g in sorted(c.declared)) or 'none'}; "
+        + (f"required G0–G{max(required)}" if required else "required none")
+        + (f"; ended at {stop}" if stop else "")
+        + (f"; next G{nxt}" if nxt is not None else "; all passed")
+    )
     for g in sorted(required):
         for rid, problem, waived in results[g]:
             if problem and waived:
@@ -1169,16 +1409,20 @@ def run(c, target=None, status=False):
     if c.rows and 3 not in required and (b := r_bridges(c)):
         notes.append(f"{b}: run the Bridges row before Fringe selection")
     if getattr(c, "unchecked", None):
-        missing = (f"full-text quotes not checked verbatim, since the full text is not fetched here: {c.unchecked[:8]}; "
-                   f"`uv run python -m deeper_research.fulltext {c.topic} <id>` fetches it")
+        missing = (
+            f"full-text quotes not checked verbatim, since the full text is not fetched here: {c.unchecked[:8]}; "
+            f"`uv run python -m deeper_research.fulltext {c.topic} <id>` fetches it"
+        )
         if target is not None and target >= 4 and "g4.evidence" not in c.waived:
-            failures.append(f"G4 g4.evidence: {missing}")   # a gate is never passed on quotes nobody checked
+            failures.append(f"G4 g4.evidence: {missing}")  # a gate is never passed on quotes nobody checked
         else:
             notes.append(missing)
-    conflict = sorted((c.pool | c.coreset_ids) & {row_id(l) for h, _, _, l in table_rows(c.rejected or "")
-                                                  if h and h[0] == "paper"})
+    conflict = sorted(
+        (c.pool | c.coreset_ids) & {row_id(l) for h, _, _, l in table_rows(c.rejected or "") if h and h[0] == "paper"}
+    )
     if conflict:
-        notes.append(f"papers both rejected (rejected.md) and in the pool: {conflict[:8]}; one of the two judgements is "
-                     f"wrong")
+        notes.append(
+            f"papers both rejected (rejected.md) and in the pool: {conflict[:8]}; one of the two judgements is wrong"
+        )
     h_fail, h_notes = history(c)
     return failures + h_fail, notes + h_notes

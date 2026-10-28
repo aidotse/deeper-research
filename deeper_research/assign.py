@@ -136,8 +136,11 @@ def rejected(topic):
     path = topic_dir(topic) / "rejected.md"
     if not path.exists():
         return {}
-    return {row_id(l): (c[1], c[2]) for h, c, _, l in table_rows(path.read_text())
-            if h and h[0] == "paper" and row_id(l) and len(c) >= 3}
+    return {
+        row_id(l): (c[1], c[2])
+        for h, c, _, l in table_rows(path.read_text())
+        if h and h[0] == "paper" and row_id(l) and len(c) >= 3
+    }
 
 
 def warn_rejected(topic, added):
@@ -145,14 +148,18 @@ def warn_rejected(topic, added):
     rej = rejected(topic)
     hit = [a for a in added if a in rej]
     if hit:
-        print(f"WARNING: {len(hit)} added paper(s) were rejected earlier (graphs/{topic}/rejected.md), so the record "
-              "now holds two opposite verdicts; say in the log which one stands and why: "
-              + "; ".join(f"{a} (rejected {rej[a][0]}: {rej[a][1]})" for a in hit))
+        print(
+            f"WARNING: {len(hit)} added paper(s) were rejected earlier (graphs/{topic}/rejected.md), so the record "
+            "now holds two opposite verdicts; say in the log which one stands and why: "
+            + "; ".join(f"{a} (rejected {rej[a][0]}: {rej[a][1]})" for a in hit)
+        )
 
 
 def next_step(topic):
-    return (f"next, for the main session: `uv run python -m deeper_research.pool {topic}` before clustering (step 3), or "
-            f"`uv run python -m deeper_research.assign late {topic}` after it; paste the `Pool` line it prints into the log")
+    return (
+        f"next, for the main session: `uv run python -m deeper_research.pool {topic}` before clustering (step 3), or "
+        f"`uv run python -m deeper_research.assign late {topic}` after it; paste the `Pool` line it prints into the log"
+    )
 
 
 # --- add ------------------------------------------------------------------------------------------
@@ -168,27 +175,30 @@ def append_pool_rows(topic, titled):
     lines = path.read_text().splitlines(keepends=True)
     start, end = section_span(lines, "Pool")
     rows = "".join(
-        f"| [{t.replace('|', '/').replace('[', '(').replace(']', ')')}]({link(a)}) |  |  |  |  |\n"
-        for a, t in new)
+        f"| [{t.replace('|', '/').replace('[', '(').replace(']', ')')}]({link(a)}) |  |  |  |  |\n" for a, t in new
+    )
     if not any(l.startswith("|") for l in lines[start:end]):
         lines[start:start] = ["\n", POOL_HEADER, rows]
     else:
         last = max(i for i in range(start, end) if lines[i].startswith("|"))
-        lines[last + 1:last + 1] = [rows]
+        lines[last + 1 : last + 1] = [rows]
     path.write_text("".join(lines))
     return [a for a, _ in new]
 
 
 def add(topic, ids):
     from deeper_research.net import get_json
+
     bad = [a for a in ids if not ID.match(a)]
     if bad or not ids:
-        print(f"expected paper IDs such as 2408.03314, hep-th/9901001 or CorpusId:6628106; got {bad or 'none'}",
-              file=sys.stderr)
+        print(
+            f"expected paper IDs such as 2408.03314, hep-th/9901001 or CorpusId:6628106; got {bad or 'none'}",
+            file=sys.stderr,
+        )
         return 2
     titled, unknown, has_arxiv, no_embedding = {}, [], {}, []
     for i in range(0, len(ids), 100):
-        batch = ids[i:i + 100]
+        batch = ids[i : i + 100]
         for a, rec in zip(batch, get_json(S2_ADD, {"ids": [s2_ref(x) for x in batch]})):
             if not (rec and rec.get("title")):
                 unknown.append(a)
@@ -203,11 +213,15 @@ def add(topic, ids):
     if unknown:
         print(f"not in Semantic Scholar, so not added; record them in Open work: {unknown}")
     if no_embedding:
-        print(f"no SPECTER2 embedding, so they cannot be clustered and were not added; record them in Open work: "
-              f"{no_embedding}")
+        print(
+            f"no SPECTER2 embedding, so they cannot be clustered and were not added; record them in Open work: "
+            f"{no_embedding}"
+        )
     if has_arxiv:
-        print("these have an arXiv ID, which is their canonical ID; add them by it instead: "
-              + ", ".join(f"{a} -> {x}" for a, x in has_arxiv.items()))
+        print(
+            "these have an arXiv ID, which is their canonical ID; add them by it instead: "
+            + ", ".join(f"{a} -> {x}" for a, x in has_arxiv.items())
+        )
     warn_rejected(topic, added)
     if added:
         print(next_step(topic))
@@ -217,11 +231,14 @@ def add(topic, ids):
 def add_expand(topic):
     from deeper_research.expand import canonical, expansion_line, latest_entry, pass_candidates
     from deeper_research.screen import judged, pool_titles, title_key, verdicts
+
     d = topic_dir(topic)
     for name in ("expand.json", "expand-screen.md"):
         if not (d / name).exists():
-            sys.exit(f"no graphs/{topic}/{name}; run `uv run python -m deeper_research.expand collect {topic}` first, then have the "
-                     "candidates screened")
+            sys.exit(
+                f"no graphs/{topic}/{name}; run `uv run python -m deeper_research.expand collect {topic}` first, then have the "
+                "candidates screened"
+            )
     data = json.loads((d / "expand.json").read_text())
     since = latest_entry(topic)[0]
     cands, said = data["candidates"], verdicts((d / "expand-screen.md").read_text())
@@ -233,12 +250,16 @@ def add_expand(topic):
     mine = pass_candidates(data, since)
     absent = [s for s in mine if s not in said]
     if absent:
-        sys.exit(f"{len(absent)} candidate(s) in expand.json have no row in expand-screen.md: {absent[:3]}; rerun "
-                 f"`uv run python -m deeper_research.expand collect {topic}` with the same arguments, which restores missing rows")
+        sys.exit(
+            f"{len(absent)} candidate(s) in expand.json have no row in expand-screen.md: {absent[:3]}; rerun "
+            f"`uv run python -m deeper_research.expand collect {topic}` with the same arguments, which restores missing rows"
+        )
     blank = [s for s in mine if not judged(*said[s])]
     if blank:
-        sys.exit(f"{len(blank)} row(s) of expand-screen.md have no `yes` or `no` judgement with a reason of at least two "
-                 "words yet")
+        sys.exit(
+            f"{len(blank)} row(s) of expand-screen.md have no `yes` or `no` judgement with a reason of at least two "
+            "words yet"
+        )
     pool, titles = set(pool_ids(topic)), pool_titles(topic)
     yes = [s for s in mine if said[s][0].startswith("yes")]
     no = [s for s in mine if said[s][0].startswith("no")]
@@ -246,19 +267,27 @@ def add_expand(topic):
     no_id = [s for s in yes if not canonical(cands[s])]
     ids = [canonical(cands[s]) for s in yes if s not in there and canonical(cands[s])]
     if ids:
-        add(topic, ids)   # fetches each paper's record, and refuses one without a SPECTER2 embedding
+        add(topic, ids)  # fetches each paper's record, and refuses one without a SPECTER2 embedding
     print(f"{len(there)} in-scope candidate(s) already in the pool")
     if no_id:
         print(f"in scope but without an arXiv or corpus ID, so not added; record them in Open work: {no_id}")
     pool, rej = set(pool_ids(topic)), rejected(topic)
     conflict = [canonical(cands[s]) for s in no if canonical(cands[s]) in pool]
-    _, recorded, _ = write_rejections(topic, [(canonical(cands[s]), said[s][1]) for s in no
-                                              if canonical(cands[s]) and canonical(cands[s]) not in pool | set(rej)])
+    _, recorded, _ = write_rejections(
+        topic,
+        [
+            (canonical(cands[s]), said[s][1])
+            for s in no
+            if canonical(cands[s]) and canonical(cands[s]) not in pool | set(rej)
+        ],
+    )
     print(f"recorded {len(recorded)} rejection(s) in graphs/{topic}/rejected.md")
     if conflict:
-        print(f"judged `no` on the sheet but in the pool, so not recorded as rejected: {conflict}; one verdict is wrong: "
-              f"re-judge the row with `uv run python -m deeper_research.expand judge {topic}`, or ask the user to take the paper out of "
-              "the pool (H12)")
+        print(
+            f"judged `no` on the sheet but in the pool, so not recorded as rejected: {conflict}; one verdict is wrong: "
+            f"re-judge the row with `uv run python -m deeper_research.expand judge {topic}`, or ask the user to take the paper out of "
+            "the pool (H12)"
+        )
     print("\nlog line, in place of any earlier `Expansion` line of this pass:")
     print(expansion_line(data, said, since))
     return 0
@@ -268,11 +297,14 @@ def add_fringe(topic):
     d = topic_dir(topic)
     for name in ("fringe.json", "fringe-screen.md"):
         if not (d / name).exists():
-            sys.exit(f"no graphs/{topic}/{name}; run `uv run python -m deeper_research.fringe collect {topic}` first, then have the "
-                     "candidates screened")
+            sys.exit(
+                f"no graphs/{topic}/{name}; run `uv run python -m deeper_research.fringe collect {topic}` first, then have the "
+                "candidates screened"
+            )
     data = json.loads((d / "fringe.json").read_text())
     cands = data["candidates"]
     from deeper_research.screen import judged, verdicts
+
     rows = verdicts((d / "fringe-screen.md").read_text())
     screened = {s: v for s, (v, _) in rows.items()}
     # The gate's own test (G1, fringe-screened): `yes` or `no` with a reason; blank or `maybe` is unjudged.
@@ -284,13 +316,16 @@ def add_fringe(topic):
         sys.exit(f"{len(absent)} candidate(s) in fringe.json have no row in fringe-screen.md: {absent[:3]}")
     unknown = [s for s in screened if s not in cands]
     if unknown:
-        sys.exit(f"{len(unknown)} row(s) of fringe-screen.md are not in fringe.json: {unknown[:3]}; rerun "
-                 f"`uv run python -m deeper_research.fringe collect {topic}`, which keeps the judgements already on the sheet")
+        sys.exit(
+            f"{len(unknown)} row(s) of fringe-screen.md are not in fringe.json: {unknown[:3]}; rerun "
+            f"`uv run python -m deeper_research.fringe collect {topic}`, which keeps the judgements already on the sheet"
+        )
     yes = [s for s, v in screened.items() if v.startswith("yes")]
     # The canonical ID: the arXiv ID where there is one, otherwise the corpus ID (docs/formats.md).
     missing = [s for s in yes if not cands[s].get("arxiv")]
     if missing:
         from deeper_research.net import get_json
+
         for s, rec in zip(missing, get_json(S2_TITLES, {"ids": missing})):
             if arxiv_of(rec):
                 cands[s]["arxiv"] = arxiv_of(rec)
@@ -298,8 +333,11 @@ def add_fringe(topic):
                 cands[s]["corpus"] = f"CorpusId:{rec['externalIds']['CorpusId']}"
         # Keep the resolved IDs, so that deeper_research/check.py can find every in-scope candidate in the pool.
         (d / "fringe.json").write_text(json.dumps(data, separators=(",", ":")))
-    titled = {cands[s].get("arxiv") or cands[s].get("corpus"): cands[s]["title"] for s in yes
-              if cands[s].get("arxiv") or cands[s].get("corpus")}
+    titled = {
+        cands[s].get("arxiv") or cands[s].get("corpus"): cands[s]["title"]
+        for s in yes
+        if cands[s].get("arxiv") or cands[s].get("corpus")
+    }
     no_id = [s for s in yes if not (cands[s].get("arxiv") or cands[s].get("corpus"))]
     added = append_pool_rows(topic, titled)
     routes = {r: sum(1 for x in cands.values() if r in x["routes"]) for r in ("hidden", "new")}
@@ -307,9 +345,11 @@ def add_fringe(topic):
     if no_id:
         print(f"in scope but without an arXiv or corpus ID, so not added; record them in Open work: {no_id}")
     print("\nlog line:")
-    print(f"- **Fringe:** collected {data['collected']}: hidden {routes['hidden']}, new {routes['new']} candidates "
-          f"({len(cands)} unique); in scope {len(yes)}; added to the pool {len(added)}, of which "
-          f"{sum(1 for a in added if a.startswith('CorpusId:'))} without an arXiv ID; left out {len(no_id)}")
+    print(
+        f"- **Fringe:** collected {data['collected']}: hidden {routes['hidden']}, new {routes['new']} candidates "
+        f"({len(cands)} unique); in scope {len(yes)}; added to the pool {len(added)}, of which "
+        f"{sum(1 for a in added if a.startswith('CorpusId:'))} without an arXiv ID; left out {len(no_id)}"
+    )
     warn_rejected(topic, added)
     if added:
         print(f"\n{next_step(topic)}")
@@ -322,28 +362,35 @@ def add_fringe(topic):
 def write_clusters(topic):
     _, report = load_report(topic)
     if report.get("previous") and not report["previous"].get("remapped") and name_map(topic):
-        print(f"FAIL  clusters.json is a new clustering whose names have not been carried over; run "
-              f"`uv run python -m deeper_research.assign remap {topic}` first, or the old names would land on the new clusters")
+        print(
+            f"FAIL  clusters.json is a new clustering whose names have not been carried over; run "
+            f"`uv run python -m deeper_research.assign remap {topic}` first, or the old names would land on the new clusters"
+        )
         return 1
     names = name_map(topic)
     assigned = dict(report["assignment"])
     assigned.update({p: x["cluster"] for p, x in report.get("late", {}).items()})
     unnamed = sorted(set(assigned.values()) - set(names))
     if unnamed:
-        print(f"FAIL  computed cluster(s) {unnamed} have no row in the Clusters table (`computed` column); name them "
-              "first (docs/process.md, step 3)")
+        print(
+            f"FAIL  computed cluster(s) {unnamed} have no row in the Clusters table (`computed` column); name them "
+            "first (docs/process.md, step 3)"
+        )
         return 1
     values = {p: names[c] for p, c in assigned.items()}
     changed = rewrite_column(topic, "Pool", None, "cluster", values)
     waiting = sorted(set(pool_ids(topic)) - set(assigned))
     print(f"Pool table: {changed} `cluster` cell(s) written")
     if waiting:
-        print(f"late papers awaiting assignment ({len(waiting)}): {waiting}; run `uv run python -m deeper_research.assign late {topic}`")
+        print(
+            f"late papers awaiting assignment ({len(waiting)}): {waiting}; run `uv run python -m deeper_research.assign late {topic}`"
+        )
     return 0
 
 
 def late(topic):
     import numpy as np
+
     from deeper_research import pool
     from deeper_research.cluster import combined_sim, refs_sim, text_sim
 
@@ -363,9 +410,11 @@ def late(topic):
     n_late = len(report.get("late", {})) + len(queue)
     if n_late / len(members) > LATE_SHARE:
         # One decimal: in whole percents, 10.3% would read "10% of the pool, above 10%".
-        print(f"RECLUSTER: late papers since the last full clustering would be {n_late} of {len(members)} "
-              f"({n_late / len(members):.1%}), above {LATE_SHARE:.0%} of the pool: rerun `uv run python -m deeper_research.cluster "
-              f"{topic}` instead, then `uv run python -m deeper_research.assign remap {topic}`")
+        print(
+            f"RECLUSTER: late papers since the last full clustering would be {n_late} of {len(members)} "
+            f"({n_late / len(members):.1%}), above {LATE_SHARE:.0%} of the pool: rerun `uv run python -m deeper_research.cluster "
+            f"{topic}` instead, then `uv run python -m deeper_research.assign remap {topic}`"
+        )
         return 3
 
     base = report["ids"]
@@ -391,8 +440,10 @@ def late(topic):
     path.write_text(json.dumps(report, indent=1))
     status = write_clusters(topic)
     print("\nlog line:")
-    print(f"- **Late papers:** {today}: {len(queue)} assigned to their nearest cluster ({', '.join(shown)}); late "
-          f"since the last full clustering: {len(late_rec)} of {len(members)} ({len(late_rec) / len(members):.0%})")
+    print(
+        f"- **Late papers:** {today}: {len(queue)} assigned to their nearest cluster ({', '.join(shown)}); late "
+        f"since the last full clustering: {len(late_rec)} of {len(members)} ({len(late_rec) / len(members):.0%})"
+    )
     return status
 
 
@@ -421,11 +472,15 @@ def remap(topic):
     unnamed = sorted(set(report["assignment"].values()) - set(carry.values()), key=lambda x: int(x[1:]))
     print(f"Clusters table: {changed} `computed` id(s) updated")
     if lost:
-        print("did not match a new cluster, so their `computed` is cleared; retire, merge or rename them, and log it: "
-              + "; ".join(lost))
+        print(
+            "did not match a new cluster, so their `computed` is cleared; retire, merge or rename them, and log it: "
+            + "; ".join(lost)
+        )
     if unnamed:
-        print("new clusters to name (add a Clusters row with their `computed` id): "
-              + ", ".join(f"{b} ({prev['new'][b]['case']})" for b in unnamed))
+        print(
+            "new clusters to name (add a Clusters row with their `computed` id): "
+            + ", ".join(f"{b} ({prev['new'][b]['case']})" for b in unnamed)
+        )
     print(f"then: `uv run python -m deeper_research.assign clusters {topic}`")
     return 0
 
@@ -443,7 +498,8 @@ targeted expansions, copied from `expand-screen.md` by `deeper_research/assign.p
 
 def write_rejections(topic, todo):
     """Append [(paper id, reason)] to rejected.md, dated today, skipping a paper already recorded today. Returns
-    (path, recorded, skipped)."""
+    (path, recorded, skipped).
+    """
     path = topic_dir(topic) / "rejected.md"
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -472,36 +528,55 @@ def reject(topic, args):
                 items.append((n, pid.strip(), reason))
         if not items:
             sys.exit("no `<paper-id><TAB><reason>` lines on stdin; nothing recorded")
-    pool = {row_id(l) for h, _, _, l in table_rows(sections(survey_path(topic).read_text()).get("Pool", ""))
-            if h and h[0] == "paper"}
+    pool = {
+        row_id(l)
+        for h, _, _, l in table_rows(sections(survey_path(topic).read_text()).get("Pool", ""))
+        if h and h[0] == "paper"
+    }
     # Check every line before writing any, so that a batch is recorded whole or not at all.
     todo, problems = [], []
     for n, pid, reason in items:
         reason = " ".join(reason.replace("|", "/").split())
         where = "" if args else f"line {n}: "
         if not ID.match(pid):
-            problems.append(f"{where}{pid!r} is not a canonical paper ID (docs/formats.md, \"Paper IDs\")")
+            problems.append(f'{where}{pid!r} is not a canonical paper ID (docs/formats.md, "Paper IDs")')
         elif not reason:
             problems.append(f"{where}give {pid} a one-line reason" + ("" if args else ", after a tab"))
         elif pid in pool:
-            problems.append(f"{where}{pid} is in the pool; a paper leaves the pool only with the user's permission (H12)")
+            problems.append(
+                f"{where}{pid} is in the pool; a paper leaves the pool only with the user's permission (H12)"
+            )
         else:
             todo.append((pid, reason))
     if problems:
-        sys.exit("\n".join(problems) + ("" if args else f"\nnothing recorded: {len(problems)} of {len(items)} line(s) wrong"))
+        sys.exit(
+            "\n".join(problems) + ("" if args else f"\nnothing recorded: {len(problems)} of {len(items)} line(s) wrong")
+        )
     path, new, again = write_rejections(topic, todo)
     if args:
-        print(f"{args[0]} is already recorded as rejected today" if again
-              else f"recorded {args[0]} as out of scope in {path.relative_to(ROOT)}")
+        print(
+            f"{args[0]} is already recorded as rejected today"
+            if again
+            else f"recorded {args[0]} as out of scope in {path.relative_to(ROOT)}"
+        )
     else:
-        print(f"recorded {len(new)} paper(s) as out of scope in {path.relative_to(ROOT)}"
-              + (f"; {len(again)} already recorded today, skipped: {[p for p, _ in again]}" if again else ""))
+        print(
+            f"recorded {len(new)} paper(s) as out of scope in {path.relative_to(ROOT)}"
+            + (f"; {len(again)} already recorded today, skipped: {[p for p, _ in again]}" if again else "")
+        )
     return 0
 
 
 def main(argv):
-    commands = {"add": lambda t: add(t, argv[2:]), "add-expand": add_expand, "add-fringe": add_fringe, "clusters": write_clusters,
-                "late": late, "remap": remap, "reject": lambda t: reject(t, argv[2:])}
+    commands = {
+        "add": lambda t: add(t, argv[2:]),
+        "add-expand": add_expand,
+        "add-fringe": add_fringe,
+        "clusters": write_clusters,
+        "late": late,
+        "remap": remap,
+        "reject": lambda t: reject(t, argv[2:]),
+    }
     # `reject` takes an ID and a reason, or neither and lines on stdin, which must then not be a terminal.
     if argv and argv[0] == "reject" and (len(argv) == 3 or (len(argv) == 2 and sys.stdin.isatty())):
         print(__doc__.strip())
@@ -510,8 +585,10 @@ def main(argv):
         print(__doc__.strip())
         return 2
     if not survey_path(argv[1]).exists():
-        sys.exit(f"surveys/{argv[1]}.md does not exist; write it first, with its five section headings "
-                 "(docs/process.md, step 0; docs/formats.md)")
+        sys.exit(
+            f"surveys/{argv[1]}.md does not exist; write it first, with its five section headings "
+            "(docs/process.md, step 0; docs/formats.md)"
+        )
     return commands[argv[0]](argv[1])
 
 

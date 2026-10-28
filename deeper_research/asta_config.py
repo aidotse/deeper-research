@@ -42,17 +42,20 @@ def main(argv):
     quiet = "--quiet" in argv
     scope, server = find()
     if server is None:
-        print("WARNING: no Asta MCP server is configured; see docs/external_services.md, \"Configuration\"")
+        print('WARNING: no Asta MCP server is configured; see docs/external_services.md, "Configuration"')
         return 1
     key = next((v for k, v in (server.get("headers") or {}).items() if k.lower() == "x-api-key"), "")
     # An unexpanded "$ASTA_API_KEY" or "${ASTA_API_KEY}" left in a project .mcp.json is expanded by Claude Code
     # from the environment at startup.
     if key.lstrip("${").startswith("ASTA_API_KEY"):
         import os
+
         key = os.environ.get("ASTA_API_KEY", "")
     if not key.strip():
-        print(f"WARNING: the Asta MCP server ({scope} scope) has no x-api-key header; anonymous rate limits apply, "
-              "and a pass halts at preflight (H1)")
+        print(
+            f"WARNING: the Asta MCP server ({scope} scope) has no x-api-key header; anonymous rate limits apply, "
+            "and a pass halts at preflight (H1)"
+        )
         return 1
     if not quiet:
         print(f"Asta: configured ({scope} scope, {server.get('url')}), x-api-key set")

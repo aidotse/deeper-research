@@ -17,7 +17,6 @@ import sys
 import time
 import urllib.parse
 import xml.etree.ElementTree as ET
-from pathlib import Path
 
 from deeper_research.check import ARXIV_ID, ROOT, bib_ids, link, row_id, sections, table_rows  # noqa: E402
 from deeper_research.net import TRANSIENT, get_json, request  # noqa: E402
@@ -37,9 +36,12 @@ def survey_ids(topic):
         sys.exit(f"surveys/{topic}.md does not exist; there is no coreset to write a bib for")
     secs = sections(path.read_text())
     if "Coreset" not in secs:
-        sys.exit(f"surveys/{topic}.md has no `## Coreset` section; add the five section headings first (docs/formats.md)")
-    return list(dict.fromkeys(row_id(l) for h, _, _, l in table_rows(secs["Coreset"])
-                              if h and h[0] == "paper" and row_id(l)))
+        sys.exit(
+            f"surveys/{topic}.md has no `## Coreset` section; add the five section headings first (docs/formats.md)"
+        )
+    return list(
+        dict.fromkeys(row_id(l) for h, _, _, l in table_rows(secs["Coreset"]) if h and h[0] == "paper" and row_id(l))
+    )
 
 
 def existing_entries(path):
@@ -56,9 +58,14 @@ def existing_entries(path):
 def fetch(ids):
     # arXiv throttles bursts with transient 406/429/503 responses, so retry
     # with backoff before treating a batch as failed.
-    _, _, body = request(API + urllib.parse.quote(",".join(ids), safe=",/."),
-                         headers={"User-Agent": "deeper-research bib tool"}, attempts=4,
-                         wait=lambda a: 5 * 2**a, transient=TRANSIENT | {406}, timeout=60)
+    _, _, body = request(
+        API + urllib.parse.quote(",".join(ids), safe=",/."),
+        headers={"User-Agent": "deeper-research bib tool"},
+        attempts=4,
+        wait=lambda a: 5 * 2**a,
+        transient=TRANSIENT | {406},
+        timeout=60,
+    )
     root = ET.fromstring(body)
     out = {}
     for e in root.findall("a:entry", NS):
@@ -73,14 +80,16 @@ def fetch(ids):
     return out
 
 
-S2_META = "https://api.semanticscholar.org/graph/v1/paper/batch?fields=title,authors,year,venue,publicationDate,externalIds"
+S2_META = (
+    "https://api.semanticscholar.org/graph/v1/paper/batch?fields=title,authors,year,venue,publicationDate,externalIds"
+)
 
 
 def fetch_s2(ids):
     """Metadata for papers without an arXiv ID (CorpusId:<n>), from the Semantic Scholar Graph API."""
     out = {}
     for i in range(0, len(ids), 100):
-        batch = ids[i:i + 100]
+        batch = ids[i : i + 100]
         for pid, rec in zip(batch, get_json(S2_META, {"ids": batch})):
             if not rec or not rec.get("title") or not rec.get("authors"):
                 continue
@@ -161,7 +170,9 @@ def main(topic):
         "% table records peer-reviewed venues as reported by Semantic Scholar.\n"
     )
     path.write_text(header + "\n" + "\n\n".join(have[i] for i in ids if i in have) + "\n")
-    print(f"bib: {len(ids) - len(unresolved)} entries ({len(missing) - len(unresolved)} fetched, {len(dropped)} dropped)")
+    print(
+        f"bib: {len(ids) - len(unresolved)} entries ({len(missing) - len(unresolved)} fetched, {len(dropped)} dropped)"
+    )
     if unresolved:
         print(f"FAIL  no metadata returned for: {unresolved}")
         return 1

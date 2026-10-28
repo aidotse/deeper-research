@@ -43,11 +43,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 from deeper_research.check import BARE_ID, LINK, cells_of, link, row_id, sections, table_rows  # noqa: E402
 
-SHARE, LEAST = 0.10, 5      # re-verify this share of the verified rows, and at least this many
-N_TRACE = 15                # output sentences drawn for the faithfulness sample
+SHARE, LEAST = 0.10, 5  # re-verify this share of the verified rows, and at least this many
+N_TRACE = 15  # output sentences drawn for the faithfulness sample
 CLAIMS = ["method name", "method summary", "datasets / models", "metric", "result"]
 AGREES = ("agree", "partly", "differ")
-SKIP = {"Questions", "Reading"}   # output sections that recommend reading rather than claim something of a paper
+SKIP = {"Questions", "Reading"}  # output sections that recommend reading rather than claim something of a paper
 SUPPORT = ("supported", "partly", "unsupported")
 ABBREV = re.compile(r"(?:\b(?:al|e\.g|i\.e|cf|vs|Fig|Sec|Eq|Tab|approx|resp)|\b[A-Z])\.$")
 
@@ -78,8 +78,14 @@ def table(text, first):
 
 
 def write(path, title, header, columns, rows, tail=""):
-    lines = [f"# {title}", "", header, "", "| " + " | ".join(columns) + " |",
-             "| " + " | ".join("--" for _ in columns) + " |"]
+    lines = [
+        f"# {title}",
+        "",
+        header,
+        "",
+        "| " + " | ".join(columns) + " |",
+        "| " + " | ".join("--" for _ in columns) + " |",
+    ]
     lines += ["| " + " | ".join(cell(row.get(c, "")) for c in columns) + " |" for row in rows]
     path.write_text("\n".join(lines) + "\n" + (f"\n{tail.strip()}\n" if tail.strip() else ""))
 
@@ -102,7 +108,7 @@ def coreset(topic):
     for h, cs, _, line in table_rows(survey(topic).get("Coreset", "")):
         if h and h[0] == "paper" and row_id(line):
             rows[row_id(line)] = dict(zip(h, cs))
-            extra = [x for x in h[h.index("result") + 1:-1]] if "result" in h else []
+            extra = [x for x in h[h.index("result") + 1 : -1]] if "result" in h else []
             cols += [x for x in extra if x not in cols]
     return rows, cols
 
@@ -130,12 +136,19 @@ def reverify(topic, seed):
         sys.exit(f"surveys/{topic}.md has no row verified from the full text yet")
     n = min(len(verified), max(LEAST, math.ceil(SHARE * len(rows))))
     picked = sorted(random.Random(seed).sample(verified, n))
-    header = (f"Drawn {date.today().isoformat()} by `deeper_research/audit.py reverify`, seed {seed}: {n} of the {len(verified)} "
-              f"coreset rows verified from the full text, at random. Fill every cell from the paper's full text alone, "
-              f"with `uv run python -m deeper_research.audit fill {topic}`, without reading the survey's rows or their evidence; write "
-              f"`n/a` where the column's definition allows it.")
-    write(path, f"Blind re-verification: {topic}", header, ["paper"] + cols,
-          [{"paper": f"[{p}]({link(p)})"} for p in picked])
+    header = (
+        f"Drawn {date.today().isoformat()} by `deeper_research/audit.py reverify`, seed {seed}: {n} of the {len(verified)} "
+        f"coreset rows verified from the full text, at random. Fill every cell from the paper's full text alone, "
+        f"with `uv run python -m deeper_research.audit fill {topic}`, without reading the survey's rows or their evidence; write "
+        f"`n/a` where the column's definition allows it."
+    )
+    write(
+        path,
+        f"Blind re-verification: {topic}",
+        header,
+        ["paper"] + cols,
+        [{"paper": f"[{p}]({link(p)})"} for p in picked],
+    )
     print(f"wrote {path.relative_to(ROOT)}: {n} rows, seed {seed}: {', '.join(picked)}")
     print(f"columns: {', '.join(cols)}")
     return 0
@@ -189,13 +202,28 @@ def compare(topic):
     if path.exists() and any(r.get("agrees") for r in table(path.read_text(), "paper")):
         sys.exit(f"{path.relative_to(ROOT)} already has verdicts; it is written once")
     current, _ = coreset(topic)
-    out = [{"paper": r["id"], "cell": c, "in the survey": current.get(r["id"], {}).get(c, "(row no longer in the coreset)"),
-            "re-verified": r[c]} for r in rows for c in cols]
-    header = (f"From {src.name} (seed {seed_of(text)}): {len(rows)} rows, {len(out)} cells. For each cell, judge whether "
-              f"the two say the same thing (docs/process.md, \"Auditing the judgements\"), with "
-              f"`uv run python -m deeper_research.audit judge {topic} reverify`.")
-    write(path, f"Re-verification compared: {topic}", header,
-          ["paper", "cell", "in the survey", "re-verified", "agrees", "reason"], out)
+    out = [
+        {
+            "paper": r["id"],
+            "cell": c,
+            "in the survey": current.get(r["id"], {}).get(c, "(row no longer in the coreset)"),
+            "re-verified": r[c],
+        }
+        for r in rows
+        for c in cols
+    ]
+    header = (
+        f"From {src.name} (seed {seed_of(text)}): {len(rows)} rows, {len(out)} cells. For each cell, judge whether "
+        f'the two say the same thing (docs/process.md, "Auditing the judgements"), with '
+        f"`uv run python -m deeper_research.audit judge {topic} reverify`."
+    )
+    write(
+        path,
+        f"Re-verification compared: {topic}",
+        header,
+        ["paper", "cell", "in the survey", "re-verified", "agrees", "reason"],
+        out,
+    )
     print(f"wrote {path.relative_to(ROOT)}: {len(out)} cells of {len(rows)} rows to judge")
     return 0
 
@@ -217,9 +245,9 @@ def sentences(output):
         first = block[0][0]
         pos = 0
         for m in re.finditer(r"[.!?][*_)\]”\"]*\s+(?=[A-Z\[(“\"*`])", text):
-            if ABBREV.search(text[:m.start() + 1]):
+            if ABBREV.search(text[: m.start() + 1]):
                 continue
-            out.append((section, first, text[pos:m.end()].strip()))
+            out.append((section, first, text[pos : m.end()].strip()))
             pos = m.end()
         if text[pos:].strip():
             out.append((section, first, text[pos:].strip()))
@@ -252,14 +280,24 @@ def trace(topic, n, seed):
     if not out_path.exists():
         sys.exit(f"no outputs/{topic}.md; write the output first (docs/process.md, step 6)")
     rows, cols = coreset(topic)
-    cand = [(s, ln, t, ids) for s, ln, t in sentences(out_path.read_text())
-            if s not in SKIP and (ids := [i for i in cited(t) if i in rows])]
+    cand = [
+        (s, ln, t, ids)
+        for s, ln, t in sentences(out_path.read_text())
+        if s not in SKIP and (ids := [i for i in cited(t) if i in rows])
+    ]
     if not cand:
         sys.exit(f"outputs/{topic}.md has no sentence citing a coreset paper")
     k = min(n, len(cand))
     picked = sorted(random.Random(seed).sample(range(len(cand)), k))
-    table_rows_ = [{"sentence": f"S{j}: {cand[i][2]}", "section": cand[i][0], "line": str(cand[i][1]),
-                    "cites": ", ".join(cand[i][3])} for j, i in enumerate(picked, 1)]
+    table_rows_ = [
+        {
+            "sentence": f"S{j}: {cand[i][2]}",
+            "section": cand[i][0],
+            "line": str(cand[i][1]),
+            "cites": ", ".join(cand[i][3]),
+        }
+        for j, i in enumerate(picked, 1)
+    ]
     papers = sorted({p for i in picked for p in cand[i][3]})
     tail = ["## Rows and evidence", ""]
     for p in papers:
@@ -267,12 +305,20 @@ def trace(topic, n, seed):
         tail += [f"### {p}", "", f"- role: {r.get('role', '')}; source: {r.get('source', '')}"]
         tail += [f"- {c}: {r.get(c, '')}" for c in cols]
         tail += ["", "Evidence:", "", evidence(topic, p), ""]
-    header = (f"Drawn {date.today().isoformat()} by `deeper_research/audit.py trace`, seed {seed}: {k} of the {len(cand)} "
-              f"sentences of outputs/{topic}.md that cite a coreset paper, at random. Judge each against the rows and "
-              f"evidence below alone (docs/process.md, \"Auditing the judgements\"), with "
-              f"`uv run python -m deeper_research.audit judge {topic} faithfulness`.")
-    write(path, f"Faithfulness sample: {topic}", header, ["sentence", "section", "line", "cites", "verdict", "reason"],
-          table_rows_, "\n".join(tail))
+    header = (
+        f"Drawn {date.today().isoformat()} by `deeper_research/audit.py trace`, seed {seed}: {k} of the {len(cand)} "
+        f"sentences of outputs/{topic}.md that cite a coreset paper, at random. Judge each against the rows and "
+        f'evidence below alone (docs/process.md, "Auditing the judgements"), with '
+        f"`uv run python -m deeper_research.audit judge {topic} faithfulness`."
+    )
+    write(
+        path,
+        f"Faithfulness sample: {topic}",
+        header,
+        ["sentence", "section", "line", "cites", "verdict", "reason"],
+        table_rows_,
+        "\n".join(tail),
+    )
     print(f"wrote {path.relative_to(ROOT)}: {k} of {len(cand)} citing sentences, seed {seed}; {len(papers)} rows")
     return 0
 
@@ -289,13 +335,21 @@ def judge(topic, which):
     text = path.read_text()
     head, _, tail = text.partition("\n## Rows and evidence")
     if which == "reverify":
-        cols, rows, verdicts, vcol = ["paper", "cell", "in the survey", "re-verified", "agrees", "reason"], \
-            table(head, "paper"), AGREES, "agrees"
+        cols, rows, verdicts, vcol = (
+            ["paper", "cell", "in the survey", "re-verified", "agrees", "reason"],
+            table(head, "paper"),
+            AGREES,
+            "agrees",
+        )
         key = {(r["paper"], r["cell"]): r for r in rows}
         form = "`<id><TAB><column><TAB>agree|partly|differ<TAB><reason>`"
     else:
-        cols, rows, verdicts, vcol = ["sentence", "section", "line", "cites", "verdict", "reason"], \
-            table(head, "sentence"), SUPPORT, "verdict"
+        cols, rows, verdicts, vcol = (
+            ["sentence", "section", "line", "cites", "verdict", "reason"],
+            table(head, "sentence"),
+            SUPPORT,
+            "verdict",
+        )
         key = {r["sentence"].split(":")[0]: r for r in rows}
         form = "`S<n><TAB>supported|partly|unsupported<TAB><reason>`"
     given, problems = {}, []
@@ -307,7 +361,7 @@ def judge(topic, which):
         if len(parts) < need:
             problems.append(f"line {k}: expected {form}")
             continue
-        parts = parts[:need - 1] + ["\t".join(parts[need - 1:])]
+        parts = parts[: need - 1] + ["\t".join(parts[need - 1 :])]
         kk = (parts[0].strip(), parts[1].strip()) if which == "reverify" else parts[0].strip()
         v, reason = parts[-2].strip().lower(), cell(parts[-1])
         if kk not in key:
@@ -342,17 +396,21 @@ def summary(topic):
     cmp_rows = table(cmp_path.read_text(), "paper")
     faith_text = faith_path.read_text().partition("\n## Rows and evidence")[0]
     faith_rows = table(faith_text, "sentence")
-    open_ = [f"{cmp_path.name}: {sum(1 for r in cmp_rows if r.get('agrees') not in AGREES)}",
-             f"{faith_path.name}: {sum(1 for r in faith_rows if r.get('verdict') not in SUPPORT)}"]
+    open_ = [
+        f"{cmp_path.name}: {sum(1 for r in cmp_rows if r.get('agrees') not in AGREES)}",
+        f"{faith_path.name}: {sum(1 for r in faith_rows if r.get('verdict') not in SUPPORT)}",
+    ]
     if any(not x.endswith(": 0") for x in open_) or not cmp_rows or not faith_rows:
         return None, f"rows without a verdict: {'; '.join(open_)}"
     a = {v: sum(1 for r in cmp_rows if r["agrees"] == v) for v in AGREES}
     f = {v: sum(1 for r in faith_rows if r["verdict"] == v) for v in SUPPORT}
     n_rows = len({r["paper"] for r in cmp_rows})
-    value = (f"re-verification: {a['agree']} of {len(cmp_rows)} cells agree, {a['partly']} partly, {a['differ']} "
-             f"differ, over {n_rows} rows (seed {seed_of(src.read_text())}); faithfulness: {f['supported']} of "
-             f"{len(faith_rows)} sentences supported, {f['partly']} partly, {f['unsupported']} unsupported (seed "
-             f"{seed_of(faith_path.read_text())})")
+    value = (
+        f"re-verification: {a['agree']} of {len(cmp_rows)} cells agree, {a['partly']} partly, {a['differ']} "
+        f"differ, over {n_rows} rows (seed {seed_of(src.read_text())}); faithfulness: {f['supported']} of "
+        f"{len(faith_rows)} sentences supported, {f['partly']} partly, {f['unsupported']} unsupported (seed "
+        f"{seed_of(faith_path.read_text())})"
+    )
     return value, None
 
 

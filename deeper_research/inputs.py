@@ -53,8 +53,10 @@ def sections(text):
             continue
         if h and h.group(2) in SECTIONS:
             # A known section at the wrong level would otherwise be read as prose in the section before it.
-            problems.append(f"input: `{line.strip()}` is a level-{len(h.group(1))} heading; sections are `##` "
-                            f"headings, as in `## {h.group(2)}`")
+            problems.append(
+                f"input: `{line.strip()}` is a level-{len(h.group(1))} heading; sections are `##` "
+                f"headings, as in `## {h.group(2)}`"
+            )
         if name is not None:
             out[name].append(line)
     return out, problems
@@ -66,7 +68,7 @@ def bullets(lines):
     for line in lines:
         m = ITEM.match(line)
         if m:
-            cur = ["- " + line[m.end():]]
+            cur = ["- " + line[m.end() :]]
             out.append(cur)
         elif not line.strip():
             cur = None
@@ -96,8 +98,10 @@ def read_input(topic):
         if not m:
             # Every top-level bullet here declares a dimension (docs/formats.md); one in another form would otherwise
             # be dropped silently, and its values never checked.
-            problems.append(f"input: dimension not in the form ``- **`name`** — values: `a`, `b``` (a lowercase "
-                            f"name in bold backticks): {b[:60]!r}")
+            problems.append(
+                f"input: dimension not in the form ``- **`name`** — values: `a`, `b``` (a lowercase "
+                f"name in bold backticks): {b[:60]!r}"
+            )
             continue
         v = VALUES.search(b)
         if not v:
@@ -117,8 +121,9 @@ def read_input(topic):
             continue
         plain = value.replace("`", "").strip()
         if key == "granularity" and not (plain in ("coarser", "finer") or (plain.isdigit() and int(plain) > 0)):
-            problems.append(f"input: `granularity` is `coarser`, `finer` or a number of clusters above 0, "
-                            f"not {plain!r}")
+            problems.append(
+                f"input: `granularity` is `coarser`, `finer` or a number of clusters above 0, not {plain!r}"
+            )
         if key == "review" and plain != "before coreset":
             problems.append(f"input: `review` can only be `before coreset`, not {plain!r}")
         if key == "alignment":
@@ -132,7 +137,8 @@ def read_input(topic):
 
 def read_targets(topic):
     """Return (targets, problems): the output sections the coreset must stay stable against (docs/formats.md, `Coreset
-    Spec`). The defaults apply unless dropped with `- `drop`: `Name``; each `- **`Name`** — ...` bullet adds one."""
+    Spec`). The defaults apply unless dropped with `- `drop`: `Name``; each `- **`Name`** — ...` bullet adds one.
+    """
     path = ROOT / "inputs" / f"{topic}.md"
     if not path.exists():
         return list(DEFAULT_TARGETS), []
@@ -155,11 +161,14 @@ def read_targets(topic):
         else:
             # Prose is allowed as a paragraph, or nested under a target; a top-level bullet that is neither form
             # is more likely a mistyped target than prose, so it fails rather than being dropped.
-            problems.append(f"input: `Coreset Spec` bullet is neither a target (``- **`Name`** — ...``) nor a "
-                            f"`drop`; write prose as a paragraph or nested under a target: {b[:60]!r}")
+            problems.append(
+                f"input: `Coreset Spec` bullet is neither a target (``- **`Name`** — ...``) nor a "
+                f"`drop`; write prose as a paragraph or nested under a target: {b[:60]!r}"
+            )
     if not targets:
-        problems.append("input: `Coreset Spec` drops every target and adds none, so the coverage test would check "
-                        "nothing")
+        problems.append(
+            "input: `Coreset Spec` drops every target and adds none, so the coverage test would check nothing"
+        )
     return targets, problems
 
 

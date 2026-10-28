@@ -42,7 +42,7 @@ import sys
 import time
 from pathlib import Path
 
-from deeper_research.check import ARXIV_ONLY, BARE_ID, LINK, ROOT, cells_of, link, s2_ref, sections, table_rows  # noqa: E402
+from deeper_research.check import ARXIV_ONLY, BARE_ID, LINK, ROOT, link, s2_ref, sections, table_rows  # noqa: E402
 from deeper_research.net import get_json  # noqa: E402
 
 TOOLS = Path(__file__).resolve().parent
@@ -67,7 +67,8 @@ def plain(text):
 
 def submitted(aid, record, year):
     """When a paper appeared, as a fractional year: from its arXiv ID where it has one, which encodes the submission
-    month; otherwise from Semantic Scholar's publication date, or the middle of its year."""
+    month; otherwise from Semantic Scholar's publication date, or the middle of its year.
+    """
     if ARXIV_ONLY.match(aid):
         return arxiv_month(aid)
     date = (record or {}).get("date")
@@ -86,12 +87,15 @@ def arxiv_month(aid):
 
 def parse(topic):
     from deeper_research.inputs import read_input
+
     dimensions = list(read_input(topic)[0] or {})  # declared in the input; see docs/formats.md
     path = ROOT / "surveys" / f"{topic}.md"
     secs = sections(path.read_text()) if path.exists() else {}
     if "Coreset" not in secs:
-        sys.exit(f"error: the viewer draws the coreset of surveys/{topic}.md, which "
-                 + ("has no `## Coreset` section" if path.exists() else "does not exist"))
+        sys.exit(
+            f"error: the viewer draws the coreset of surveys/{topic}.md, which "
+            + ("has no `## Coreset` section" if path.exists() else "does not exist")
+        )
     text = path.read_text()
     title = next((l[2:].strip() for l in text.splitlines() if l.startswith("# ")), topic)
     coreset_layout = "Clusters" in secs and "Pool" in secs
@@ -151,8 +155,16 @@ def parse(topic):
             aid, row = m.group(1), dict(zip(h, c))
             p = papers.setdefault(
                 aid,
-                {"id": aid, "title": plain(row["paper"]), "coreset": False, "role": None, "bridge": None,
-                 "fields": [], "dims": {}, "source": None},
+                {
+                    "id": aid,
+                    "title": plain(row["paper"]),
+                    "coreset": False,
+                    "role": None,
+                    "bridge": None,
+                    "fields": [],
+                    "dims": {},
+                    "source": None,
+                },
             )
             p["cluster"] = row.get("cluster", p.get("cluster"))
             p["citations"] = int(row["citations"]) if row.get("citations", "").isdigit() else None
@@ -174,10 +186,7 @@ def fetch_s2(ids, save):
         for aid, rec in zip(batch, data):
             if rec is None:
                 continue
-            refs = [
-                (x.get("externalIds") or {}).get("ArXiv")
-                for x in rec.get("references") or []
-            ]
+            refs = [(x.get("externalIds") or {}).get("ArXiv") for x in rec.get("references") or []]
             out[aid] = {
                 "year": rec.get("year"),
                 "citations": rec.get("citationCount"),
@@ -304,7 +313,7 @@ def clustering_rationale(topic):
             date = m.group(1)
         if line.startswith("- **Clustering rationale:**"):
             body = [line.split(":**", 1)[1].strip()]
-            for cont in lines[i + 1:]:
+            for cont in lines[i + 1 :]:
                 if not cont.startswith("  ") or not cont.strip():
                     break
                 body.append(cont.strip())
@@ -329,8 +338,18 @@ def load_clustering(topic, nodes):
         n["sub"] = sub_of.get(n["id"])
         if n["id"] in pos and "slider" in r:
             n["levels"] = [lv["labels"][pos[n["id"]]] for lv in r["slider"]]
-    keep = ["generated", "measure", "level", "level_reason", "tau_sensitivity", "params", "cohesion",
-            "ami_vs_survey_clusters", "knn", "health"]
+    keep = [
+        "generated",
+        "measure",
+        "level",
+        "level_reason",
+        "tau_sensitivity",
+        "params",
+        "cohesion",
+        "ami_vs_survey_clusters",
+        "knn",
+        "health",
+    ]
     out = {k: r.get(k) for k in keep}
     out["rationale"] = clustering_rationale(topic)
     # `unstable cluster` and `broad scope` are notes, not diagnostics; a clusters.json written before that change still
@@ -339,18 +358,38 @@ def load_clustering(topic, nodes):
     notes = {"unstable cluster", "broad scope"}
     out["diagnostics"] = [d for d in r.get("diagnostics", []) if d.get("case") not in notes]
     out["notes"] = [x["text"] for x in r.get("notes", [])] + [
-        f"{d['case'][0].upper()}{d['case'][1:]}: {d['detail']}." for d in r.get("diagnostics", []) if d.get("case") in notes]
+        f"{d['case'][0].upper()}{d['case'][1:]}: {d['detail']}."
+        for d in r.get("diagnostics", [])
+        if d.get("case") in notes
+    ]
     m = r["measure"]
-    out["null_curve"] = [{"clusters": l["clusters"], "stability": l["stability"]} for l in r.get("null_curves", {}).get(m, [])]
-    out["slider"] = [{"clusters": lv["clusters"], "stability": lv["stability"], "null_stability": lv["null_stability"]}
-                     for lv in r.get("slider", [])]
-    out["curve"] = [{k: l.get(k) for k in ("clusters", "stability", "stability_se", "holdout_ari", "resample_ari",
-                                           "median_clusterwise")} for l in r["curves"][m]]
-    out["clusters"] = [{
-        "id": c["id"], "size": c["size"], "stability": c["stability"], "divided": c["divided"],
-        "subclusters": [{"id": f"{c['id']}.{i + 1}", "size": s["size"], "stability": s["stability"]}
-                        for i, s in enumerate(c["subclusters"])],
-    } for c in r["clusters"]]
+    out["null_curve"] = [
+        {"clusters": l["clusters"], "stability": l["stability"]} for l in r.get("null_curves", {}).get(m, [])
+    ]
+    out["slider"] = [
+        {"clusters": lv["clusters"], "stability": lv["stability"], "null_stability": lv["null_stability"]}
+        for lv in r.get("slider", [])
+    ]
+    out["curve"] = [
+        {
+            k: l.get(k)
+            for k in ("clusters", "stability", "stability_se", "holdout_ari", "resample_ari", "median_clusterwise")
+        }
+        for l in r["curves"][m]
+    ]
+    out["clusters"] = [
+        {
+            "id": c["id"],
+            "size": c["size"],
+            "stability": c["stability"],
+            "divided": c["divided"],
+            "subclusters": [
+                {"id": f"{c['id']}.{i + 1}", "size": s["size"], "stability": s["stability"]}
+                for i, s in enumerate(c["subclusters"])
+            ],
+        }
+        for c in r["clusters"]
+    ]
     return out
 
 
@@ -362,7 +401,7 @@ def build(topic, refresh=False):
 
     ids = set(papers)
     edges = sorted({(a, b) for a, cs in cites.items() for b in cs & ids if a != b and a in ids})
-    indeg = {a: 0 for a in ids}
+    indeg = dict.fromkeys(ids, 0)
     for _, b in edges:
         indeg[b] += 1
 
@@ -386,8 +425,7 @@ def build(topic, refresh=False):
         mix = {}
         for n in members:
             mix[papers[n]["cluster"]] = mix.get(papers[n]["cluster"], 0) + 1
-        comm_list.append({"id": f"c{i + 1}", "size": len(members),
-                          "mix": sorted(mix.items(), key=lambda t: -t[1])})
+        comm_list.append({"id": f"c{i + 1}", "size": len(members), "mix": sorted(mix.items(), key=lambda t: -t[1])})
 
     sidecar = topic_dir(topic) / "pool.json"
     records = json.loads(sidecar.read_text())["papers"] if sidecar.exists() else {}
@@ -396,30 +434,34 @@ def build(topic, refresh=False):
         p = papers[aid]
         # A paper's arXiv ID is its own ID, or, for a CorpusId paper, the one the pool sidecar records for it, if any.
         arxiv = aid if ARXIV_ONLY.match(aid) else (records.get(aid) or {}).get("arxiv")
-        nodes.append({
-            "id": aid,
-            "title": p["title"],
-            "cluster": p.get("cluster"),
-            "community": f"c{communities[aid] + 1}" if aid in communities else None,
-            "coreset": p["coreset"],
-            "role": p["role"],
-            "bridge": p["bridge"],
-            "year": p.get("year"),
-            "month": round(submitted(aid, records.get(aid), p.get("year")) or 0, 3),
-            "url": link(aid),
-            "arxiv": arxiv or None,
-            "citations": p.get("citations"),
-            "indeg": indeg[aid],
-            "source": p["source"],
-            "dims": p["dims"],
-            "fields": p["fields"],
-        })
+        nodes.append(
+            {
+                "id": aid,
+                "title": p["title"],
+                "cluster": p.get("cluster"),
+                "community": f"c{communities[aid] + 1}" if aid in communities else None,
+                "coreset": p["coreset"],
+                "role": p["role"],
+                "bridge": p["bridge"],
+                "year": p.get("year"),
+                "month": round(submitted(aid, records.get(aid), p.get("year")) or 0, 3),
+                "url": link(aid),
+                "arxiv": arxiv or None,
+                "citations": p.get("citations"),
+                "indeg": indeg[aid],
+                "source": p["source"],
+                "dims": p["dims"],
+                "fields": p["fields"],
+            }
+        )
 
     clustering = load_clustering(topic, nodes)
     # How many papers have an arXiv ID, so that deeper_research/fulltext.py can fetch their text from arXiv: the rest depend on
     # an open-access PDF. A legacy survey has no pool, so its papers are all coreset rows.
-    arxiv_share = {s: [sum(1 for n in sel if n["arxiv"]), len(sel)] for s, sel in
-                   (("pool", nodes), ("coreset", [n for n in nodes if n["coreset"]]))}
+    arxiv_share = {
+        s: [sum(1 for n in sel if n["arxiv"]), len(sel)]
+        for s, sel in (("pool", nodes), ("coreset", [n for n in nodes if n["coreset"]]))
+    }
 
     data = {
         "topic": topic,
@@ -449,13 +491,19 @@ def build(topic, refresh=False):
     out = topic_dir(topic) / "graph.html"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(page)
-    print(f"graph:   {len(nodes)} nodes, {len(edges)} citation edges, {len(order)} clusters, "
-          f"{len(comm_list)} citation communities")
-    print(f"modularity: declared clusters {data['modularity']['declared']}, "
-          f"citation communities {data['modularity']['citation']}")
+    print(
+        f"graph:   {len(nodes)} nodes, {len(edges)} citation edges, {len(order)} clusters, "
+        f"{len(comm_list)} citation communities"
+    )
+    print(
+        f"modularity: declared clusters {data['modularity']['declared']}, "
+        f"citation communities {data['modularity']['citation']}"
+    )
     (pa, pn), (ca, cn) = arxiv_share["pool"], arxiv_share["coreset"]
-    print(f"arXiv:   {ca} of {cn} coreset papers have an arXiv ID"
-          + (f", {pa} of {pn} pool papers" if coreset_layout else ""))
+    print(
+        f"arXiv:   {ca} of {cn} coreset papers have an arXiv ID"
+        + (f", {pa} of {pn} pool papers" if coreset_layout else "")
+    )
     if unresolved:
         print(f"note:    Semantic Scholar returned nothing for {len(unresolved)} paper(s): {unresolved}")
     print(f"wrote {out.relative_to(ROOT)}")

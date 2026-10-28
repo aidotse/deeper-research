@@ -32,7 +32,8 @@ def title_key(title):
 class Papers:
     """Records of papers, to tell whether another record is one of them: it shares an arXiv or corpus ID with one, or
     its title is the same by `check.same_title`. Semantic Scholar can keep a preprint and its venue version as two
-    records, under titles a word apart."""
+    records, under titles a word apart.
+    """
 
     def __init__(self, ids=(), titles=()):
         self.ids, self.flat, self.by_first = {}, {}, {}
@@ -67,7 +68,8 @@ class Papers:
 
 def pool_titles(topic):
     """The pool's titles, as title keys, from the survey's Pool table. A collector leaves out a candidate whose title
-    matches one: it is most likely a second Semantic Scholar record of a pool paper, such as its venue version."""
+    matches one: it is most likely a second Semantic Scholar record of a pool paper, such as its venue version.
+    """
     text = (ROOT / "surveys" / f"{topic}.md").read_text()
     return {title_key(c[0]) for h, c, _, _ in table_rows(sections(text).get("Pool", "")) if h and h[0] == "paper"}
 
@@ -93,13 +95,16 @@ def sheet_rows(text):
 
 def verdicts(text):
     """{s2: (verdict, reason)} for every candidate row of a sheet, the verdict lower-cased."""
-    return {cells[h.index("s2")]: (cells[h.index("in scope")].strip().lower(), cells[h.index("reason")].strip())
-            for _, h, cells in sheet_rows(text or "")}
+    return {
+        cells[h.index("s2")]: (cells[h.index("in scope")].strip().lower(), cells[h.index("reason")].strip())
+        for _, h, cells in sheet_rows(text or "")
+    }
 
 
 def judged(verdict, reason):
     """Whether a screening row is judged: `yes` or `no` (not `maybe`), with a reason of at least two words. The add
-    steps (deeper_research/assign.py) and the G1 gate use the same test."""
+    steps (deeper_research/assign.py) and the G1 gate use the same test.
+    """
     return (verdict.startswith("yes") or verdict.startswith("no")) and len(words(reason)) >= 2
 
 
@@ -110,7 +115,7 @@ def judge(path, hint):
     given, problems = {}, []
     lines_in = list(sys.stdin)
     with open(path, "r+") as f:
-        fcntl.flock(f, fcntl.LOCK_EX)   # released when the file closes
+        fcntl.flock(f, fcntl.LOCK_EX)  # released when the file closes
         lines = f.read().splitlines()
         rows = {cells[h.index("s2")]: (i, h, cells) for i, h, cells in sheet_rows("\n".join(lines))}
         # Check every line before writing any, so that a batch is written whole or not at all.
@@ -156,8 +161,12 @@ def judge(path, hint):
     now = verdicts("\n".join(lines)).values()
     final = [v for v, _ in now]
     open_ = sum(1 for v, r in now if not judged(v, r))
-    print(f"{path.relative_to(ROOT)}: {len(given)} verdict(s) read ({', '.join(f'{x} {k}' for x, k in counts.items())}); "
-          f"{written} row(s) written, of which {replaced} replaced an earlier verdict; {len(given) - written} unchanged")
-    print(f"still unjudged: {open_} of {len(final)} candidate(s)"
-          + (f", including {final.count('maybe')} `maybe`: resolve each to yes or no" if "maybe" in final else ""))
+    print(
+        f"{path.relative_to(ROOT)}: {len(given)} verdict(s) read ({', '.join(f'{x} {k}' for x, k in counts.items())}); "
+        f"{written} row(s) written, of which {replaced} replaced an earlier verdict; {len(given) - written} unchanged"
+    )
+    print(
+        f"still unjudged: {open_} of {len(final)} candidate(s)"
+        + (f", including {final.count('maybe')} `maybe`: resolve each to yes or no" if "maybe" in final else "")
+    )
     return 0

@@ -16,7 +16,6 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
-from pathlib import Path
 
 from deeper_research import asta_config  # noqa: E402
 
@@ -26,9 +25,11 @@ HEADERS = {"User-Agent": "deeper-research preflight"}
 
 def status(url, data=None, tries=2):
     """The HTTP status, or why the service could not be reached. A slow service gets a second try: the arXiv API
-    has been seen to take over 60 s to answer and still answer 200."""
-    req = urllib.request.Request(url, data=data, headers=dict(HEADERS, **({"Content-Type": "application/json"}
-                                                                          if data else {})))
+    has been seen to take over 60 s to answer and still answer 200.
+    """
+    req = urllib.request.Request(
+        url, data=data, headers=dict(HEADERS, **({"Content-Type": "application/json"} if data else {}))
+    )
     for attempt in range(tries):
         try:
             with urllib.request.urlopen(req, timeout=90) as r:
@@ -42,9 +43,12 @@ def status(url, data=None, tries=2):
 
 def main():
     checks = []
-    s2 = status("https://api.semanticscholar.org/graph/v1/paper/batch?fields=title",
-                f'{{"ids":["ARXIV:{PAPER}"]}}'.encode())
-    checks.append(("Graph API", s2 in (200, 429), "ok" if s2 == 200 else "ok (429, busy)" if s2 == 429 else f"failed ({s2})"))
+    s2 = status(
+        "https://api.semanticscholar.org/graph/v1/paper/batch?fields=title", f'{{"ids":["ARXIV:{PAPER}"]}}'.encode()
+    )
+    checks.append(
+        ("Graph API", s2 in (200, 429), "ok" if s2 == 200 else "ok (429, busy)" if s2 == 429 else f"failed ({s2})")
+    )
     api = status(f"https://export.arxiv.org/api/query?id_list={PAPER}")
     html = status(f"https://arxiv.org/html/{PAPER}")
     ok = api == 200 and html in (200, 404)  # 404: no HTML for this paper, but the site answers
