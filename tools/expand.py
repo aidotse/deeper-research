@@ -56,7 +56,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from assign import pool_ids, rejected, survey_path, topic_dir  # noqa: E402
 from check import BARE_ID, ID, arxiv_of, s2_ref, sections  # noqa: E402
 from net import get_json  # noqa: E402
-from screen import ABSTRACT_CHARS, clean, judge, judged, pool_titles, title_key, verdicts  # noqa: E402
+from screen import ABSTRACT_CHARS, Papers, clean, judge, judged, pool_titles, title_key, verdicts  # noqa: E402
 
 API = "https://api.semanticscholar.org/graph/v1"
 SEARCH_LIMIT = 50   # results kept per theme search, as Asta's relevance search returns by default
