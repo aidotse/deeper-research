@@ -17,7 +17,7 @@ import fcntl
 import re
 import sys
 
-from check import ROOT, cells_of, sections, table_rows, words
+from check import ROOT, cells_of, same_title, sections, table_rows, words
 
 VERDICTS = ("yes", "no", "maybe")
 S2_ID = re.compile(r"[0-9a-f]{40}")
@@ -27,6 +27,42 @@ ABSTRACT_CHARS = 700  # the most of an abstract a sheet shows; the opening state
 def title_key(title):
     """A title reduced to its lower-case words, for matching two records of one paper."""
     return " ".join(words(title))
+
+
+class Papers:
+    """Records of papers, to tell whether another record is one of them: it shares an arXiv or corpus ID with one, or
+    its title is the same by `check.same_title`. Semantic Scholar can keep a preprint and its venue version as two
+    records, under titles a word apart."""
+
+    def __init__(self, ids=(), titles=()):
+        self.ids, self.flat, self.by_first = {}, {}, {}
+        self.add(None, ids, *titles)
+
+    def add(self, label, ids, *titles):
+        """Index a paper under `label` (returned by `find`), by its IDs and any number of titles."""
+        for x in ids:
+            if x:
+                self.ids.setdefault(x, label)
+        for t in titles:
+            w = words(t or "")
+            if w:
+                self.flat.setdefault("".join(w), label)
+                self.by_first.setdefault(w[0], []).append((w, label))
+
+    def find(self, ids, title):
+        """(True, label) for the first indexed paper this record matches, else (False, None)."""
+        for x in ids:
+            if x and x in self.ids:
+                return True, self.ids[x]
+        w = words(title or "")
+        if not w:
+            return False, None
+        if "".join(w) in self.flat:
+            return True, self.flat["".join(w)]
+        for v, label in self.by_first.get(w[0], []):
+            if same_title(w, v):
+                return True, label
+        return False, None
 
 
 def pool_titles(topic):

@@ -218,7 +218,7 @@ def collect(topic, per_route):
     order = sorted(cands)
     random.Random(0).shuffle(order)
     # Numbered, so that the main session can hand the rows to screening agents as ranges.
-    rows = [f"| {n} | {x} | {clean(cands[x]['title'])} | {clean(cands[x]['abstract'])[:ABSTRACT_CHARS] or '(no abstract)'} | "
+    rows = [f"| {n} | {x} | {clean(cands[x]['title'])} | {clean(cands[x]['abstract']) or '(no abstract)'} | "
             f"{' | '.join(earlier.get(x, ('', '')))} |" for n, x in enumerate(order, 1)]
     (d / "fringe-screen.md").write_text(
         "# Fringe screening sheet\n\n"

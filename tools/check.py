@@ -41,6 +41,7 @@ them, and no gates. Exit status 2 is a usage error.
 import json
 import re
 import sys
+from difflib import SequenceMatcher
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -292,6 +293,26 @@ def words(title):
     return re.findall(r"[a-z0-9]+", title.lower())
 
 
+# On the model-collapse candidates of 2026-10-13, every second record of one paper scored at least 0.936; the closest
+# two different papers with the same first word scored 0.92 ("Attention is all you need", "Intention is all you need").
+SAME_TITLE = 0.93
+
+
+def same_title(a, b):
+    """Whether two titles, as lists of `words`, name one paper. Either they are the same once spaces are dropped (text
+    extraction splits words, as in "S ELF -I MPROVING"), or, at four words or more, they share the first word and their
+    character-level similarity is at least SAME_TITLE: a venue version often changes a word ("Arbitrage", "Arbitration").
+    A differing first word is a different paper, such as "Comment on: <title>"."""
+    if not a or not b:
+        return False
+    if "".join(a) == "".join(b):
+        return True
+    if a[0] != b[0] or min(len(a), len(b)) < 4:
+        return False
+    x, y = " ".join(a), " ".join(b)
+    return min(len(x), len(y)) / max(len(x), len(y)) >= SAME_TITLE and SequenceMatcher(None, x, y).ratio() >= SAME_TITLE
+
+
 def check_duplicates(topic, titles, failures, notes):
     """A preprint and its venue version can be two Semantic Scholar records; keep the arXiv one (docs/formats.md)."""
     sidecar = read(ROOT / "graphs" / topic / "pool.json")
@@ -314,12 +335,10 @@ def check_duplicates(topic, titles, failures, notes):
         if t and len(same) > 1:
             failures.append(f"pool rows with the same title, probably one paper twice: {same}; keep the arXiv record, "
                             "merge the other into it, and log it under `Corrections to existing rows`")
-    sets = sorted(((pid, set(w)) for pid, w in keyed.items() if len(w) >= 4), key=lambda x: len(x[1]))
-    for i, (a, A) in enumerate(sets):
-        for b, B in sets[i + 1:]:
-            if len(B) > len(A) / 0.9:
-                break
-            if " ".join(keyed[a]) != " ".join(keyed[b]) and len(A & B) / len(A | B) >= 0.9:
+    pids = sorted(keyed)
+    for i, a in enumerate(pids):
+        for b in pids[i + 1:]:
+            if keyed[a] != keyed[b] and same_title(keyed[a], keyed[b]):
                 notes.append(f"pool rows with near-identical titles: {a}, {b}; one paper twice?")
 
 

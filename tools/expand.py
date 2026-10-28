@@ -199,7 +199,7 @@ def append_rows(topic, data):
         c = data["candidates"]
         f.seek(0)
         f.write(text.rstrip("\n") + "\n" + "".join(
-            f"| {n} | {x} | {c[x]['title']} | {c[x]['abstract'][:ABSTRACT_CHARS] or '(no abstract)'} |  |  |\n"
+            f"| {n} | {x} | {c[x]['title']} | {c[x]['abstract'] or '(no abstract)'} |  |  |\n"
             for n, x in enumerate(missing, first)))
         f.truncate()
     return first, len(missing), {**have, **{x: ("", "") for x in missing}}
@@ -284,26 +284,34 @@ def collect(topic, targeted=None, query=None, why=None):
         sys.exit(f"the Graph API failed after its retries ({e}). What was fetched is saved in {path.relative_to(ROOT)}: "
                  "run the same command again to resume. If it fails again, the pass halts (H3).")
 
-    pool, titles, rej = set(pool_ids(topic)), pool_titles(topic), set(rejected(topic))
-    sheet_titles = {title_key(c["title"]) for x, c in cands.items() if x in on_sheet}
-    own_titles = {title_key(cands[x]["title"]) for x in own}   # a rerun's own rows: a same-title record is a second one
-    keep = {}   # title key -> the candidate kept for it: the first with an arXiv ID, else the first
-    for x in todo:
+    # Records of one paper (screen.Papers: a shared ID, or the same title by check.same_title) count as one candidate.
+    pool, rej = Papers(pool_ids(topic), pool_titles(topic)), set(rejected(topic))
+    sheet, seen = Papers(), Papers()   # earlier rounds' rows; this round's papers, a rerun's own rows among them
+    for x, c in cands.items():
+        (sheet if x in on_sheet else seen).add(x, (c.get("arxiv"), c.get("corpus")), c["title"])
+    paper, keep = {}, {}   # candidate -> the paper it is a record of; paper -> the record kept: the first with an
+    for x in todo:         # arXiv ID, else the first. A rerun's own row is kept already, so a match to it is left out.
         m = part["meta"].get(x)
-        if m and (title_key(m["title"]) not in keep or (m["arxiv"] and not part["meta"][keep[title_key(m["title"])]]["arxiv"])):
-            keep[title_key(m["title"])] = x
+        if m:
+            found, paper[x] = seen.find((m["arxiv"], m["corpus"]), m["title"])
+            if not found:
+                seen.add(x, (m["arxiv"], m["corpus"]), m["title"])
+                paper[x] = keep[x] = x
+            elif paper[x] in keep and m["arxiv"] and not part["meta"][keep[paper[x]]]["arxiv"]:
+                keep[paper[x]] = x
     new = []
     for x in todo:
         m = part["meta"].get(x)
+        ids = (m["arxiv"], m["corpus"]) if m else ()
         if not m:
             left["not found"].append(x)
-        elif {m["arxiv"], m["corpus"]} & pool or title_key(m["title"]) in titles:
+        elif pool.find(ids, m["title"])[0]:
             left["in the pool"].append(x)
-        elif {m["arxiv"], m["corpus"]} & rej:
+        elif set(ids) & rej:
             left["rejected earlier"].append(x)
-        elif title_key(m["title"]) in sheet_titles:
+        elif sheet.find(ids, m["title"])[0]:
             left["on the sheet already"].append(x)
-        elif title_key(m["title"]) in own_titles or keep[title_key(m["title"])] != x:
+        elif keep.get(paper[x]) != x:
             left["another record"].append(x)
         else:
             cands[x] = dict(m, round=idx)
