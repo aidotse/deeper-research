@@ -1,9 +1,15 @@
-"""Build the gate fixture: a complete, passing coreset-layout pass from reasoning-legacy's data.
+"""The gate fixture: a complete, passing coreset-layout pass built from reasoning-legacy's data.
 
-Used by faults.py and behaviour.py; `clean()` removes every file it writes, and `autoclean()` makes that happen when the
-process exits, even after a crash. The topic is `zz-gate-<pid>`, so two runs never share files; set ZZ_GATE_TOPIC to
-choose the name. `python3 tests/gates/build.py` builds the fixture and keeps it, for inspection. Needs
-graphs/reasoning-legacy/.
+Used by test_faults.py and test_behaviour.py, which import it and the helpers below; `clean()` removes every file it
+writes, and `autoclean()` makes that happen when the process exits, even after a crash. The topic is `zz-gate-<pid>`,
+so two processes (two runs, or two pytest-xdist workers) never share files; set ZZ_GATE_TOPIC to choose the name (under
+xdist each worker appends its own id to it). Needs graphs/reasoning-legacy/.
+
+To build the fixture and keep it for inspection, run from the repository root:
+
+    uv run python -c "from tests.gates import keep; keep()"
+
+It prints the topic's name and the command that removes it.
 """
 
 import atexit
@@ -13,14 +19,28 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, TypedDict
 
-ROOT = Path(__file__).resolve().parents[2]
+from deeper_research import audit, coverage, expand, screen
 from deeper_research.check import link
 from deeper_research.graph import parse
 
-T, DATE = os.environ.get("ZZ_GATE_TOPIC") or f"zz-gate-{os.getpid()}", "2026-10-09"
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def _topic() -> str:
+    """The fixture's topic: ZZ_GATE_TOPIC if set (suffixed by the xdist worker's id, if any), else `zz-gate-<pid>`."""
+    named, worker = os.environ.get("ZZ_GATE_TOPIC"), os.environ.get("PYTEST_XDIST_WORKER")
+    if named and worker:
+        return f"{named}-{worker}"
+    return named or f"zz-gate-{os.getpid()}"
+
+
+T, DATE = _topic(), "2026-10-09"
 # The claims the two dissent rows quote; their full texts contain them, and their evidence quotes them.
 DISSENT = [
     "accuracy falls when the chain is truncated early in our experiments",
@@ -28,9 +48,28 @@ DISSENT = [
 ]
 SOURCE = "reasoning-legacy"  # the legacy survey; its pool, clustering and fringe data seed the fixture
 src, dst = ROOT / f"graphs/{SOURCE}", ROOT / f"graphs/{T}"
+# The fixture's survey, graphs directory, output and input.
+S, G, OUT, INP = ROOT / f"surveys/{T}.md", ROOT / f"graphs/{T}", ROOT / f"outputs/{T}.md", ROOT / f"inputs/{T}.md"
 
 
-def build():
+class Built(TypedDict):
+    """What `build()` returns: the fixture's papers by the part they play, for the tests to aim faults at."""
+
+    verified: list[str]
+    dissent: list[str]
+    abstract: list[str]
+    rows: list[str]
+    changed: str
+    fr1: str
+    fr2: str
+    names: dict[str, str]
+    a: dict[str, str]
+    s2s: list[str]
+    expanded: list[str]
+
+
+def build() -> Built:  # noqa: C901
+    """Write the fixture topic from scratch, replacing any earlier one, and return its papers by role."""
     shutil.rmtree(dst, ignore_errors=True)
     dst.mkdir(parents=True)
     pool = json.loads((src / "pool.json").read_text())
@@ -39,34 +78,37 @@ def build():
     rep["generated"] = DATE
     (dst / "clusters.json").write_text(json.dumps(rep))
     titles = {p: v["title"] for p, v in parse(SOURCE)[4].items()}
-    a = rep["assignment"]
+    a: dict[str, str] = rep["assignment"]
     # fringe: keep the sheet; map three `yes` rows onto pool papers
     fr = json.loads((src / "fringe.json").read_text())
     fr["collected"] = DATE
     sheet = (src / "fringe-screen.md").read_text().splitlines()
     pids = sorted(a)
-    yes_map, out, k, n = {}, [], 0, 0
+    out: list[str] = []
+    k, n = 0, 0
     for line in sheet:
-        c = [x.strip() for x in line.strip().strip("|").split("|")]
-        if c and c[0] == "s2":  # the legacy sheet has no row numbers; the fixture's sheet has them, as collect writes
-            line = "| # " + line
-        elif c and c[0].startswith("--"):
-            line = "| -- " + line
-        if len(c) >= 6 and re.fullmatch(r"[0-9a-f]{40}", c[0]):
+        fields = [x.strip() for x in line.strip().strip("|").split("|")]
+        row = line
+        # the legacy sheet has no row numbers; the fixture's sheet has them, as collect writes
+        if fields and fields[0] == "s2":
+            row = "| # " + line
+        elif fields and fields[0].startswith("--"):
+            row = "| -- " + line
+        if len(fields) >= 6 and re.fullmatch(r"[0-9a-f]{40}", fields[0]):
             if k < 3:
                 pid = pids[k * 7]
                 k += 1
-                fr["candidates"][c[0]].update(
+                fr["candidates"][fields[0]].update(
                     arxiv=pid if not pid.startswith("CorpusId") else None,
                     corpus=pid if pid.startswith("CorpusId") else None,
                     title=titles[pid],
                 )
-                c[4], c[5] = "yes", "in scope"
+                fields[4], fields[5] = "yes", "in scope"
             else:
-                c[4], c[5] = "no", "out of scope"
+                fields[4], fields[5] = "no", "out of scope"
             n += 1
-            line = f"| {n} | " + " | ".join(c[:6]) + " |"
-        out.append(line)
+            row = f"| {n} | " + " | ".join(fields[:6]) + " |"
+        out.append(row)
     (dst / "fringe-screen.md").write_text("\n".join(out) + "\n")
     (dst / "fringe.json").write_text(json.dumps(fr))
     (dst / "rejected.md").write_text(
@@ -74,19 +116,22 @@ def build():
         f"| [2401.00001](https://arxiv.org/abs/2401.00001) | {DATE} | about image classification |\n"
     )
     unique = len(fr["candidates"])
+    measure = rep["measure"]
 
     names = {f"c{i}": n for i, n in enumerate(["one", "two", "three", "four", "five", "six"], 1)}
     align = {"c1": "high", "c2": "high", "c3": "medium", "c4": "medium", "c5": "low", "c6": "low"}
     members = {c: sorted(p for p, x in a.items() if x == c) for c in names}
-    used, rows = set(), {c: [] for c in names}
+    used: set[str] = set()
+    rows: dict[str, list[tuple[str, str, str, str]]] = {c: [] for c in names}
 
-    def take(c, role, why="highest in-degree in the cluster", src_="full-text"):
+    def take(c: str, role: str, why: str = "highest in-degree in the cluster", src_: str = "full-text") -> str:
+        """Put the cluster's next unused paper in the coreset in `role`, and return its ID."""
         p = next(p for p in members[c] if p not in used)
         used.add(p)
         rows[c].append((p, role, why, src_))
         return p
 
-    fringe_ids = []
+    fringe_ids: list[str] = []
     for f in rep["fringe"]:
         if len(fringe_ids) == 5:
             break
@@ -125,8 +170,8 @@ def build():
     )
     hdr = "| " + " | ".join(cols) + " |\n| " + " | ".join("--" for _ in cols) + " |"
     blocks, all_rows, abstract = [], [], []
-    for c, n in names.items():
-        lines = [f"### {n} — cluster {n}", "", hdr]
+    for c, nm in names.items():
+        lines = [f"### {nm} — cluster {nm}", "", hdr]
         for p, role, why, s in rows[c]:
             all_rows.append(p)
             if s == "abstract":
@@ -136,9 +181,13 @@ def build():
                 f"GSM8K | accuracy | +2 | " + " | ".join(dims.values()) + f" | {s} |"
             )
         blocks.append("\n".join(lines))
-    claim = lambda c: " It holds that longer reasoning helps." if align[c] == "high" else ""
+
+    def claim_of(c: str) -> str:
+        """The central claim a high-alignment cluster's definition carries; empty for the others."""
+        return " It holds that longer reasoning helps." if align[c] == "high" else ""
+
     cl_rows = "\n".join(
-        f"| {n} | Cluster {n} | Papers about {n}.{claim(c)} | {align[c]} | bears on the input | {c} |"
+        f"| {n} | Cluster {n} | Papers about {n}.{claim_of(c)} | {align[c]} | bears on the input | {c} |"
         for c, n in names.items()
     )
     pool_rows = "\n".join(
@@ -153,10 +202,8 @@ def build():
     changed = rows["c3"][0][0]
     # expansion: one collection from the two frontier candidates and one theme; its sheet has three rows, two `yes`
     # that are pool papers and one `no`, the paper rejected.md records
-    from deeper_research import expand, screen
-
     s2s, pids_x = [f"{k + 1:040x}" for k in range(3)], [pids[3], pids[10], "2401.00001"]
-    cands = {
+    cands: dict[str, dict[str, Any]] = {
         x: {
             "title": titles.get(p, "A study of image classifiers"),
             "abstract": "An abstract of the paper.",
@@ -164,14 +211,14 @@ def build():
             "corpus": p if p.startswith("CorpusId") else None,
             "round": 0,
         }
-        for x, p in zip(s2s, pids_x)
+        for x, p in zip(s2s, pids_x, strict=False)
     }
     xsrc = [
-        dict(kind="backward", **{"from": fr1}, ids=s2s[:2], unresolved=1, returned=2),
-        dict(kind="backward", **{"from": fr2}, ids=s2s[2:], unresolved=0, returned=1),
-        dict(kind="forward", **{"from": fr1}, ids=[], unresolved=0, returned=0),
-        dict(kind="forward", **{"from": fr2}, ids=[], unresolved=0, returned=0),
-        dict(kind="search", query="test-time compute", ids=s2s, unresolved=0, returned=3),
+        {"kind": "backward", "from": fr1, "ids": s2s[:2], "unresolved": 1, "returned": 2},
+        {"kind": "backward", "from": fr2, "ids": s2s[2:], "unresolved": 0, "returned": 1},
+        {"kind": "forward", "from": fr1, "ids": [], "unresolved": 0, "returned": 0},
+        {"kind": "forward", "from": fr2, "ids": [], "unresolved": 0, "returned": 0},
+        {"kind": "search", "query": "test-time compute", "ids": s2s, "unresolved": 0, "returned": 3},
     ]
     exp = {
         "rounds": [
@@ -191,13 +238,13 @@ def build():
         ("yes", "studies reasoning length"),
         ("no", "about image classification"),
     ]
-    sheet = expand.SHEET.format(topic=T) + "".join(
+    sheet_text = expand.SHEET.format(topic=T) + "".join(
         f"| {n} | {x} | {cands[x]['title'].replace('|', '/')} | An abstract of the paper. | {v} | {r} |\n"
-        for n, (x, (v, r)) in enumerate(zip(s2s, said), 1)
+        for n, (x, (v, r)) in enumerate(zip(s2s, said, strict=False), 1)
     )
     (dst / "expand.json").write_text(json.dumps(exp))
-    (dst / "expand-screen.md").write_text(sheet)
-    expansion = expand.expansion_line(exp, screen.verdicts(sheet), DATE)
+    (dst / "expand-screen.md").write_text(sheet_text)
+    expansion = expand.expansion_line(exp, screen.verdicts(sheet_text), DATE)
     survey = f"""# Survey: {T}
 
 ## Retrieval log
@@ -215,7 +262,7 @@ def build():
 - **Fringe:** collected {DATE}: hidden 60, new 60 candidates ({unique} unique); in scope 3; added to the pool 3, of
   which 0 without an arXiv ID; left out 0
 - **Pool:** {len(a)} papers in scope; metadata fetched {when}
-- **Clustering:** measure {rep["measure"]}; level {len(rep["clusters"])} clusters by rule tau, stability 0.79; next finer
+- **Clustering:** measure {measure}; level {len(rep["clusters"])} clusters by rule tau, stability 0.79; next finer
   level 8 clusters at 0.67; diagnostics: thin cluster: six -> expanded; manual overrides: none
 - **Clustering rationale:** The level is stable and the two high clusters are long-standing.
 - **Clusters:** 6 (2 high, 2 medium, 2 low); halted for review: no; not yet reviewed
@@ -276,10 +323,10 @@ def build():
             + (f"\n# 5 Analysis\n\nUnlike earlier work, {claim[p]}.\n" if p in claim else "")
         )
         body = (
-            '- `method name`, `method summary`, `evidence`, `measures`, `elicitation`, `pressure` — full-text, 3 Method — "We propose '
-            'a method that does a thing, and we assume a fixed compute budget"\n'
-            '- `result`, `datasets / models`, `metric` — full-text, 4 Results — "the method improves accuracy by two points ... the gain holds '
-            'across all model sizes"\n'
+            "- `method name`, `method summary`, `evidence`, `measures`, `elicitation`, `pressure` — full-text, "
+            '3 Method — "We propose a method that does a thing, and we assume a fixed compute budget"\n'
+            '- `result`, `datasets / models`, `metric` — full-text, 4 Results — "the method improves accuracy by '
+            'two points ... the gain holds across all model sizes"\n'
             + (f'- `selected because` — full-text, 5 Analysis — "{claim[p]}"\n' if p in claim else "")
         )
         (ev / f"{name}.md").write_text(f"# Evidence: {p}\n\n" + body)
@@ -317,32 +364,26 @@ A tension ({cite[2]}).
 1. {cite[3]} — start here.
 """)
     # The coverage sheet of round 1: the paper the line counts, and eleven pool papers outside the coreset.
-    from deeper_research import audit, coverage
-
     others = [p for p in sorted(a) if p not in all_rows][:11]
     cov = [
-        dict(
-            paper=f"[{titles[changed]}]({link(changed)})",
-            **{
-                "drawn as": "worst-covered",
-                "distance": "0.300",
-                "nearest row": all_rows[0],
-                "verdict": "changes Gaps",
-                "reason": "it adds a gap the output lacks",
-            },
-        )
+        {
+            "paper": f"[{titles[changed]}]({link(changed)})",
+            "drawn as": "worst-covered",
+            "distance": "0.300",
+            "nearest row": all_rows[0],
+            "verdict": "changes Gaps",
+            "reason": "it adds a gap the output lacks",
+        }
     ]
     cov += [
-        dict(
-            paper=f"[{titles[p].replace('|', '/')}]({link(p)})",
-            **{
-                "drawn as": "worst-covered",
-                "distance": "0.200",
-                "nearest row": all_rows[0],
-                "verdict": "no change",
-                "reason": "its nearest row already makes the claim",
-            },
-        )
+        {
+            "paper": f"[{titles[p].replace('|', '/')}]({link(p)})",
+            "drawn as": "worst-covered",
+            "distance": "0.200",
+            "nearest row": all_rows[0],
+            "verdict": "no change",
+            "reason": "its nearest row already makes the claim",
+        }
         for p in others
     ]
     coverage.write_sheet(
@@ -355,7 +396,8 @@ A tension ({cite[2]}).
     )
 
     # The judgement audits, run through deeper_research/audit.py as the order of operations runs them.
-    def call(fn, *args, stdin=""):
+    def call(fn: Callable[..., int], *args: object, stdin: str = "") -> None:
+        """Run an audit command in-process on the fixture, with `stdin` as its input; it must return 0."""
         with contextlib.redirect_stdout(io.StringIO()):
             old, sys.stdin = sys.stdin, io.StringIO(stdin)
             try:
@@ -363,12 +405,12 @@ A tension ({cite[2]}).
             finally:
                 sys.stdin = old
 
-    cells = dict(zip(cols[4:-1], ["M", "does a thing", "GSM8K", "accuracy", "+2"] + list(dims.values())))
+    cells = dict(zip(cols[4:-1], ["M", "does a thing", "GSM8K", "accuracy", "+2"] + list(dims.values()), strict=False))
     call(audit.reverify, 1)
     picked = [
-        l.split("abs/")[1].split(")")[0]
-        for l in (dst / "reverify.md").read_text().splitlines()
-        if "arxiv.org/abs/" in l
+        ln.split("abs/")[1].split(")")[0]
+        for ln in (dst / "reverify.md").read_text().splitlines()
+        if "arxiv.org/abs/" in ln
     ]
     call(audit.fill, stdin="".join(f"{p}\t{k}\t{v}\n" for p in picked for k, v in cells.items()))
     call(audit.compare)
@@ -378,7 +420,7 @@ A tension ({cite[2]}).
     call(audit.judge, "faithfulness", stdin="".join(f"S{i}\tsupported\tthe row says so\n" for i in range(1, n + 1)))
     s = (ROOT / f"surveys/{T}.md").read_text().replace("JUDGEMENT_AUDIT", audit.summary(T)[0])
     (ROOT / f"surveys/{T}.md").write_text(s)
-    return dict(
+    return Built(
         verified=verified,
         dissent=[d1, d2],
         abstract=abstract,
@@ -393,19 +435,73 @@ A tension ({cite[2]}).
     )
 
 
-def clean():
+def clean() -> None:
+    """Remove every file the fixture wrote: its graphs directory, survey, input, bib and output."""
     shutil.rmtree(dst, ignore_errors=True)
     for f in (f"surveys/{T}.md", f"inputs/{T}.md", f"bib/{T}.bib", f"outputs/{T}.md"):
         (ROOT / f).unlink(missing_ok=True)
 
 
-def autoclean():
+def autoclean() -> None:
+    """Make `clean()` run when the process exits, even after a crash."""
     atexit.register(clean)
 
 
-if __name__ == "__main__":
+def keep() -> None:
+    """Build the fixture and keep it for inspection; print its topic and how to remove it."""
     build()
-    print(
-        f'built {T}; remove it with: ZZ_GATE_TOPIC={T} python3 -c \'import sys; sys.path.insert(0, "tests/gates"); '
-        f"import build; build.clean()'"
+    print(f"built {T}; remove it with: ZZ_GATE_TOPIC={T} uv run python -c 'from tests.gates import clean; clean()'")
+
+
+# Helpers the two suites share, to mutate the fixture and run the check on it.
+
+
+def sub(path: Path, a: str, b: str, count: int = 1) -> None:
+    """Replace the first `count` occurrences of `a` by `b` in a file; `a` must occur."""
+    t = path.read_text()
+    assert a in t, (path.name, a[:60])
+    path.write_text(t.replace(a, b, count))
+
+
+def resub(path: Path, pat: str, b: str) -> None:
+    """Replace the first match of the multiline regex `pat` by `b` in a file; it must match."""
+    t = path.read_text()
+    n = re.subn(pat, b, t, count=1, flags=re.M)
+    assert n[1], pat
+    path.write_text(n[0])
+
+
+def jset(name: str, fn: Callable[[Any], object]) -> None:
+    """Apply `fn` to the parsed JSON file `name` of the fixture's graphs directory, and write it back."""
+    d = json.loads((G / name).read_text())
+    fn(d)
+    (G / name).write_text(json.dumps(d))
+
+
+def first_row(role: str) -> str:
+    """The survey's first coreset row in `role`."""
+    return next(ln for ln in S.read_text().splitlines() if ln.startswith("| [") and f"| {role} |" in ln)
+
+
+PROPOSED = (
+    "proposed: `evidence` — values: `empirical`, `proven`; `measures` — values: `capability`, `other`; "
+    "`elicitation` — values: `elicited`, `observational`"
+)
+
+
+def no_declared_dimensions(f: Built, line: str = PROPOSED) -> None:
+    """An input without dimensions; the `Dimensions` line proposes them (by default only three of the four columns)."""
+    INP.write_text(INP.read_text().split("## Dimensions")[0])
+    sub(S, "declared in the input", line)
+
+
+def run(*extra: str) -> tuple[int, str]:
+    """Run `deeper_research.check` on the fixture with `extra` arguments; return its exit status and output."""
+    r = subprocess.run(
+        [sys.executable, "-m", "deeper_research.check", T, *extra],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
     )
+    return r.returncode, r.stdout + r.stderr

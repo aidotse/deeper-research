@@ -416,18 +416,23 @@ a dropped connection or a timeout, and raises anything else.
 
 ## Tests
 
-`python3 tests/gates/faults.py` and `python3 tests/gates/behaviour.py` test the gates of `deeper_research/check.py`.
-Both build a temporary topic, `zz-gate-<pid>`, from the data of the legacy survey `reasoning-legacy`
-(`tests/gates/build.py`). The name is unique per run, so two runs never share files, and every file a run wrote is
-removed when it exits, even after a crash. `faults.py` first confirms that the unmodified fixture passes `--gate G5`,
-since a fault is only caught if the baseline passes. It then injects at least one fault per gate requirement and
-confirms that its own requirement catches it. `behaviour.py` checks what single requirements cannot show: waivers, a
-pending halt, progress inferred mid-pass and by the safety net, the history checks, `deeper_research/assign.py reject`,
+`uv run poe test` runs the test suites under pytest, with coverage (`uv run poe test 4` spreads them over four
+pytest-xdist workers); `uv run pytest tests/gates` runs the gate suites alone. `tests/gates/test_faults.py` and
+`tests/gates/test_behaviour.py` test the gates of `deeper_research/check.py`. Both build a temporary topic,
+`zz-gate-<pid>`, from the data of the legacy survey `reasoning-legacy` (`tests/gates/__init__.py`). The name is unique
+per process, so two runs, or two xdist workers, never share files, and every file a process wrote is removed when its
+tests end, pass or fail, and at exit even after a crash. `test_faults.py` makes every item depend on the unmodified
+fixture passing `--gate G5`, since a fault is only caught if the baseline passes. It then injects at least one fault per
+gate requirement, one pytest item per fault named by its requirement (`g4.evidence`, `g4.evidence-2`, ...), and confirms
+that its own requirement catches it. `test_behaviour.py` checks what single requirements cannot show: waivers, a pending
+halt, progress inferred mid-pass and by the safety net, the history checks, `deeper_research/assign.py reject`,
 `add-expand` and `add-fringe`, the screening sheets' `judge`, including two at once, `deeper_research/expand.py collect`
 against a stand-in for the Graph API, the fringe routes' title match, `deeper_research/check.py --print`, and a coverage
-round through `deeper_research/coverage.py`. The fixture's coverage sheet and audit sheets are written through the same
-tools' functions. Run both after any change to `deeper_research/check.py` or `deeper_research/gates.py`; each exits 1 on
-a miss. A change to a requirement comes with its test case, in the same commit.
+round through `deeper_research/coverage.py`. Each behaviour is a pytest subtest, reported by name. The fixture's
+coverage sheet and audit sheets are written through the same tools' functions. Run both after any change to
+`deeper_research/check.py` or `deeper_research/gates.py`; a miss fails its item or subtest. A change to a requirement
+comes with its test case, in the same commit. To build the fixture and keep it for inspection, run
+`uv run python -c "from tests.gates import keep; keep()"`; it prints the topic's name and the command that removes it.
 
 ## Formatting
 
