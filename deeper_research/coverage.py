@@ -3,14 +3,15 @@
 Usage:
   uv run python -m deeper_research.coverage radius <topic> [--loo]
   uv run python -m deeper_research.coverage draw <topic> <R> [--n 10] [--seed <R>]
-  uv run python -m deeper_research.coverage judge <topic> <R> [--recency] < lines   (one `<id><TAB><verdict><TAB><reason>` per line)
+  uv run python -m deeper_research.coverage judge <topic> <R> [--recency] < lines
+      (one `<id><TAB><verdict><TAB><reason>` per line)
   uv run python -m deeper_research.coverage query <topic> <R> "<the query>" "<the window>" <number of results>
   uv run python -m deeper_research.coverage line <topic> <R>
 
 A pool paper's distance from the coreset is 1 minus its similarity to the nearest coreset row, under the clustering's
-`combined` measure (deeper_research/cluster.py). That measure is built from neighbour ranks, so the distance reads as a share of
-the pool: 0.05 means the nearest coreset row is, on average over the two directions, among the paper's nearest 5% of
-pool papers. The coreset's radius is the largest such distance over the pool papers outside the coreset.
+`combined` measure (deeper_research/cluster.py). That measure is built from neighbour ranks, so the distance reads as a
+share of the pool: 0.05 means the nearest coreset row is, on average over the two directions, among the paper's nearest
+5% of pool papers. The coreset's radius is the largest such distance over the pool papers outside the coreset.
 
 `radius` prints the radius (max, p90 and mean) and the ten worst-covered pool papers, each with its nearest coreset row.
 With --loo, it also prints, per coreset row, how much the radius and the p90 grow when that row alone is removed: a
@@ -23,20 +24,21 @@ gives the paper, how it was drawn, its distance, its nearest coreset row, and em
 header records the date, the seed, the eligible set and the radius. It refuses to overwrite an existing sheet.
 
 `judge` writes verdicts into the sheet from stdin. A verdict is `no change`, `changes <target>` (a target of the input's
-`Coreset Spec`, as deeper_research/inputs.py reads them), or `new cluster`; the reason is one sentence, stating the claim it
-changes. A verdict given again replaces the earlier one, and says so. With --recency, each line instead adds a candidate
-from the fresh recency query, as a row drawn as `recency query`, and carries the paper's title as a fourth field; its ID
-must be a paper ID (docs/formats.md, "Paper IDs"). It refuses the whole batch on any bad line.
+`Coreset Spec`, as deeper_research/inputs.py reads them), or `new cluster`; the reason is one sentence, stating the
+claim it changes. A verdict given again replaces the earlier one, and says so. With --recency, each line instead adds a
+candidate from the fresh recency query, as a row drawn as `recency query`, and carries the paper's title as a fourth
+field; its ID must be a paper ID (docs/formats.md, "Paper IDs"). It refuses the whole batch on any bad line.
 
 `query` records the round's fresh recency query in the sheet's header, whether or not it found anything: the query as
 run, its window, and how many results it returned. Run it again to replace it.
 
 `line` prints the round's `Coverage test` line from the sheet, to paste as printed: K and N counted by script, each
 counted candidate with its target and reason. It refuses while a row has no verdict, or the recency query is not
-recorded. deeper_research/gates.py (`g5.coverage-sheets`) compares the pasted line with what `line` prints, up to `new clusters:`. When a row is judged `new cluster`, the
-line ends with a placeholder for the proposed cluster's name, which the main session replaces once the recluster has
-shown whether it formed (docs/process.md, "Returning to step 3"). It also prints the round's one-sided 95% upper bound
-(Clopper-Pearson) on the share of the worst-covered quarter that would change the output, from the drawn rows alone.
+recorded. deeper_research/gates.py (`g5.coverage-sheets`) compares the pasted line with what `line` prints, up to
+`new clusters:`. When a row is judged `new cluster`, the line ends with a placeholder for the proposed cluster's name,
+which the main session replaces once the recluster has shown whether it formed (docs/process.md, "Returning to step 3").
+It also prints the round's one-sided 95% upper bound (Clopper-Pearson) on the share of the worst-covered quarter that
+would change the output, from the drawn rows alone.
 
 `radius` and `draw` need numpy and the clustering's packages (uv); `judge` and `line` are standard library only, and
 deeper_research/gates.py reads the sheets with this module's `sheet` function. Usage errors exit with status 2.
@@ -49,9 +51,20 @@ import re
 import sys
 from datetime import date
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, NoReturn
+
+from deeper_research.check import ID, link, row_id, sections, table_rows
+from deeper_research.graph import parse
+from deeper_research.inputs import read_targets
+
+if TYPE_CHECKING:
+    import numpy as np
+    from numpy.typing import NDArray
 
 ROOT = Path(__file__).resolve().parent.parent
-from deeper_research.check import ID, link, row_id, sections, table_rows  # noqa: E402
+
+# A coverage sheet's row: its cells by column (str), and `id`, the paper ID its link names (str, or None without one).
+type SheetRow = dict[str, Any]
 
 N_DRAW = 10  # pool papers drawn per round; the recency query adds to these (docs/process.md: 10-15 in all)
 QUARTER = 0.25  # the worst-covered share of the eligible pool papers that the draw is made from
@@ -60,41 +73,43 @@ COLUMNS = ["paper", "drawn as", "distance", "nearest row", "verdict", "reason"]
 VERDICT = re.compile(r"^(no change|new cluster|changes (.+))$")
 
 
-def usage(msg):
+def usage(msg: str) -> NoReturn:
+    """Print `msg` as a usage error on stderr, and exit with status 2."""
     print(f"usage error: {msg}", file=sys.stderr)
     sys.exit(2)
 
 
-def sheet_path(topic, r):
+def sheet_path(topic: str, r: int) -> Path:
+    """The path of round R's coverage sheet, graphs/<topic>/coverage-<R>.md."""
     return ROOT / "graphs" / topic / f"coverage-{r}.md"
 
 
-def sheet(text):
+def sheet(text: str | None) -> list[SheetRow]:
     """The rows of a coverage sheet: [{column: cell}], with `id` added from the paper link, in sheet order."""
     out = []
     for h, cs, _, line in table_rows(text or ""):
         if h and h[0] == "paper" and "verdict" in h:
-            row = dict(zip(h, cs))
+            row: SheetRow = dict(zip(h, cs, strict=False))
             row["id"] = row_id(line)
             out.append(row)
     return out
 
 
-def counted(rows):
+def counted(rows: list[SheetRow]) -> tuple[list[SheetRow], list[SheetRow]]:
     """(changed, new) rows of a judged sheet: those whose verdict is `changes <target>`, and `new cluster`."""
     changed = [r for r in rows if r.get("verdict", "").startswith("changes ")]
     new = [r for r in rows if r.get("verdict", "") == "new cluster"]
     return changed, new
 
 
-def upper_bound(k, n, conf=0.95):
+def upper_bound(k: int, n: int, conf: float = 0.95) -> float:
     """One-sided Clopper-Pearson upper bound on a binomial share, by bisection on the binomial tail."""
     if n == 0:
         return 1.0
     if k >= n:
         return 1.0
 
-    def tail(p):  # P(X <= k) for X ~ Bin(n, p)
+    def tail(p: float) -> float:  # P(X <= k) for X ~ Bin(n, p)
         return sum(math.comb(n, i) * p**i * (1 - p) ** (n - i) for i in range(k + 1))
 
     lo, hi = k / n, 1.0
@@ -110,14 +125,17 @@ def upper_bound(k, n, conf=0.95):
 # --- distances: numpy and the clustering's measure -----------------------------------------------
 
 
-def distances(topic):
-    """(pool ids, coreset ids, D) where D[i][j] is the distance of pool paper i from coreset row j. Papers without an
+def distances(topic: str) -> tuple[list[str], list[str], "NDArray[np.float64]", "NDArray[np.bool_]"]:
+    """(pool ids, coreset ids, D) where D[i][j] is the distance of pool paper i from coreset row j.
+
+    Papers without an
     embedding are left out, as they are from the clustering.
     """
-    import numpy as np
+    # local: keeps numpy out of judge, line and the gates that read the sheets
+    import numpy as np  # noqa: PLC0415
 
-    from deeper_research.cluster import C_REFS, combined_sim, refs_sim, text_sim
-    from deeper_research.graph import parse
+    # local: keeps numpy and the clustering's packages out of judge and line
+    from deeper_research.cluster import C_REFS, combined_sim, refs_sim, text_sim  # noqa: PLC0415
 
     survey = ROOT / "surveys" / f"{topic}.md"
     pool_path = ROOT / "graphs" / topic / "pool.json"
@@ -128,7 +146,7 @@ def distances(topic):
         if not path.exists():
             sys.exit(f"no {path.relative_to(ROOT)}; run {then} first")
     secs = sections(survey.read_text())
-    core = {row_id(l) for h, _, _, l in table_rows(secs.get("Coreset", "")) if h and h[0] == "paper"} - {None}
+    core = {row_id(ln) for h, _, _, ln in table_rows(secs.get("Coreset", "")) if h and h[0] == "paper"} - {None}
     cache = json.loads(pool_path.read_text())["papers"]
     ids = sorted(a for a in parse(topic)[4] if a in cache and cache[a].get("embedding"))
     if not core & set(ids):
@@ -139,21 +157,25 @@ def distances(topic):
     return ids, [ids[j] for j in cols], 1.0 - S[:, cols], np.array([a in core for a in ids])
 
 
-def summary(d):
-    import numpy as np
+def summary(d: "NDArray[np.float64]") -> tuple[float, float, float]:
+    """(max, 90th percentile, mean) of the distances `d`."""
+    # local: keeps numpy out of judge, line and the gates that read the sheets
+    import numpy as np  # noqa: PLC0415
 
     return float(d.max()), float(np.percentile(d, 90)), float(d.mean())
 
 
-def radius(topic, loo):
-    import numpy as np
+def radius(topic: str, loo: bool) -> int:
+    """Print the coreset's radius and its worst-covered pool papers; with `loo`, each row's leave-one-out growth."""
+    # local: keeps numpy out of judge, line and the gates that read the sheets
+    import numpy as np  # noqa: PLC0415
 
     ids, core, D, in_core = distances(topic)
     outside = ~in_core
     near = D[outside].min(axis=1)
     arg = D[outside].argmin(axis=1)
     mx, p90, mean = summary(near)
-    out_ids = [a for a, c in zip(ids, in_core) if not c]
+    out_ids = [a for a, c in zip(ids, in_core, strict=False) if not c]
     print(
         f"{topic}: {len(core)} coreset rows cover {len(out_ids)} other pool papers (combined measure; a distance is "
         f"the nearest coreset row's rank among the paper's neighbours, as a share of the pool)"
@@ -177,9 +199,9 @@ def radius(topic, loo):
     return 0
 
 
-def earlier(topic, r):
+def earlier(topic: str, r: int) -> set[str | None]:
     """IDs on the sheets of rounds before R."""
-    seen = set()
+    seen: set[str | None] = set()
     for x in range(1, r):
         p = sheet_path(topic, x)
         if p.exists():
@@ -187,7 +209,7 @@ def earlier(topic, r):
     return seen
 
 
-def write_sheet(path, topic, r, header, rows):
+def write_sheet(path: Path, topic: str, r: int, header: str, rows: list[SheetRow]) -> None:
     """Write a coverage sheet: a title, the header paragraph, and the table of `rows` ([{column: cell}])."""
     lines = [
         f"# Coverage test, round {r}: {topic}",
@@ -201,18 +223,18 @@ def write_sheet(path, topic, r, header, rows):
     path.write_text("\n".join(lines) + "\n")
 
 
-def titles(topic):
-    from deeper_research.graph import parse
-
+def titles(topic: str) -> dict[str, str]:
+    """{paper ID: title} for the papers of the survey (graph.parse), the ID standing in for a missing title."""
     return {a: v.get("title") or a for a, v in parse(topic)[4].items()}
 
 
-def cell(text):
+def cell(text: str | None) -> str:
+    """Text as one line for a sheet's cell: whitespace runs as one space, `|` as `/`, None as empty."""
     return re.sub(r"\s+", " ", text or "").replace("|", "/").strip()
 
 
-def draw(topic, r, n, seed):
-
+def draw(topic: str, r: int, n: int, seed: int) -> int:
+    """Write round R's coverage sheet: `n` papers drawn at random, with `seed`, from the worst-covered eligible ones."""
     path = sheet_path(topic, r)
     if path.exists():
         sys.exit(
@@ -228,16 +250,19 @@ def draw(topic, r, n, seed):
     eligible.sort(key=lambda i: (-near[i], ids[i]))
     m = min(len(eligible), max(2 * n, math.ceil(QUARTER * len(eligible))))
     worst = eligible[:m]
-    picked = sorted(random.Random(seed).sample(worst, n), key=lambda i: -near[i])
+    # seeded sampling, so that the round's draw is reproducible; not a security use
+    picked = sorted(random.Random(seed).sample(worst, n), key=lambda i: -near[i])  # noqa: S311
     names = titles(topic)
     out_near = near[[i for i in range(len(ids)) if not in_core[i]]]
     mx, p90, mean = summary(out_near)
     header = (
-        f"Drawn {date.today().isoformat()} by `deeper_research/coverage.py draw`, seed {seed}: {n} pool papers at random "
+        f"Drawn {date.today().isoformat()} by `deeper_research/coverage.py draw`, seed {seed}: {n} pool papers "
+        f"at random "
         f"from the {m} worst-covered of the {len(eligible)} pool papers outside the coreset and not sampled in an "
         f"earlier round (distance at least {near[worst[-1]]:.3f}). Coverage of the pool by the coreset's "
         f"{len(core)} rows: max {mx:.3f}, p90 {p90:.3f}, mean {mean:.3f}. Judge each row with "
-        f"`uv run python -m deeper_research.coverage judge {topic} {r}`; add the recency query's candidates with `--recency`."
+        f"`uv run python -m deeper_research.coverage judge {topic} {r}`; add the recency query's candidates with "
+        f"`--recency`."
     )
     rows = [
         {
@@ -262,20 +287,22 @@ def draw(topic, r, n, seed):
 # --- judging and the log line: standard library only ----------------------------------------------
 
 
-def read_sheet(topic, r):
+def read_sheet(topic: str, r: int) -> tuple[Path, str]:
+    """(path, text) of round R's coverage sheet; exits if it has not been drawn."""
     path = sheet_path(topic, r)
     if not path.exists():
         sys.exit(f"no {path.relative_to(ROOT)}; run `uv run python -m deeper_research.coverage draw {topic} {r}` first")
     return path, path.read_text()
 
 
-def judge(topic, r, recency):
-    from deeper_research.inputs import read_targets
-
+def judge(topic: str, r: int, recency: bool) -> int:  # noqa: C901
+    """Write the verdicts on stdin into round R's sheet; with `recency`, add them as recency-query rows."""
     targets = read_targets(topic)[0]
     path, text = read_sheet(topic, r)
     rows = sheet(text)
     by_id = {row["id"]: row for row in rows}
+    given: dict[str, tuple[str, str, str | None]]
+    problems: list[str]
     given, problems = {}, []
     for k, line in enumerate(sys.stdin, 1):
         if not line.strip():
@@ -355,7 +382,8 @@ def judge(topic, r, recency):
 RECENCY = re.compile(r"^Recency query: .+$", re.M)
 
 
-def query(topic, r, q, window, n):
+def query(topic: str, r: int, q: str, window: str, n: int) -> int:
+    """Record round R's recency query in its sheet's header: the query, its window and its number of results."""
     path, text = read_sheet(topic, r)
     head, sep, rest = text.partition("\n| paper |")
     entry = f'Recency query: "{cell(q)}" ({cell(window)}): {n} result(s).'
@@ -365,13 +393,13 @@ def query(topic, r, q, window, n):
     return 0
 
 
-def render(text, r):
+def render(text: str, r: int) -> tuple[str | None, str, str | None]:
     """(the `Coverage test` line, the bound sentence, the proposed IDs) of a sheet's text, or (None, why, None)."""
     rows = sheet(text)
     left = [row["id"] for row in rows if not row.get("verdict")]
     if left:
         return None, f"{len(left)} row(s) without a verdict: {', '.join(left)}", None
-    if not RECENCY.search(text.split("\n| paper |")[0]):
+    if not RECENCY.search(text.split("\n| paper |", 1)[0]):
         return (
             None,
             "the recency query is not recorded; run `uv run python -m deeper_research.coverage query` first",
@@ -397,7 +425,8 @@ def render(text, r):
     return text_, bound, proposed
 
 
-def line(topic, r):
+def line(topic: str, r: int) -> int:
+    """Print round R's `Coverage test` line and its bound; exits while the sheet is not fully judged."""
     path, text = read_sheet(topic, r)
     value, bound, proposed = render(text, r)
     if value is None:
@@ -409,7 +438,8 @@ def line(topic, r):
     return 0
 
 
-def main(argv):
+def main(argv: list[str]) -> int:  # noqa: C901
+    """Run the command `argv` names; print the usage and return 2 on a malformed command line."""
     cmds = {"radius": 2, "draw": 3, "judge": 3, "line": 3, "query": 6}
     if not argv or argv[0] not in cmds or len([a for a in argv if not a.startswith("--")]) < cmds[argv[0]]:
         print(__doc__.strip())
@@ -421,12 +451,13 @@ def main(argv):
         return radius(topic, "--loo" in argv)
     try:
         r = int(argv[2])
-        assert r >= 1
+        if not r >= 1:
+            raise AssertionError
     except (ValueError, AssertionError):
         usage(f"the round must be a number from 1, not {argv[2]!r}")
     rest = argv[3:]
     if cmd == "draw":
-        opts = dict(zip(rest[::2], rest[1::2]))
+        opts = dict(zip(rest[::2], rest[1::2], strict=False))
         if len(rest) % 2 or set(opts) - {"--n", "--seed"}:
             usage(f"unknown option(s) {rest}")
         try:

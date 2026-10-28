@@ -1,4 +1,6 @@
-"""The judgement audits of a pass: how often verification and the output are right, measured on a sample
+"""Draw, fill and judge the samples of a pass's judgement audits, and print the log's `Judgement audit` line.
+
+The judgement audits of a pass: how often verification and the output are right, measured on a sample
 (docs/process.md, "Auditing the judgements").
 
 Usage:
@@ -28,7 +30,8 @@ evidence quotes, once per paper.
   faithfulness  `S<n><TAB>supported|partly|unsupported<TAB><reason>`
 
 `line` prints the log's `Judgement audit` line from the two judged sheets, ready to paste. It refuses while either is
-missing or has a row without a verdict. deeper_research/gates.py (`g5.judgement-audit`) recomputes the line the same way.
+missing or has a row without a verdict.
+deeper_research/gates.py (`g5.judgement-audit`) recomputes the line the same way.
 
 Standard library only; nothing is fetched. Usage errors exit with status 2.
 """
@@ -39,9 +42,11 @@ import re
 import sys
 from datetime import date
 from pathlib import Path
+from typing import NoReturn, cast
+
+from deeper_research.check import BARE_ID, LINK, cells_of, link, row_id, sections, table_rows
 
 ROOT = Path(__file__).resolve().parent.parent
-from deeper_research.check import BARE_ID, LINK, cells_of, link, row_id, sections, table_rows  # noqa: E402
 
 SHARE, LEAST = 0.10, 5  # re-verify this share of the verified rows, and at least this many
 N_TRACE = 15  # output sentences drawn for the faithfulness sample
@@ -52,32 +57,36 @@ SUPPORT = ("supported", "partly", "unsupported")
 ABBREV = re.compile(r"(?:\b(?:al|e\.g|i\.e|cf|vs|Fig|Sec|Eq|Tab|approx|resp)|\b[A-Z])\.$")
 
 
-def usage(msg):
+def usage(msg: str) -> NoReturn:
+    """Print `msg` as a usage error on stderr, and exit with status 2."""
     print(f"usage error: {msg}", file=sys.stderr)
     sys.exit(2)
 
 
-def paths(topic):
+def paths(topic: str) -> tuple[Path, Path, Path]:
+    """The paths of the topic's audit sheets: reverify.md, reverify-compare.md and faithfulness.md."""
     d = ROOT / "graphs" / topic
     return d / "reverify.md", d / "reverify-compare.md", d / "faithfulness.md"
 
 
-def cell(text):
+def cell(text: str | None) -> str:
+    """Text as one line for a sheet's cell: whitespace runs as one space, `|` as `/`, None as empty."""
     return re.sub(r"\s+", " ", text or "").replace("|", "/").strip()
 
 
-def table(text, first):
+def table(text: str | None, first: str) -> list[dict[str, str]]:
     """[{column: cell}] for the rows of the table whose header starts with `first`, with `id` from the row's link."""
     out = []
     for h, cs, _, line in table_rows(text or ""):
         if h and h[0] == first:
-            row = dict(zip(h, cs))
+            row = dict(zip(h, cs, strict=False))
             row["id"] = row_id(line) or cs[0]
             out.append(row)
     return out
 
 
-def write(path, title, header, columns, rows, tail=""):
+def write(path: Path, title: str, header: str, columns: list[str], rows: list[dict[str, str]], tail: str = "") -> None:
+    """Write a sheet: the title, the header paragraph, the table of `rows` under `columns`, then `tail` if any."""
     lines = [
         f"# {title}",
         "",
@@ -90,35 +99,39 @@ def write(path, title, header, columns, rows, tail=""):
     path.write_text("\n".join(lines) + "\n" + (f"\n{tail.strip()}\n" if tail.strip() else ""))
 
 
-def header_of(text):
+def header_of(text: str) -> str:
     """The paragraph between a sheet's title and its table."""
-    return "\n".join(text.split("\n| ")[0].strip().splitlines()[2:]).strip()
+    return "\n".join(text.split("\n| ", 1)[0].strip().splitlines()[2:]).strip()
 
 
-def survey(topic):
+def survey(topic: str) -> dict[str, str]:
+    """The sections of surveys/<topic>.md; exits if there is none."""
     path = ROOT / "surveys" / f"{topic}.md"
     if not path.exists():
         sys.exit(f"no surveys/{topic}.md")
     return sections(path.read_text())
 
 
-def coreset(topic):
+def coreset(topic: str) -> tuple[dict[str, dict[str, str]], list[str]]:
     """{id: {column: cell}} for the coreset rows, and the claim columns: CLAIMS and the dimension columns."""
+    rows: dict[str, dict[str, str]]
     rows, cols = {}, list(CLAIMS)
     for h, cs, _, line in table_rows(survey(topic).get("Coreset", "")):
         if h and h[0] == "paper" and row_id(line):
-            rows[row_id(line)] = dict(zip(h, cs))
-            extra = [x for x in h[h.index("result") + 1 : -1]] if "result" in h else []
+            rows[cast("str", row_id(line))] = dict(zip(h, cs, strict=False))
+            extra = list(h[h.index("result") + 1 : -1]) if "result" in h else []
             cols += [x for x in extra if x not in cols]
     return rows, cols
 
 
-def seed_of(text):
+def seed_of(text: str | None) -> int | None:
+    """The seed a sheet's header records, or None."""
     m = re.search(r"seed (\d+)", text or "")
     return int(m.group(1)) if m else None
 
 
-def evidence(topic, pid):
+def evidence(topic: str, pid: str) -> str:
+    """The text of paper `pid`'s evidence file after its first line, or `(no evidence file)`."""
     path = ROOT / "graphs" / topic / "evidence" / (pid.replace("/", "_").replace(":", "_") + ".md")
     return path.read_text().split("\n", 1)[-1].strip() if path.exists() else "(no evidence file)"
 
@@ -126,7 +139,8 @@ def evidence(topic, pid):
 # --- re-verification -------------------------------------------------------------------------------
 
 
-def reverify(topic, seed):
+def reverify(topic: str, seed: int) -> int:
+    """Write reverify.md: a random sample, drawn with `seed`, of the coreset rows verified from the full text."""
     path = paths(topic)[0]
     if path.exists():
         sys.exit(f"{path.relative_to(ROOT)} exists; the sample is drawn once a pass")
@@ -135,11 +149,14 @@ def reverify(topic, seed):
     if not verified:
         sys.exit(f"surveys/{topic}.md has no row verified from the full text yet")
     n = min(len(verified), max(LEAST, math.ceil(SHARE * len(rows))))
-    picked = sorted(random.Random(seed).sample(verified, n))
+    # seeded sampling, so that the audit's sample is reproducible; not a security use
+    picked = sorted(random.Random(seed).sample(verified, n))  # noqa: S311
     header = (
-        f"Drawn {date.today().isoformat()} by `deeper_research/audit.py reverify`, seed {seed}: {n} of the {len(verified)} "
+        f"Drawn {date.today().isoformat()} by `deeper_research/audit.py reverify`, seed {seed}: {n} of the "
+        f"{len(verified)} "
         f"coreset rows verified from the full text, at random. Fill every cell from the paper's full text alone, "
-        f"with `uv run python -m deeper_research.audit fill {topic}`, without reading the survey's rows or their evidence; write "
+        f"with `uv run python -m deeper_research.audit fill {topic}`, without reading the survey's rows or their "
+        f"evidence; write "
         f"`n/a` where the column's definition allows it."
     )
     write(
@@ -154,14 +171,17 @@ def reverify(topic, seed):
     return 0
 
 
-def fill(topic):
+def fill(topic: str) -> int:  # noqa: C901
+    """Write the cells on stdin into reverify.md."""
     path = paths(topic)[0]
     if not path.exists():
         sys.exit(f"no {path.relative_to(ROOT)}; run `uv run python -m deeper_research.audit reverify {topic}` first")
     text = path.read_text()
     rows = table(text, "paper")
-    cols = [c for c in cells_of(next(l for l in text.splitlines() if l.startswith("| paper")))][1:]
+    cols = list(cells_of(next(ln for ln in text.splitlines() if ln.startswith("| paper"))))[1:]
     by_id = {r["id"]: r for r in rows}
+    given: list[tuple[str, str, str]]
+    problems: list[str]
     given, problems = [], []
     for k, line in enumerate(sys.stdin, 1):
         if not line.strip():
@@ -189,12 +209,13 @@ def fill(topic):
     return 0
 
 
-def compare(topic):
+def compare(topic: str) -> int:
+    """Write reverify-compare.md: each re-verified cell beside the survey's, with empty `agrees` and `reason` cells."""
     src, path, _ = paths(topic)
     if not src.exists():
         sys.exit(f"no {src.relative_to(ROOT)}; run `uv run python -m deeper_research.audit reverify {topic}` first")
     text = src.read_text()
-    cols = cells_of(next(l for l in text.splitlines() if l.startswith("| paper")))[1:]
+    cols = cells_of(next(ln for ln in text.splitlines() if ln.startswith("| paper")))[1:]
     rows = table(text, "paper")
     empty = [f"{r['id']} {c}" for r in rows for c in cols if not r.get(c)]
     if empty:
@@ -231,16 +252,18 @@ def compare(topic):
 # --- faithfulness ----------------------------------------------------------------------------------
 
 
-def sentences(output):
+def sentences(output: str) -> list[tuple[str, int, str]]:
     """(section, line number, sentence) for every sentence of the output after its legend."""
     lines = output.splitlines()
-    start = next((i for i, l in enumerate(lines) if l.startswith("## ")), len(lines))
+    start = next((i for i, ln in enumerate(lines) if ln.startswith("## ")), len(lines))
+    block: list[tuple[int, str]]
+    out: list[tuple[str, int, str]]
     section, block, out = "", [], []
 
-    def flush():
+    def flush() -> None:
         if not block:
             return
-        text = " ".join(l.strip() for _, l in block)
+        text = " ".join(ln.strip() for _, ln in block)
         text = re.sub(r"^(?:[-*+]|\d+[.)])\s+", "", text)
         first = block[0][0]
         pos = 0
@@ -254,25 +277,27 @@ def sentences(output):
         block.clear()
 
     for i in range(start, len(lines)):
-        l = lines[i]
-        if l.startswith("#"):
+        ln = lines[i]
+        if ln.startswith("#"):
             flush()
-            section = l.lstrip("#").strip() if l.startswith("## ") else section
-        elif not l.strip() or re.match(r"^\s*(?:[-*+]|\d+[.)])\s+", l) or l.startswith("|"):
+            section = ln.lstrip("#").strip() if ln.startswith("## ") else section
+        elif not ln.strip() or re.match(r"^\s*(?:[-*+]|\d+[.)])\s+", ln) or ln.startswith("|"):
             flush()
-            if l.strip() and not l.startswith("|"):
-                block.append((i + 1, l))
+            if ln.strip() and not ln.startswith("|"):
+                block.append((i + 1, ln))
         else:
-            block.append((i + 1, l))
+            block.append((i + 1, ln))
     flush()
     return out
 
 
-def cited(text):
+def cited(text: str) -> list[str]:
+    """The paper IDs `text` cites, by link or bare, sorted and without repeats."""
     return sorted(set(LINK.findall(text)) | set(BARE_ID.findall(text)))
 
 
-def trace(topic, n, seed):
+def trace(topic: str, n: int, seed: int) -> int:
+    """Write faithfulness.md: `n` output sentences that cite a coreset paper, drawn at random with `seed`."""
     path = paths(topic)[2]
     if path.exists():
         sys.exit(f"{path.relative_to(ROOT)} exists; the sample is drawn once a pass")
@@ -288,7 +313,8 @@ def trace(topic, n, seed):
     if not cand:
         sys.exit(f"outputs/{topic}.md has no sentence citing a coreset paper")
     k = min(n, len(cand))
-    picked = sorted(random.Random(seed).sample(range(len(cand)), k))
+    # seeded sampling, so that the audit's sample is reproducible; not a security use
+    picked = sorted(random.Random(seed).sample(range(len(cand)), k))  # noqa: S311
     table_rows_ = [
         {
             "sentence": f"S{j}: {cand[i][2]}",
@@ -326,7 +352,8 @@ def trace(topic, n, seed):
 # --- judging and the line --------------------------------------------------------------------------
 
 
-def judge(topic, which):
+def judge(topic: str, which: str) -> int:  # noqa: C901
+    """Write the verdicts on stdin into the `reverify` (compare) or the `faithfulness` sheet."""
     _, cmp_path, faith_path = paths(topic)
     path = cmp_path if which == "reverify" else faith_path
     if not path.exists():
@@ -334,6 +361,7 @@ def judge(topic, which):
         sys.exit(f"no {path.relative_to(ROOT)}; run `uv run python -m deeper_research.audit {then} {topic}` first")
     text = path.read_text()
     head, _, tail = text.partition("\n## Rows and evidence")
+    key: dict[tuple[str, str] | str, dict[str, str]]
     if which == "reverify":
         cols, rows, verdicts, vcol = (
             ["paper", "cell", "in the survey", "re-verified", "agrees", "reason"],
@@ -352,6 +380,8 @@ def judge(topic, which):
         )
         key = {r["sentence"].split(":")[0]: r for r in rows}
         form = "`S<n><TAB>supported|partly|unsupported<TAB><reason>`"
+    given: dict[tuple[str, str] | str, tuple[str, str]]
+    problems: list[str]
     given, problems = {}, []
     for k, line in enumerate(sys.stdin, 1):
         if not line.strip():
@@ -387,7 +417,7 @@ def judge(topic, which):
     return 0
 
 
-def summary(topic):
+def summary(topic: str) -> tuple[str | None, str | None]:
     """(the `Judgement audit` line's value, None), or (None, what is missing)."""
     src, cmp_path, faith_path = paths(topic)
     for p, then in ((src, "reverify"), (cmp_path, "compare"), (faith_path, "trace")):
@@ -414,7 +444,8 @@ def summary(topic):
     return value, None
 
 
-def line(topic):
+def line(topic: str) -> int:
+    """Print the log's `Judgement audit` line; exits while a sheet is missing or not fully judged."""
     value, missing = summary(topic)
     if missing:
         sys.exit(missing)
@@ -422,14 +453,15 @@ def line(topic):
     return 0
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
+    """Run the command `argv` names; print the usage and return 2 on a malformed command line."""
     cmds = ("reverify", "fill", "compare", "trace", "judge", "line")
     if len(argv) < 2 or argv[0] not in cmds:
         print(__doc__.strip())
         return 2
     cmd, topic, rest = argv[0], argv[1], argv[2:]
     if cmd in ("reverify", "trace"):
-        opts = dict(zip(rest[::2], rest[1::2]))
+        opts = dict(zip(rest[::2], rest[1::2], strict=False))
         allowed = {"--seed"} | ({"--n"} if cmd == "trace" else set())
         if len(rest) % 2 or set(opts) - allowed:
             usage(f"unknown option(s) {rest}")
