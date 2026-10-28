@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Read and check a topic's input file, inputs/<topic>.md.
 
 Usage: uv run python -m deeper_research.inputs <topic>

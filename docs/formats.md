@@ -72,16 +72,16 @@ are never targets themselves. The default targets:
 - `Landscape` — the general clusters, the axes that actually separate them, and where the bridges and tensions are.
 
 - `Assumptions` — the assumptions the body of work rests on, e.g. such that breaking one would have high research value.
-  Dissent papers are the first evidence for which assumptions are fragile.
+    Dissent papers are the first evidence for which assumptions are fragile.
 
 - `Gaps` — open problems. Gaps are not absence claims (a coreset cannot establish that nobody has done something), so a
-  gap is admissible in one of three forms by default. An input may ask for other forms. If it is unclear which are
-  wanted, the main session asks the user when planning the pass.
+    gap is admissible in one of three forms by default. An input may ask for other forms. If it is unclear which are
+    wanted, the main session asks the user when planning the pass.
 
-  - **Stated open problems** — what the coreset papers themselves say is unresolved, cited to the paper saying it.
-  - **Tensions** — two clusters, or a cluster and its dissent, whose assumptions or results are incompatible.
-  - **Unrepresented connections** — two clusters that bear on each other with no bridge paper in the coreset. Phrase
-    this as "not represented in the coreset", never as "has not been studied", and suggest it as a probe.
+    - **Stated open problems** — what the coreset papers themselves say is unresolved, cited to the paper saying it.
+    - **Tensions** — two clusters, or a cluster and its dissent, whose assumptions or results are incompatible.
+    - **Unrepresented connections** — two clusters that bear on each other with no bridge paper in the coreset. Phrase
+        this as "not represented in the coreset", never as "has not been studied", and suggest it as a probe.
 
 ### `Dimensions`
 
@@ -113,16 +113,16 @@ Optional. Steering for the clustering (step 3) and for screening (step 2), so th
 One top-level bullet per field, in the form `` - `field`: value ``. Any of:
 
 - `granularity` — `coarser` or `finer` than the stability rule chooses, or a number of clusters above 0: a level's
-  target in the grid, or the number it reached. `deeper_research/inputs.py` checks only that it is a number;
-  `deeper_research/cluster.py` stops with the levels it can offer if it is not one of them. It applies the steering by
-  moving along the computed levels, before naming; a level below `τ` is flagged in the report.
+    target in the grid, or the number it reached. `deeper_research/inputs.py` checks only that it is a number;
+    `deeper_research/cluster.py` stops with the levels it can offer if it is not one of them. It applies the steering by
+    moving along the computed levels, before naming; a level below `τ` is flagged in the report.
 - `expect` — themes the user expects to see as clusters. A missing one triggers a targeted expansion of that region, and
-  halts the pass (`H7`) if it is still missing.
+    halts the pass (`H7`) if it is still missing.
 - `exclude` — themes to treat as out of scope. Applied at screening, in step 2.
 - `alignment` — themes to rate, overriding the agent's reading of the `Topic`, separated by `;`, each ending in `high`,
-  `medium` or `low`, for example `` - `alignment`: process reward models — `high`; agents — `low`  ``.
+    `medium` or `low`, for example `` - `alignment`: process reward models — `high`; agents — `low`  ``.
 - `review` — `before coreset` to halt for review at step 3 (`H13`). By default the clusters are reviewed with the
-  output.
+    output.
 
 See `docs/process.md`, step 3 and "Changing the clusters after a pass".
 
@@ -131,13 +131,13 @@ See `docs/process.md`, step 3 and "Changing the clusters after a pass".
 `deeper_research/inputs.py` fails, so that a typo cannot silently drop a request, on:
 
 - a section that is not one of the five above, a section given twice, or a known section at another heading level than
-  `##` (`# Topic`, `### Topic`);
+    `##` (`# Topic`, `### Topic`);
 - a missing or empty `Topic`;
 - a `Dimensions` bullet not in the form above, or with no values;
 - a `Coreset Spec` bullet that is neither a target nor a `drop`, a `drop` of a name that is not a default target, an
-  added target named `Questions` or `Reading`, or no target left after the drops;
+    added target named `Questions` or `Reading`, or no target left after the drops;
 - a `Clustering` field that is unknown, a `granularity` that is not `coarser`, `finer` or a number above 0, a `review`
-  other than `before coreset`, or an `alignment` entry that does not end in `high`, `medium` or `low`.
+    other than `before coreset`, or an `alignment` entry that does not end in `high`, `medium` or `low`.
 
 A bullet is any list item: `-`, `*`, `+` or numbered (`1.`, `1)`). A bullet may wrap onto the following lines, indented
 or not. A list of values may end in "or" or "and", with or without a comma before it. mdformat rewrites `*` and `+` as
@@ -162,10 +162,10 @@ context.
 Every paper has one canonical ID, used in every table, sidecar, bib entry and output, and by every tool:
 
 - `arXiv ID` — where the paper has one: `2504.13837`; the 2007–2014 form `1412.6980`; or the pre-2007 form
-  `hep-th/9901001`, written without a subject class (`math/0309136`, not `math.GT/0309136`, which Semantic Scholar does
-  not resolve).
+    `hep-th/9901001`, written without a subject class (`math/0309136`, not `math.GT/0309136`, which Semantic Scholar
+    does not resolve).
 - `Corpus ID` — otherwise, Semantic Scholar's numeric ID, written `CorpusId:6628106`. Asta and the Graph API both accept
-  it. Not the DOI: many papers lack one, and its characters are awkward in tables.
+    it. Not the DOI: many papers lack one, and its characters are awkward in tables.
 
 A survey row links its paper to `https://arxiv.org/abs/<id>`, or to `https://api.semanticscholar.org/CorpusId:<n>`,
 which redirects to the paper's page. The tools read the ID from that link, so no other link form is allowed.
@@ -248,42 +248,43 @@ or a tool's result, never from counting by hand.
 What some lines need, beyond their form:
 
 - `Orientation` — the themes are the phrases the field uses for its sub-topics, and every other name the input gives the
-  topic: step 2 searches each one as an exact phrase, so each is written as papers write it. The seeds are the papers
-  the input names. A frontier candidate is listed only once it is in the pool; one that cannot enter goes to Open work's
-  `Papers that could not enter the pool` instead.
+    topic: step 2 searches each one as an exact phrase, so each is written as papers write it. The seeds are the papers
+    the input names. A frontier candidate is listed only once it is in the pool; one that cannot enter goes to Open
+    work's `Papers that could not enter the pool` instead.
 - `Expansion` — printed by `deeper_research/assign.py add-expand` from `expand.json` and the screening sheet, and pasted
-  as printed, replacing any earlier `Expansion` line of the pass: `deeper_research/check.py` recomputes it. Each part is
-  one collection. A traversal names the paper it started from and, in brackets, how many papers it returned, with
-  `not found` for a paper Semantic Scholar does not know, and `capped` for a reference or citer list longer than the
-  endpoint pages to; each query is the theme, quoted, with how many papers it kept and how many matched. Then: how many
-  unique papers the collection returned, how many it left out and why, how many list entries had no paper ID, and how
-  many of its candidates were screened, and with what verdict. A targeted expansion adds a part that opens `targeted,`,
-  naming the region by its first paper, or by its theme when the region had no papers, and why it was expanded.
+    as printed, replacing any earlier `Expansion` line of the pass: `deeper_research/check.py` recomputes it. Each part
+    is one collection. A traversal names the paper it started from and, in brackets, how many papers it returned, with
+    `not found` for a paper Semantic Scholar does not know, and `capped` for a reference or citer list longer than the
+    endpoint pages to; each query is the theme, quoted, with how many papers it kept and how many matched. Then: how
+    many unique papers the collection returned, how many it left out and why, how many list entries had no paper ID, and
+    how many of its candidates were screened, and with what verdict. A targeted expansion adds a part that opens
+    `targeted,`, naming the region by its first paper, or by its theme when the region had no papers, and why it was
+    expanded.
 - `Late papers` — `deeper_research/assign.py late` prints the first form. After a recluster nothing prints it: the main
-  session writes the second form, from `deeper_research/cluster.py`'s `changes:` line.
+    session writes the second form, from `deeper_research/cluster.py`'s `changes:` line.
 - `Fringe` — `left out` counts the in-scope candidates that have neither an arXiv ID nor a `CorpusId`, so could not be
-  added; they belong in Open work.
+    added; they belong in Open work.
 - `Errored queries` — `none` until a query errors; the first entry replaces the `none`.
 - `Dissent searches` — one entry per searched cluster, separated by `;` or `|`, so neither may appear inside "what was
-  searched", and the arrow is `->`, not `→`; an entry the check cannot read counts as missing. Every ID after `found:`
-  must be a `dissent` row of that cluster, or be named in `Demotions`. A `dissent` row a coverage round added has no
-  entry here; its trace is the `Coverage test` line.
+    searched", and the arrow is `->`, not `→`; an entry the check cannot read counts as missing. Every ID after `found:`
+    must be a `dissent` row of that cluster, or be named in `Demotions`. A `dissent` row a coverage round added has no
+    entry here; its trace is the `Coverage test` line.
 - `Coverage test` — one line per round, printed from the round's sheet and pasted as printed: `deeper_research/check.py`
-  compares it with the sheet, up to `new clusters:`. "What it changed" names the target and the claim, such as "Gaps:
-  <the new gap>" or "Assumptions: <which one>, revised". Only the IDs that open an entry are counted, and there must be
-  K of them: the sheet's `changes` rows. A proposed cluster that the recluster did not form is recorded as
-  `none (proposed <which>, not formed)`.
+    compares it with the sheet, up to `new clusters:`. "What it changed" names the target and the claim, such as "Gaps:
+    <the new gap>" or "Assumptions: <which one>, revised". Only the IDs that open an entry are counted, and there must
+    be K of them: the sheet's `changes` rows. A proposed cluster that the recluster did not form is recorded as
+    `none (proposed <which>, not formed)`.
 - `Judgement audit` — printed from the three audit sheets (`docs/process.md`, "Auditing the judgements"), and pasted as
-  printed: `deeper_research/check.py` recomputes it.
+    printed: `deeper_research/check.py` recomputes it.
 - `Tokens` — one entry per dispatch, appended when it returns, from the token count the harness returns with the agent's
-  result (in Claude Code, the Agent tool's `subagent_tokens`), since an agent cannot see its own: the brief's name, and
-  its scope if it ran on part of the work, such as `Selection c1+c2`, without commas or colons, then the tokens, without
-  thousands separators, for example `Preflight: 4k, Orient: 81k, Selection c1+c2: 64200`.
+    result (in Claude Code, the Agent tool's `subagent_tokens`), since an agent cannot see its own: the brief's name,
+    and its scope if it ran on part of the work, such as `Selection c1+c2`, without commas or colons, then the tokens,
+    without thousands separators, for example `Preflight: 4k, Orient: 81k, Selection c1+c2: 64200`.
 - `Halts` and `Waivers` are written as `none` when the entry is created, so that a pass that met neither says so. A
-  halt's `<what happened>` is one sentence: the failure as printed, and the rows it left undone.
+    halt's `<what happened>` is one sentence: the failure as printed, and the rows it left undone.
 - `Ended` — `finished (F1)` or `halted (<id>)`, then the measured numbers: the last round's K of N and its bound, the
-  radius (max and p90) that round's sheet records, the number of rounds, and the coreset's rows, for example
-  `finished (F1); round 2: 0 of 12, bound 26%; radius 0.45, p90 0.22; 2 rounds; 54 rows`.
+    radius (max and p90) that round's sheet records, the number of rounds, and the coreset's rows, for example
+    `finished (F1); round 2: 0 of 12, bound 26%; radius 0.45, p90 0.22; 2 rounds; 54 rows`.
 
 ### 2. Clusters
 
@@ -369,14 +370,14 @@ it is done: a verified row leaves `Rows needing verification`, for example.
 What goes under each heading:
 
 - `Clusters not yet reviewed by the user` — written by the main session after naming, and emptied when the user reviews
-  the clusters.
+    the clusters.
 - `Empty roles` — a role a cluster's alignment requires that selection could not fill, with what was searched.
 - `Rows needing verification` — every coreset row still `abstract`-sourced, with why: not yet verified, or no full text
-  could be fetched. Selection lists its new rows here; verification removes the ones it verifies.
+    could be fetched. Selection lists its new rows here; verification removes the ones it verifies.
 - `Coverage-test candidates not yet assessed` — sampled candidates a coverage round did not reach.
 - `Probes requested` — a probe the user asked for, with its status.
 - `Papers that could not enter the pool` — a paper judged in scope that Semantic Scholar does not know, that has no
-  SPECTER2 embedding, or that has no ID at all.
+    SPECTER2 embedding, or that has no ID at all.
 
 ### Analytic dimensions
 
@@ -384,12 +385,12 @@ The standard columns capture what a paper *is*. Understanding a body of work usu
 *separate* papers, and those are topic-specific. Some examples include:
 
 - For safety and security work: the threat model (what the attacker controls, what they know, whether the demonstration
-  is on a deployed system or a simulation); and whether a capability was elicited by the authors — deliberately trained
-  or prompted in — or arose spontaneously from ordinary training. These are routinely blurred in the literature, and
-  they change what a result means entirely.
+    is on a deployed system or a simulation); and whether a capability was elicited by the authors — deliberately
+    trained or prompted in — or arose spontaneously from ordinary training. These are routinely blurred in the
+    literature, and they change what a result means entirely.
 - For theory work: whether a claim is proven or an empirical fit, and the assumptions a proof depends on.
 - For any claim about a monitor or detector: whether the result holds under optimisation pressure aimed at it, under
-  pressure not aimed at it, or only without training pressure at all.
+    pressure not aimed at it, or only without training pressure at all.
 
 Declared dimensions become columns and must be filled for every coreset row, to make them comparable across the coreset.
 An attribute noted only in prose, or only in a subagent's report, is an anecdote.
@@ -418,7 +419,7 @@ assumptions the work in the coreset makes, ranks them by likelihood and feasibil
 informative dissent papers coreset-wide. After the targets, always include these two sections:
 
 - `Questions` — candidate research questions, with the coreset papers each builds on. The `fringe` rows are the first
-  place to look for them.
+    place to look for them.
 
 - `Reading` — a prioritised reading list for anyone jumping into this topic, with a one-line rationale per entry.
 
@@ -474,10 +475,10 @@ about 400k tokens. What an agent needs from them reaches it in three ways:
 
 - a script's printout, which the main session hands over with the job (`docs/dispatch.md`, "Briefs");
 - a sheet: `naming-sheet.md`, `fringe-sheet.md`, `coverage-<R>.md` and the audit sheets, which are written to be read
-  whole; and the screening sheets, `expand-screen.md` and `fringe-screen.md`, which a screening agent reads only in its
-  own range of rows;
+    whole; and the screening sheets, `expand-screen.md` and `fringe-screen.md`, which a screening agent reads only in
+    its own range of rows;
 - `jq`, for one field, never a whole record, which carries the embedding, for example
-  `jq '.papers["2504.13837"] | {date, citations, reference_count}' graphs/<topic>/pool.json`.
+    `jq '.papers["2504.13837"] | {date, citations, reference_count}' graphs/<topic>/pool.json`.
 
 A full text is read through `deeper_research/fulltext.py show` and Grep, at the sections a claim turns on, never whole
 (`docs/verification.md`).

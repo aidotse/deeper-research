@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Consistency check for one topic's pipeline artifacts, and the gates of a pass.
 
 Usage: uv run python -m deeper_research.check <topic> [--gate G<n>] [--status]

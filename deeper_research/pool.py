@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Fetch the metadata a topic's clustering needs, straight from the Semantic Scholar API.
 
 Usage: uv run python -m deeper_research.pool <topic> [--refresh]

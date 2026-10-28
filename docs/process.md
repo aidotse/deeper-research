@@ -10,10 +10,10 @@ Retrieval has four jobs, and the tools are good at different ones. Assign tools 
 
 - `Orientation: what is the field talking about now?` — WebSearch. Step 1.
 - `Expansion: how did we get here, and who disagrees (dissent)?` — the Semantic Scholar Graph API, by script
-  (`deeper_research/expand.py`), in step 2; Asta, for the dissent search in step 4.
+    (`deeper_research/expand.py`), in step 2; Asta, for the dissent search in step 4.
 - `Fringe: what has the field overlooked?` — the fringe scripts. The end of step 2.
 - `Characterisation: what does a paper do, and what did it find?` — the paper's full text, fetched by script and read by
-  section, with Asta's snippet search to find passages in it. Step 5.
+    section, with Asta's snippet search to find passages in it. Step 5.
 
 Orientation and expansion need each other. A pass that uses only WebSearch produces a corpus top-heavy with preprints
 and missing the methods they all cite. A pass that uses only keyword search and citations misses what the community has
@@ -25,13 +25,13 @@ Concretely, a pass runs in eight steps, numbered 0 to 7: a preflight check, five
 coreset, then the output and the coverage test. The pool and the coreset are built in separate stages:
 
 - `Pool` (steps 1–3) — broad and cheap. Everything in scope enters, with metadata only and no verification (see
-  `docs/verification.md` for what verification means), and is clustered. Fringe candidates enter here too, so that
-  clustering sees them.
+    `docs/verification.md` for what verification means), and is clustered. Fringe candidates enter here too, so that
+    clustering sees them.
 - `Coreset` (steps 4–5) — small and expensive. A few papers per cluster are selected from the pool, in roles, and each
-  is verified against body text. This is where the coreset idea applies (`docs/coresets.md`), and where most of the cost
-  goes.
+    is verified against body text. This is where the coreset idea applies (`docs/coresets.md`), and where most of the
+    cost goes.
 - `Output and coverage test` (steps 6–7) — the analysis is written from the coreset alone, then tested for sufficiency
-  against pool papers that were not selected.
+    against pool papers that were not selected.
 
 ### Order of operations
 
@@ -116,16 +116,16 @@ step needs the user's permission. This list is the only definition of both. The 
 How a halt works:
 
 1. The agent that meets the condition stops its job and records what is outstanding in Open work (`docs/formats.md`). An
-   agent running in parallel with others returns those items under `Open work:` instead, since it never writes the
-   shared sections.
+    agent running in parallel with others returns those items under `Open work:` instead, since it never writes the
+    shared sections.
 2. A subagent cannot reach the user. It returns a report whose first line is `STOP: <id> — <the reason>`, with the
-   measured numbers.
+    measured numbers.
 3. The main session records the halt in the log's `Halts` line with the decision `pending`, tells the user, and waits.
-   The user decides whether and how the pass continues, and the decision replaces `pending`. Until then no gate after
-   the last one passed can pass (`docs/gates.md`).
+    The user decides whether and how the pass continues, and the decision replaces `pending`. Until then no gate after
+    the last one passed can pass (`docs/gates.md`).
 4. If the pass continues past something missing, such as a failed service, the output's legend says what was missing.
 5. If the user decides to end the pass there, the main session completes `Tokens` and writes `Ended: halted (<id>)`.
-   Such a pass needs only the gates it had passed, and its closing lines (`docs/gates.md`, "Halts and waivers").
+    Such a pass needs only the gates it had passed, and its closing lines (`docs/gates.md`, "Halts and waivers").
 
 A halt is not always a fault. `no structure`, for example, is a finding about the field.
 
@@ -137,11 +137,11 @@ A halt is not always a fault. `no structure`, for example, is a finding about th
 
 - `H1` — a preflight check fails (step 0). A Graph API 429 counts as reachable: it means busy, and the scripts retry.
 - `H2` — an Asta or WebSearch call still errors after the retry at the end of its step (`docs/external_services.md`,
-  "Rate limits and errors").
+    "Rate limits and errors").
 - `H3` — a script fails after its own retries: a service error, or a crash with a Python traceback. Not `H3`: a script's
-  printed `STOP: <id>`, which is that halt; a refusal that names the command to run first, such as
-  `deeper_research/assign.py clusters` before `remap`; and `deeper_research/assign.py late` printing `RECLUSTER:` (exit
-  3). Failures of `deeper_research/check.py` are `H9`.
+    printed `STOP: <id>`, which is that halt; a refusal that names the command to run first, such as
+    `deeper_research/assign.py clusters` before `remap`; and `deeper_research/assign.py late` printing `RECLUSTER:`
+    (exit 3). Failures of `deeper_research/check.py` are `H9`.
 
 **Halt: clustering, at step 3.** The main session shows the user the Clusters table and the viewer, and the pass resumes
 from their decision (see "Cluster review").
@@ -150,9 +150,9 @@ from their decision (see "Cluster review").
 - `H5` — `no stable level`, still, after a targeted expansion and a rerun.
 - `H6` — a cluster cannot be rated for alignment from the input.
 - `H7` — a cluster the input expects (`expect`, in its `Clustering` section) is still missing after a targeted
-  expansion.
+    expansion.
 - `H8` — the pool has fewer than 12 papers with an embedding, so no level of the grid can be computed (see "Clustering
-  method"); `deeper_research/cluster.py` prints `STOP: H8`, at step 3.
+    method"); `deeper_research/cluster.py` prints `STOP: H8`, at step 3.
 
 **Halt: integrity and verification.**
 
@@ -174,8 +174,8 @@ from their decision (see "Cluster review").
 **Halt: nothing to expand from, at step 2.**
 
 - `H14` — the `Orientation` line names neither seeds nor frontier candidates, so expansion has no paper to traverse
-  from; `deeper_research/expand.py collect` prints `STOP: H14`. The user decides: name seeds in the input, or point
-  orientation at sources that name the field's current work, and rerun step 1.
+    from; `deeper_research/expand.py collect` prints `STOP: H14`. The user decides: name seeds in the input, or point
+    orientation at sources that name the field's current work, and rerun step 1.
 
 **Not end conditions.** These are handled inside the pass. Do not halt on them:
 
@@ -241,16 +241,16 @@ agent's context holds, and an agent that tracks them by hand leaves no record th
 record, and the screening is split into blocks that agents judge in parallel.
 
 - Backward traversal, the references of the seeds and the frontier candidates, finds what the field is built on, which
-  is where anchors come from.
+    is where anchors come from.
 - Forward traversal, the citers of the same papers, finds follow-ups, and among them the dissent. Step 4 repeats it from
-  each cluster's anchor, through Asta. There it is targeted — searching a key paper's citers for challenges and
-  extensions — not a crawl.
+    each cluster's anchor, through Asta. There it is targeted — searching a key paper's citers for challenges and
+    extensions — not a crawl.
 - A search per theme reaches work that does not cite the starting papers. It looks for the theme as an exact phrase in a
-  paper's title or abstract, and keeps the 50 most-cited matches. The themes are the queries: step 1's agent chooses
-  them, and the script runs them, so a theme that is a description rather than a phrase papers use matches little or
-  nothing. The `Expansion` line gives each theme's matches. Why exact phrases: the Graph API's relevance search refused
-  every unauthenticated call for hours on 2026-10-13, and its bulk search, which answered, does not rank by relevance; a
-  phrase keeps the 50 it returns on topic.
+    paper's title or abstract, and keeps the 50 most-cited matches. The themes are the queries: step 1's agent chooses
+    them, and the script runs them, so a theme that is a description rather than a phrase papers use matches little or
+    nothing. The `Expansion` line gives each theme's matches. Why exact phrases: the Graph API's relevance search
+    refused every unauthenticated call for hours on 2026-10-13, and its bulk search, which answered, does not rank by
+    relevance; a phrase keeps the 50 it returns on topic.
 
 Traversal goes one step: the references of a seed or frontier candidate, not the references of those references. Step 2
 does no work beyond this. The gaps it leaves are what the targeted expansions of step 3 and the coverage test of step 7
@@ -292,12 +292,12 @@ Every candidate, from orientation, expansion, the fringe routes or a coverage te
 `Topic`, and against `exclude` in its `Clustering` section, from its title and abstract:
 
 - `In` — the paper's main contribution bears on the `Topic`: a method, a result, an analysis, a critique or a position
-  about the topic's subject. Also in: a paper the input names.
+    about the topic's subject. Also in: a paper the input names.
 - `Out` — the paper matches an `exclude` theme; or it touches the `Topic` only in passing, for example using a model the
-  topic studies as a tool for something else, or citing the topic as motivation. A benchmark, dataset or model report is
-  in only if its main finding is about the `Topic`.
+    topic studies as a tool for something else, or citing the topic as motivation. A benchmark, dataset or model report
+    is in only if its main finding is about the `Topic`.
 - `Borderline is in` — when the abstract leaves it unclear, the paper is in. A wrong inclusion is visible and cheap: it
-  sits in the pool, and the clustering places it at an edge. A wrong rejection leaves no trace in the pool at all.
+    sits in the pool, and the clustering places it at an edge. A wrong rejection leaves no trace in the pool at all.
 
 A candidate with no abstract in Semantic Scholar shows `(no abstract)` on a screening sheet. About one in ten traversal
 candidates has none. Judge it from its title, and the rule "borderline is in" applies: a title that leaves the paper's
@@ -326,11 +326,11 @@ and without the year, which would give the route away, since `new` finds only re
 Scholar record of the same paper, such as its venue version.
 
 - `hidden` — papers cited by at least two pool papers, at least a year old, and the least cited overall for their age.
-  The field's own work draws on them; the wider literature has not noticed them. This is where cross-field work turns
-  up, such as older theory or psychology that current papers build on.
+    The field's own work draws on them; the wider literature has not noticed them. This is where cross-field work turns
+    up, such as older theory or psychology that current papers build on.
 - `new` — Semantic Scholar recommendations seeded with the frontier candidates of the `Orientation` line and the pool
-  papers most cited within the pool. The endpoint returns only the last two months of work, so this route catches what
-  is too new to be cited.
+    papers most cited within the pool. The endpoint returns only the last two months of work, so this route catches what
+    is too new to be cited.
 
 The routes call the Semantic Scholar Graph API directly rather than going through Asta. It is the same literature either
 way; the difference is that the routes need an endpoint Asta lacks and a volume no model should read. See
@@ -388,7 +388,7 @@ alike. The measure is `combined`, built from two kinds of evidence in the pool's
 
 - `text` — how alike the two papers' titles and abstracts are: the cosine similarity of their SPECTER2 embeddings.
 - `refs` — how much of the literature the two papers build on together: the overlap of their full reference lists
-  (bibliographic coupling).
+    (bibliographic coupling).
 
 Each is converted to per-paper neighbour ranks so that their scales match, and the two are mixed per pair with weight
 `w = n / (n + c)` on `refs`, where `n` is the shorter of the two reference lists and `c` is 10 (`--c`). A pair with
@@ -404,14 +404,14 @@ turns each paper without resolved references into a cluster of its own. So the c
 Clustering turns a similarity measure into groups, in three steps:
 
 1. `Neighbour graph` — link each paper to the 10 papers the measure rates most similar to it (`k`, set with `--k`). A
-   link carries that similarity as its weight. Only these nearest links are kept; the rest are dropped. Without that,
-   every paper would be weakly linked to every other, and the groups would blur.
+    link carries that similarity as its weight. Only these nearest links are kept; the rest are dropped. Without that,
+    every paper would be weakly linked to every other, and the groups would blur.
 2. `Groups` — the Leiden algorithm splits the graph into groups whose papers are more strongly linked to each other than
-   chance would predict, given how strongly each paper is linked overall. An analogy: finding the friend groups in a
-   school from who sits with whom, discounting the people who sit with everyone.
+    chance would predict, given how strongly each paper is linked overall. An analogy: finding the friend groups in a
+    school from who sits with whom, discounting the people who sit with everyone.
 3. `Resolution` — Leiden has one setting, the resolution, that trades few large groups against many small ones. For each
-   level, the resolution is searched until the clustering has the target number of clusters, counting only clusters of
-   two or more papers. If the exact target cannot be reached, the closest is used.
+    level, the resolution is searched until the clustering has the target number of clusters, counting only clusters of
+    two or more papers. If the exact target cannot be reached, the closest is used.
 
 The result depends on a random seed, so a clustering is reproducible only with its seed recorded. `clusters.json`
 records every seed the method uses in `params`, with the defaults and the package versions, which the script pins. The
@@ -428,20 +428,20 @@ disturbing the data, each compared against the same reference:
 
 1. `Reference` — cluster the full pool once. The resolution found for the level is then held fixed for every rerun.
 2. `Disturb and recluster` — each test reclusters a changed version of the data:
-   - `time holdout` — keep only the papers older than a cutoff, and recompute the similarity measure on them alone,
-     neighbour ranks included, as the pool would have been then. Three cutoffs, three, six and nine months back, each
-     run with three random seeds: nine reruns. A cutoff that would keep less than 30% of the pool is skipped. If every
-     cutoff is skipped, stability rests on resampling alone, and the report says so. It asks whether these clusters
-     would have been found months ago, which is the six-month criterion run backwards.
-   - `resampling` — drop a random 20% of the papers. Twenty reruns by default (`--reps`). It asks whether the clusters
-     depend on which particular papers retrieval happened to find.
-   - `seeds` — cluster the full pool again, with five different random seeds. It asks whether the algorithm's own
-     randomness matters.
+    - `time holdout` — keep only the papers older than a cutoff, and recompute the similarity measure on them alone,
+        neighbour ranks included, as the pool would have been then. Three cutoffs, three, six and nine months back, each
+        run with three random seeds: nine reruns. A cutoff that would keep less than 30% of the pool is skipped. If every
+        cutoff is skipped, stability rests on resampling alone, and the report says so. It asks whether these clusters
+        would have been found months ago, which is the six-month criterion run backwards.
+    - `resampling` — drop a random 20% of the papers. Twenty reruns by default (`--reps`). It asks whether the clusters
+        depend on which particular papers retrieval happened to find.
+    - `seeds` — cluster the full pool again, with five different random seeds. It asks whether the algorithm's own
+        randomness matters.
 3. `Compare` — score each rerun against the reference, over the papers both contain, with the adjusted Rand index (ARI).
-   ARI asks of every pair of papers whether both clusterings put them together; 1 is identical, 0 is chance.
+    ARI asks of every pair of papers whether both clusterings put them together; 1 is identical, 0 is chance.
 4. `Combine` — the stability at a level is the mean of two numbers: the mean holdout ARI and the mean resampling ARI,
-   with a standard error from the spread across reruns. Seed agreement is reported alongside but does not enter the
-   score.
+    with a standard error from the spread across reruns. Seed agreement is reported alongside but does not enter the
+    score.
 
 Each cluster also gets a clusterwise score, from the resampling reruns: its best overlap (Jaccard) with any cluster in
 each rerun, averaged. A sub-cluster, the part of a finer-level cluster that falls inside this cluster, is scored on its
@@ -472,14 +472,14 @@ has one job: it is the guard against `no structure` ("When stability fails"). It
 `deeper_research/cluster.py` also scores every pool paper for how poorly the rest of the pool covers it. For each paper:
 
 1. Average its similarity to its `k` nearest neighbours in the pool, once by text and once by references, and turn each
-   into a distance: one minus the average.
+    into a distance: one minus the average.
 2. Put the two distances on a common scale: each becomes a normal score, from its percentile in the pool. For
-   references, the percentile is taken among the papers that have any.
+    references, the percentile is taken among the papers that have any.
 3. Mix the two per paper, with weight `w = n / (n + c)` on references, where `n` is the paper's own number of resolved
-   references, as in `combined`. Then rescale the mix so that every paper's score has the same spread, whatever its
-   weight.
+    references, as in `combined`. Then rescale the mix so that every paper's score has the same spread, whatever its
+    weight.
 4. Rank the mixed score once, within the paper's age cohort: the 30 pool papers nearest to it by publication date. The
-   score is the share of its cohort it exceeds, from 0 to 1. A pool of 30 papers or fewer is ranked as a whole.
+    score is the share of its cohort it exceeds, from 0 to 1. A pool of 30 papers or fewer is ranked as a whole.
 
 A score of 0.95 means the paper is further from its nearest neighbours than 95% of its cohort. With a cohort of 30,
 scores come in steps of about 1/30, so several papers often share the top score; the fringe sheet breaks those ties by
@@ -488,16 +488,16 @@ the mixed score, so its order is meaningful even where the scores are equal.
 Each step has a reason:
 
 - `The age cohort` — older papers sit further from current work simply because the field moved on. Without the cohort,
-  the highest scores would go mostly to old papers. Nearest by date, rather than by calendar year, because a young field
-  has most of its papers in its last two years, and a year-wide cohort would then hold most of the pool.
+    the highest scores would go mostly to old papers. Nearest by date, rather than by calendar year, because a young
+    field has most of its papers in its last two years, and a year-wide cohort would then hold most of the pool.
 - `Per paper` — clusters can gather papers of the same period: overlooked older papers may settle into the cluster of
-  the field's foundations, so a cluster-level signal can reflect age more than novelty. A fringe paper shows up as
-  distance to its nearest neighbours, not as membership of an unusual cluster.
+    the field's foundations, so a cluster-level signal can reflect age more than novelty. A fringe paper shows up as
+    distance to its nearest neighbours, not as membership of an unusual cluster.
 - `The weight on references` — a paper with no resolved references shares none with anything, so by references alone it
-  would look maximally far from everything, for lack of data rather than for being overlooked. With the weight, such a
-  paper is scored by its text alone.
+    would look maximally far from everything, for lack of data rather than for being overlooked. With the weight, such a
+    paper is scored by its text alone.
 - `The rescaling` — a weighted mix of two partly independent scores is less extreme than either one. Without the
-  rescaling, the papers scored by text alone, those without references, would crowd both ends of the ranking.
+    rescaling, the papers scored by text alone, those without references, would crowd both ends of the ranking.
 
 ##### Recording it
 
@@ -525,13 +525,14 @@ a user override that is logged. Otherwise the clustering quietly becomes judgeme
 **The whole clustering.** No level is stable enough, or only a trivial one is. The null model says why:
 
 - `no structure` — real stability exceeds random data's by less than 0.15 at every level. The pool may be one line of
-  work, or too small to split. Halt for review (`H4`) at the level `deeper_research/cluster.py` chose. Whether to go on
-  with it, to pick a coarser one with the slider (`--level`, logged as an override), or to treat the pool as one line of
-  work, is the user's call. Either way, that is a finding about the field.
+    work, or too small to split. Halt for review (`H4`) at the level `deeper_research/cluster.py` chose. Whether to go
+    on with it, to pick a coarser one with the slider (`--level`, logged as an override), or to treat the pool as one
+    line of work, is the user's call. Either way, that is a finding about the field.
 - `no stable level` — structure is above random, but no level reaches `τ`. The usual cause is a thin pool: too few
-  papers per region, or many papers with few resolved references (the tool reports the share with fewer than 10). Expand
-  the 2 thinnest regions, the two smallest clusters at the level `deeper_research/cluster.py` chose, and rerun. If it is
-  still unstable, take the coarsest level and halt for review (`H5`), so that the user chooses with the slider.
+    papers per region, or many papers with few resolved references (the tool reports the share with fewer than 10).
+    Expand the 2 thinnest regions, the two smallest clusters at the level `deeper_research/cluster.py` chose, and rerun.
+    If it is still unstable, take the coarsest level and halt for review (`H5`), so that the user chooses with the
+    slider.
 
 **A broad scope is not a failure.** Sometimes only the coarsest level reaches `τ`, and very stably (0.9 or more). The
 pool then divides into a few clearly separate areas, while finer divisions are unstable. The clusters are real and
@@ -543,15 +544,15 @@ for the input is a question about the coreset, not about the clusters, and the c
 information, and the action depends on the pattern:
 
 - `thin cluster` — fewer than 10 papers. It dissolves into its neighbours, which the tool names. Expand that region in a
-  targeted way and rerun. A thin cluster can be a sampling problem rather than a false one, and a handful of added
-  papers may be enough to make it coherent. If it is still thin after one targeted expansion, keep it, and say so in the
-  `Clustering rationale`; it does not halt the pass. The fringe routes are not rerun. A cluster of fewer than three
-  papers has no clusterwise score, so the tool diagnoses it as thin on its size alone.
+    targeted way and rerun. A thin cluster can be a sampling problem rather than a false one, and a handful of added
+    papers may be enough to make it coherent. If it is still thin after one targeted expansion, keep it, and say so in
+    the `Clustering rationale`; it does not halt the pass. The fringe routes are not rerun. A cluster of fewer than
+    three papers has no clusterwise score, so the tool diagnoses it as thin on its size alone.
 - `clusters trade papers` — two unstable clusters whose papers are grouped together in at least 20% of rerun pairs.
-  Their boundary is open in the field itself. Keep both. At selection, give the pair a `bridge` paper, and note the
-  tension for the Landscape.
+    Their boundary is open in the field itself. Keep both. At selection, give the pair a `bridge` paper, and note the
+    tension for the Landscape.
 - An unstable cluster that is neither of the above is printed as a note, and shown in the viewer. It does not halt the
-  pass.
+    pass.
 
 #### Cluster review
 
@@ -594,14 +595,14 @@ Recluster instead, with `deeper_research/cluster.py`, in two cases. Both return 
 3" below).
 
 - `Many late papers` — late papers since the last full clustering would exceed 10% of the pool.
-  `deeper_research/assign.py late` refuses and says so. On `reasoning-legacy`, reclustering after dropping a random 20%
-  of the papers agrees with the full clustering at ARI 0.76 at the chosen level, so a few late papers rarely move the
-  clusters. A large addition can: adding the fringe candidates there, 118 at the time (16 of them from a route since
-  dropped), moved the clustering to ARI 0.70.
+    `deeper_research/assign.py late` refuses and says so. On `reasoning-legacy`, reclustering after dropping a random
+    20% of the papers agrees with the full clustering at ARI 0.76 at the chosen level, so a few late papers rarely move
+    the clusters. A large addition can: adding the fringe candidates there, 118 at the time (16 of them from a route
+    since dropped), moved the clustering to ARI 0.70.
 - `A new cluster` — the coverage test judged that a candidate belongs to a cluster not in the Clusters table. That
-  judgement never creates a cluster. It triggers a targeted expansion of the region (the `More data` lever), and the
-  candidate and the expansion's papers are reclustered with the rest, even below 10%. If the region is real, it forms a
-  cluster. If not, the computation places the papers in existing clusters, and the data has overruled the judgement.
+    judgement never creates a cluster. It triggers a targeted expansion of the region (the `More data` lever), and the
+    candidate and the expansion's papers are reclustered with the rest, even below 10%. If the region is real, it forms
+    a cluster. If not, the computation places the papers in existing clusters, and the data has overruled the judgement.
 
 After a recluster, carry the names over: `deeper_research/cluster.py` matches the new clustering to the one the Clusters
 table names, by shared papers, and `deeper_research/assign.py remap <topic>` moves each name to the cluster it matched.
@@ -620,15 +621,15 @@ A recluster after step 3 does not get rows of its own: the pass goes back to ste
 from there for what changed. That reuses rows already written and checked, rather than a second set for the same work.
 
 1. For a proposed cluster, start at step 3's "Targeted expansion" row, with the coverage report's theme and candidates
-   as the region. On `RECLUSTER:`, start at "Fetch and recluster".
+    as the region. On `RECLUSTER:`, start at "Fetch and recluster".
 2. Run the step 3 rows from there on: recluster and `remap`, write the sheets, name (renaming or retiring every cluster
-   `remap` did not match), write the clusters, and build the viewer.
+    `remap` did not match), write the clusters, and build the viewer.
 3. Record the recluster in `Late papers`, by hand, in the second form of `docs/formats.md`, with the `changes:` line of
-   `deeper_research/cluster.py`'s printout. For a proposed cluster, set the round's `new clusters:` from the same line:
-   the cluster, if it formed, which means the round has not converged; or `none (proposed <which>, not formed)`, which
-   does not count against convergence.
+    `deeper_research/cluster.py`'s printout. For a proposed cluster, set the round's `new clusters:` from the same
+    line: the cluster, if it formed, which means the round has not converged; or `none (proposed <which>, not formed)`,
+    which does not count against convergence.
 4. Run step 4's "Set up the coreset blocks", which moves every coreset row to the block of the cluster its paper was now
-   computed into, then step 7's Revise.
+    computed into, then step 7's Revise.
 
 Until step 4 has run again, the plain check fails on what the return has yet to do: rows in another cluster's block, a
 `bridge:` naming a retired cluster, roles not yet filled in a new or changed cluster, a dissent search not yet run for
@@ -653,41 +654,41 @@ take a role: one added to the pool after step 3 is a late paper, and is assigned
 roles exist, and why ranking alone is not enough, is in `docs/coresets.md` ("How coverage is achieved").
 
 - `anchor` — what the cluster is built on. Anchors come from in-degree within the pool: usually the paper most cited by
-  the other pool papers.
+    the other pool papers.
 - `frontier` — where the cluster currently stands: its strongest recent result. `Recent` means published in the last 12
-  months, or, in a cluster with nothing that recent, among its most recent papers. `Strongest` is judged in this order:
-  a frontier candidate from the `Orientation` line, since WebSearch found the field discussing it; then impact, measured
-  as citations per month since publication. The naming sheet lists each cluster's papers from the last 12 months, ranked
-  that way. Say in `selected because` which of the two decided it.
+    months, or, in a cluster with nothing that recent, among its most recent papers. `Strongest` is judged in this
+    order: a frontier candidate from the `Orientation` line, since WebSearch found the field discussing it; then impact,
+    measured as citations per month since publication. The naming sheet lists each cluster's papers from the last 12
+    months, ranked that way. Say in `selected because` which of the two decided it.
 - `dissent` — a paper that contradicts the cluster's central claim, the second sentence of its definition, breaks an
-  assumption that claim depends on, or reports a negative result against it. Not dissent: a paper that names a
-  limitation and then fixes it, or one that disagrees on a detail the central claim does not depend on. Dissent needs a
-  dedicated search for each high-alignment cluster. Search the forward citations of the cluster's anchor and frontier
-  papers, and run relevance queries phrased as challenges: "fails to", "does not", "revisiting", "limits of",
-  "rethinking", etc. Quote, in `selected because`, the paper's claim that contradicts the cluster. Record each search in
-  the `Dissent searches` line, naming every dissent row it found. A dissent paper must be a pool paper computed into
-  that cluster. One found outside the pool is returned to the main session, which adds it, assigns it as a late paper,
-  and dispatches Selection again for its cluster; one computed into another cluster cannot be this cluster's dissent,
-  though it may make a `bridge`. If a search finds no dissent, record that the slot is empty and what was searched. An
-  empty dissent slot is information about the cluster, not a failure.
+    assumption that claim depends on, or reports a negative result against it. Not dissent: a paper that names a
+    limitation and then fixes it, or one that disagrees on a detail the central claim does not depend on. Dissent needs
+    a dedicated search for each high-alignment cluster. Search the forward citations of the cluster's anchor and
+    frontier papers, and run relevance queries phrased as challenges: "fails to", "does not", "revisiting", "limits of",
+    "rethinking", etc. Quote, in `selected because`, the paper's claim that contradicts the cluster. Record each search
+    in the `Dissent searches` line, naming every dissent row it found. A dissent paper must be a pool paper computed
+    into that cluster. One found outside the pool is returned to the main session, which adds it, assigns it as a late
+    paper, and dispatches Selection again for its cluster; one computed into another cluster cannot be this cluster's
+    dissent, though it may make a `bridge`. If a search finds no dissent, record that the slot is empty and what was
+    searched. An empty dissent slot is information about the cluster, not a failure.
 - `bridge` — a paper that connects two clusters, for example by applying one cluster's method to another's question.
-  Written `bridge:<other-cluster-id>`, in the block of the cluster the paper was computed into, which must be one of the
-  two. It is optional, but bridges are where the Landscape's structure becomes visible. Where the clustering diagnostics
-  report two clusters trading papers, one of them gets a bridge paper.
+    Written `bridge:<other-cluster-id>`, in the block of the cluster the paper was computed into, which must be one of
+    the two. It is optional, but bridges are where the Landscape's structure becomes visible. Where the clustering
+    diagnostics report two clusters trading papers, one of them gets a bridge paper.
 - `fringe` — a paper that carries an idea no other coreset row has, and that the field has so far overlooked: it sits
-  far from its nearest neighbours in the pool, for its age. It is placed in the cluster it was computed into, but it
-  does not represent that cluster; it represents what the clusters leave out. Fringe comes last, because its test is
-  relative to the rest of the coreset. Start from the pool papers with the highest fringe scores (see "Clustering
-  method"), listed in `graphs/<topic>/fringe-sheet.md`. Most papers far from their neighbours are there for a good
-  reason. So keep a paper only if its `selected because` can name, in one sentence, the idea it carries that no other
-  coreset row does. Five to ten per topic.
+    far from its nearest neighbours in the pool, for its age. It is placed in the cluster it was computed into, but it
+    does not represent that cluster; it represents what the clusters leave out. Fringe comes last, because its test is
+    relative to the rest of the coreset. Start from the pool papers with the highest fringe scores (see "Clustering
+    method"), listed in `graphs/<topic>/fringe-sheet.md`. Most papers far from their neighbours are there for a good
+    reason. So keep a paper only if its `selected because` can name, in one sentence, the idea it carries that no other
+    coreset row does. Five to ten per topic.
 
 #### Sizing
 
 A cluster gets more rows the more directly it bears on the input, not the more papers it has:
 
 - `high` — anchor, frontier and dissent at minimum. Add a second frontier paper or a bridge where the cluster is
-  internally divided.
+    internally divided.
 - `medium` — anchor and frontier.
 - `low` — anchor only. That is enough for the Landscape to be honest about the cluster existing.
 
@@ -736,30 +737,30 @@ This is the finishing rule (`F1`). The coreset is sufficient when adding papers 
 directly:
 
 1. Draw the sample: 10 to 15 candidates that are not in the coreset. The main session draws ten from the pool by script,
-   with `uv run python -m deeper_research.coverage draw <topic> <R>`. It takes them at random, with the seed recorded,
-   from the worst-covered quarter of the pool: the papers whose nearest coreset row is furthest from them, under the
-   measure the clustering uses. Those are the papers the coreset is likeliest to leave out. The script writes them to
-   the round's sheet, `graphs/<topic>/coverage-<R>.md`, with the coreset's radius: how far the worst-covered pool paper
-   is from its nearest row. The agent then adds up to five candidates from a fresh recency query, run as in step 1
-   (WebSearch, limited to the pass's `Recency window`, extended to the day of the round), since new work is what the
-   pool cannot yet hold. Record the query with `deeper_research/coverage.py query`, whatever it found, so that a round
-   without recency candidates shows the query ran; on a quiet topic it may find none. A candidate with no paper ID
-   cannot join the pool or the coreset, so take the next result in its place, and note it in Open work's
-   `Papers that could not enter the pool`.
+    with `uv run python -m deeper_research.coverage draw <topic> <R>`. It takes them at random, with the seed recorded,
+    from the worst-covered quarter of the pool: the papers whose nearest coreset row is furthest from them, under the
+    measure the clustering uses. Those are the papers the coreset is likeliest to leave out. The script writes them to
+    the round's sheet, `graphs/<topic>/coverage-<R>.md`, with the coreset's radius: how far the worst-covered pool
+    paper is from its nearest row. The agent then adds up to five candidates from a fresh recency query, run as in step
+    1 (WebSearch, limited to the pass's `Recency window`, extended to the day of the round), since new work is what the
+    pool cannot yet hold. Record the query with `deeper_research/coverage.py query`, whatever it found, so that a round
+    without recency candidates shows the query ran; on a quiet topic it may find none. A candidate with no paper ID
+    cannot join the pool or the coreset, so take the next result in its place, and note it in Open work's
+    `Papers that could not enter the pool`.
 2. For each candidate, read its abstract through Asta, and snippets where the abstract leaves the verdict open. Ask two
-   questions. Does it belong to a cluster not yet in the Clusters table? Would it change a claim in one of the coreset's
-   targets — a landscape axis, an assumption, a gap, or an answer to a question the input's `Coreset Spec` declares?
-   Targets are defined in `docs/formats.md` (`Coreset Spec`).
+    questions. Does it belong to a cluster not yet in the Clusters table? Would it change a claim in one of the
+    coreset's targets — a landscape axis, an assumption, a gap, or an answer to a question the input's `Coreset Spec`
+    declares? Targets are defined in `docs/formats.md` (`Coreset Spec`).
 3. Record every candidate's verdict, with a one-sentence reason, in the round's sheet, the ones that change nothing
-   included, with `uv run python -m deeper_research.coverage judge <topic> <R>`; the recency candidates go in with
-   `--recency` (`docs/formats.md`, "The coverage sheet"). Then
-   `uv run python -m deeper_research.coverage line <topic> <R>` prints the round's `Coverage test` line for the pass's
-   entry in the retrieval log: `round R: K of N sampled candidates changed the output`, counted from the sheet. It names
-   each candidate that did, with the target and the reason. Paste it as printed, since `G5` compares it with the sheet;
-   so give `judge` reasons that state the claim changed, such as a new gap or a revised assumption. If a verdict changes
-   later, say because verification shows the reason overstated, judge it again and paste the line again. A candidate
-   judged only to open a new cluster is not in K: the line names it in a placeholder under `new clusters:`, settled
-   after the recluster ("Returning to step 3").
+    included, with `uv run python -m deeper_research.coverage judge <topic> <R>`; the recency candidates go in with
+    `--recency` (`docs/formats.md`, "The coverage sheet"). Then
+    `uv run python -m deeper_research.coverage line <topic> <R>` prints the round's `Coverage test` line for the pass's
+    entry in the retrieval log: `round R: K of N sampled candidates changed the output`, counted from the sheet. It
+    names each candidate that did, with the target and the reason. Paste it as printed, since `G5` compares it with the
+    sheet; so give `judge` reasons that state the claim changed, such as a new gap or a revised assumption. If a
+    verdict changes later, say because verification shows the reason overstated, judge it again and paste the line
+    again. A candidate judged only to open a new cluster is not in K: the line names it in a placeholder under
+    `new clusters:`, settled after the recluster ("Returning to step 3").
 
 Every candidate counted in K joins the coreset, verified, in Revise. Its role follows what it changed: `dissent` if it
 contradicts its cluster's central claim or breaks an assumption the claim rests on, which covers a gap that is a
@@ -806,24 +807,24 @@ small random sample, once a round has converged and its Revise is done. Their re
 line, which `G5` requires, so that every finished pass reports it.
 
 - `Re-verification` measures verification. `deeper_research/audit.py reverify` draws a random 10% of the rows verified
-  from the full text, at least five. A fresh agent fills those rows' claim cells and dimensions from the paper's full
-  text alone. It is given the paper IDs, the column definitions and the `Dimensions` line, and never sees the survey's
-  rows or their evidence. `deeper_research/audit.py compare` then sets each of its cells beside the survey's.
+    from the full text, at least five. A fresh agent fills those rows' claim cells and dimensions from the paper's full
+    text alone. It is given the paper IDs, the column definitions and the `Dimensions` line, and never sees the survey's
+    rows or their evidence. `deeper_research/audit.py compare` then sets each of its cells beside the survey's.
 - `Faithfulness` measures the output. `deeper_research/audit.py trace` draws 15 of the output's sentences that cite a
-  coreset paper, or all of them if there are fewer, leaving out `Questions` and `Reading`, which recommend rather than
-  claim, and sets each beside the cited rows' cells and evidence quotes.
+    coreset paper, or all of them if there are fewer, leaving out `Questions` and `Reading`, which recommend rather than
+    claim, and sets each beside the cited rows' cells and evidence quotes.
 
 A second agent, which wrote neither the rows nor the output, judges both sheets. Per cell of the re-verification:
 
 - `agree` — the two state the same claim: the same method, setup, number and condition, whatever the wording;
 - `partly` — neither contradicts the other, but one is more complete or more precise, such as one stating a condition
-  the other omits;
+    the other omits;
 - `differ` — they state different claims, or one states a claim where the other has `n/a`.
 
 Per sentence of the output:
 
 - `supported` — every claim in the sentence is stated in the cited rows or their evidence, a synthesis across them
-  included;
+    included;
 - `partly` — its main claim is supported, but a detail is not, such as a number, a condition or a scope;
 - `unsupported` — its main claim is not in the cited rows or their evidence.
 
@@ -839,13 +840,13 @@ On revisiting a topic, add a new dated pass to the retrieval log. A later pass m
 coreset rows.
 
 - **Demotion is not deletion.** If a better paper is found for a role, the old row may leave the coreset. The paper
-  stays in the pool, and the log records the demotion and why.
+    stays in the pool, and the log records the demotion and why.
 - **Deletion needs permission.** Remove a paper from the pool only if it is conclusively shown to be factually wrong or
-  out of scope, and only with the user's explicit permission. Asking is a halt (`H12`): state the argument in the
-  `STOP:` report, and the main session puts it to the user.
+    out of scope, and only with the user's explicit permission. Asking is a halt (`H12`): state the argument in the
+    `STOP:` report, and the main session puts it to the user.
 - **Corrections are logged.** Edit a row in place and record the change in that pass's log entry.
 - Where a later pass supersedes a caveat recorded in an earlier one, leave the earlier text intact and add a pointer
-  saying what superseded it. The old entry is an accurate record of the pass it describes.
+    saying what superseded it. The old entry is an accurate record of the pass it describes.
 
 ### Changing the clusters after a pass
 
@@ -854,13 +855,13 @@ The user can steer the clustering through a fixed set of levers. Each can be giv
 by hand.
 
 - `Level` — a coarser or finer clustering, chosen with the viewer's slider. Merging two clusters means a coarser level;
-  splitting one means a finer level.
+    splitting one means a finer level.
 - `Alignment` — how directly a cluster bears on the input. It sets the cluster's rows and dissent searches.
 - `Names and definitions` — judgement only; edit them directly.
 - `Scope` — a cluster the user does not want. Rate it `low`, which keeps one anchor so the Landscape stays honest. If it
-  is genuinely out of scope, its papers leave the pool under the deletion rule above, with permission.
+    is genuinely out of scope, its papers leave the pool under the deletion rule above, with permission.
 - `More data` — seeds or queries for a region, followed by re-clustering. This is the route for "these papers belong
-  together".
+    together".
 
 A change requested after a pass runs as an incremental pass, logged as a manual override. Re-cluster if the level or the
 pool changed, and carry the names over (`deeper_research/assign.py remap`, see "Late papers"). The clusters that changed

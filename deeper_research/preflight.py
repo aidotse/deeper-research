@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """The preflight checks that need no agent: the Semantic Scholar Graph API, the arXiv API and HTML, `uv`, and the
 Asta key (docs/external_services.md, "Preflight").
 

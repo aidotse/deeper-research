@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """The judgement audits of a pass: how often verification and the output are right, measured on a sample
 (docs/process.md, "Auditing the judgements").
 

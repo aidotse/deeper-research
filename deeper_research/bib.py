@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Regenerate bib/<topic>.bib from the paper IDs in surveys/<topic>.md.
 
 Usage: uv run python -m deeper_research.bib <topic>

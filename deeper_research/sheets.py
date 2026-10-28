@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Write the compact sheets that the naming and fringe-selection agents read, instead of the large JSON files.
 
 Usage: uv run python -m deeper_research.sheets <topic>

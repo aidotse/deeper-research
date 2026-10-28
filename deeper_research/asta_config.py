@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Report whether Claude Code's Asta MCP server is configured with an API key, without printing the key.
 
 Usage: uv run python -m deeper_research.asta_config [--quiet]

@@ -29,23 +29,23 @@ ends"). It runs two kinds of check.
 - the input's format, as `deeper_research/inputs.py` reads it, including the `Coreset Spec` targets;
 - the survey's five sections, in order;
 - Clusters: ids unique and kebab-case, alignments valid, and every row with a `computed` id; and, if it has rows, a
-  `graphs/<topic>/clusters.json` to name;
+    `graphs/<topic>/clusters.json` to name;
 - Pool: the required columns, a paper link per row, unique IDs, and only known clusters; no paper listed twice, under
-  two IDs or as two records with the same title; and no `CorpusId` row for a paper that has an arXiv ID;
+    two IDs or as two records with the same title; and no `CorpusId` row for a paper that has an arXiv ID;
 - once `clusters.json` and the Clusters table exist: every computed cluster named exactly once, and every pool paper's
-  `cluster` equal to its computed cluster. An empty cell is a late paper awaiting assignment, or, if `clusters.json`
-  already assigns the paper, a cell `deeper_research/assign.py clusters` has yet to write. A new clustering not yet
-  remapped fails until `deeper_research/assign.py remap` runs; this applies only once the Clusters table has names, so
-  never to the first clustering of a first pass;
+    `cluster` equal to its computed cluster. An empty cell is a late paper awaiting assignment, or, if `clusters.json`
+    already assigns the paper, a cell `deeper_research/assign.py clusters` has yet to write. A new clustering not yet
+    remapped fails until `deeper_research/assign.py remap` runs; this applies only once the Clusters table has names, so
+    never to the first clustering of a first pass;
 - once the Coreset has rows: one row per unique paper ID, the required columns, `source` last and either `full-text` or
-  `abstract` (`snippet` only in a legacy survey), and one column count throughout; dimension values within the sets the
-  input declares; blocks headed by known cluster ids, in the Clusters table's order; valid roles, and every `bridge:`
-  target a known cluster other than the row's own; every coreset paper in the pool, and in the block of the cluster it
-  was computed into; coreset and bib holding the same IDs;
+    `abstract` (`snippet` only in a legacy survey), and one column count throughout; dimension values within the sets
+    the input declares; blocks headed by known cluster ids, in the Clusters table's order; valid roles, and every
+    `bridge:` target a known cluster other than the row's own; every coreset paper in the pool, and in the block of the
+    cluster it was computed into; coreset and bib holding the same IDs;
 - once the output exists: every paper ID it cites in the coreset; every citation of an `abstract`-sourced paper followed
-  directly by `[abstract-only]`, with only whitespace, bold markers and punctuation between them, and no other ID, and,
-  if the output cites any such paper, a legend before its first `##` section; in the coreset layout, no marker after the
-  legend that follows no cited ID; a section per target, then `Questions` and `Reading` (`docs/formats.md`).
+    directly by `[abstract-only]`, with only whitespace, bold markers and punctuation between them, and no other ID,
+    and, if the output cites any such paper, a legend before its first `##` section; in the coreset layout, no marker
+    after the legend that follows no cited ID; a section per target, then `Questions` and `Reading` (`docs/formats.md`).
 
 **Gates**: what each step must have left behind, from `G0` (ready) to `G5` (pass ended). They are described in
 `docs/gates.md`, and coded in `deeper_research/gates.py`, one function per requirement. The check works out which gates
@@ -60,20 +60,20 @@ coreset layout only.
 It also prints, without failing:
 
 - the number of coreset rows, and per cluster: pool size, coreset rows by role, missing roles, and in-degree leaders
-  within the pool;
+    within the pool;
 - where a cluster's anchor is not its in-degree leader within the pool. That can be deliberate, but it should be;
 - coreset columns that are not declared dimensions;
 - the `source` tally, the share of `abstract`-sourced rows against `H10`'s 20%, and which `abstract`-sourced papers the
-  output cites;
+    output cites;
 - how many coreset papers, and how many pool papers, have an arXiv ID: the papers whose full text can most surely be
-  fetched;
+    fetched;
 - phrases in the output that claim absence, which only a probe supports;
 - requirements the user has waived, a halt still pending, and an input changed since the last commit;
 - pool papers not yet fetched, and late papers awaiting assignment, with the command that processes them;
 - clusters that trade papers without a bridge yet, as soon as there are Coreset rows, so that the Bridges row runs
-  before fringe selection;
+    before fringe selection;
 - full-text quotes it could not check because the full text is not fetched: a note in the plain check, a failure under
-  `--gate G4` or later;
+    `--gate G4` or later;
 - papers both rejected and in the pool, since one of the two judgements is wrong.
 
 Surveys written before the coreset structure (no Clusters section) get only the integrity checks that apply to them.
@@ -105,39 +105,39 @@ format is in `docs/formats.md`.
 hand:
 
 - `uv run python -m deeper_research.assign add <topic> <paper-id> ...` adds papers by arXiv ID or `CorpusId`, each a
-  title linked by its ID, with the other cells empty. It refuses a `CorpusId` whose paper has an arXiv ID, and lists for
-  Open work a paper Semantic Scholar does not know or that has no SPECTER2 embedding, which clustering needs. It warns
-  on a paper already in `rejected.md`, naming the rejection. Its last line names the next step:
-  `deeper_research/pool.py` before step 3, or `deeper_research/assign.py late` after it, for the main session to run,
-  pasting the `Pool` line it prints.
+    title linked by its ID, with the other cells empty. It refuses a `CorpusId` whose paper has an arXiv ID, and lists
+    for Open work a paper Semantic Scholar does not know or that has no SPECTER2 embedding, which clustering needs. It
+    warns on a paper already in `rejected.md`, naming the rejection. Its last line names the next step:
+    `deeper_research/pool.py` before step 3, or `deeper_research/assign.py late` after it, for the main session to run,
+    pasting the `Pool` line it prints.
 - `uv run python -m deeper_research.assign add-expand <topic>` acts on the expansion screening sheet, for this pass's
-  candidates only: an earlier pass's verdicts were acted on then. It refuses while any of them has no row on the sheet,
-  or no `yes` or `no` with a reason of at least two words, and while the sheet has a row `expand.json` does not know.
-  Each `yes` goes through `add`, with its refusals; one already in the pool, by ID or by title, is skipped, and one with
-  neither an arXiv ID nor a `CorpusId` is listed for Open work. Each `no` is recorded in `rejected.md` with its reason,
-  as `reject` would. A `no` for a pool paper is not recorded but reported, since one of the two judgements is wrong:
-  re-judge the row, or ask the user (`H12`). It ends by printing the log's `Expansion` line, to paste in place of any
-  earlier one of the pass.
+    candidates only: an earlier pass's verdicts were acted on then. It refuses while any of them has no row on the
+    sheet, or no `yes` or `no` with a reason of at least two words, and while the sheet has a row `expand.json` does not
+    know. Each `yes` goes through `add`, with its refusals; one already in the pool, by ID or by title, is skipped, and
+    one with neither an arXiv ID nor a `CorpusId` is listed for Open work. Each `no` is recorded in `rejected.md` with
+    its reason, as `reject` would. A `no` for a pool paper is not recorded but reported, since one of the two judgements
+    is wrong: re-judge the row, or ask the user (`H12`). It ends by printing the log's `Expansion` line, to paste in
+    place of any earlier one of the pass.
 - `uv run python -m deeper_research.assign add-fringe <topic>` adds the candidates marked `yes` on the fringe screening
-  sheet, and prints the log's `Fringe` line. It refuses while any candidate is unjudged: with no row on the sheet,
-  marked neither `yes` nor `no` (a `maybe` included), or with a reason under two words. It uses the same test as `G1`.
-  It also refuses a row `fringe.json` does not know.
+    sheet, and prints the log's `Fringe` line. It refuses while any candidate is unjudged: with no row on the sheet,
+    marked neither `yes` nor `no` (a `maybe` included), or with a reason under two words. It uses the same test as `G1`.
+    It also refuses a row `fringe.json` does not know.
 - `uv run python -m deeper_research.assign clusters <topic>` writes each pool paper's computed cluster into the
-  `cluster` column, under the name the Clusters table's `computed` column gives it.
+    `cluster` column, under the name the Clusters table's `computed` column gives it.
 - `uv run python -m deeper_research.assign late <topic>` processes the late papers as one batch: it runs
-  `deeper_research/pool.py` in full, which fetches their data and prints its own `Pool` line, assigns each to the
-  cluster its `k` nearest clustered papers favour, each voting with its similarity, records the assignment in
-  `clusters.json` (`late`), writes the column, and prints the log's `Late papers` line. If late papers would exceed 10%
-  of the pool, it assigns nothing, prints `RECLUSTER:` with the count and the exact share, and exits 3: recluster
-  instead.
+    `deeper_research/pool.py` in full, which fetches their data and prints its own `Pool` line, assigns each to the
+    cluster its `k` nearest clustered papers favour, each voting with its similarity, records the assignment in
+    `clusters.json` (`late`), writes the column, and prints the log's `Late papers` line. If late papers would exceed
+    10% of the pool, it assigns nothing, prints `RECLUSTER:` with the count and the exact share, and exits 3: recluster
+    instead.
 - `uv run python -m deeper_research.assign reject <topic> <paper-id> <reason>` records a candidate judged out of scope
-  in `graphs/<topic>/rejected.md`, with the date and the reason, so that the judgement can be reviewed
-  (`docs/gates.md`). Without a paper ID, it reads one `<paper-id><TAB><reason>` per line from stdin, and records them
-  all, or none if any line is wrong. It refuses a paper already in the pool: leaving the pool needs the user's
-  permission (`H12`).
+    in `graphs/<topic>/rejected.md`, with the date and the reason, so that the judgement can be reviewed
+    (`docs/gates.md`). Without a paper ID, it reads one `<paper-id><TAB><reason>` per line from stdin, and records them
+    all, or none if any line is wrong. It refuses a paper already in the pool: leaving the pool needs the user's
+    permission (`H12`).
 - `uv run python -m deeper_research.assign remap <topic>` runs after a recluster. It moves each name to the new cluster
-  it matched, clears the ones that did not match, and lists the new clusters to name. Until it has run, `clusters`
-  refuses, so old names cannot land on new clusters.
+    it matched, clears the ones that did not match, and lists the new clusters to name. Until it has run, `clusters`
+    refuses, so old names cannot land on new clusters.
 
 See `docs/process.md`, step 3 and "Late papers". On `reasoning-legacy`, 15 papers were held out of a clustering and then
 assigned by the nearest-cluster rule: 13 went to the cluster the full clustering chose for them. One of the two misses,
@@ -340,7 +340,7 @@ fetched file by section, so that an agent reads only what it needs:
 - with no pattern, the outline: every heading, with the size of its section in tokens;
 - with a pattern, a case-insensitive regular expression, each matching passage under its section heading;
 - with `--section`, whole sections whose heading starts with the name, section numbers optional; with a pattern too, it
-  searches only those.
+    searches only those.
 
 Passages are printed verbatim, so they can be quoted, with the file's line numbers, to read on from. Output is capped at
 `--max` tokens, 6000 by default, with a note when cut. PDF text has no markup: its sections are its pages (`page 3`) and
@@ -363,20 +363,20 @@ measure the clustering uses. That measure is built from neighbour ranks, so a di
 such distance.
 
 - `uv run python -m deeper_research.coverage radius <topic> [--loo]` prints the radius (max, p90 and mean) and the ten
-  worst-covered pool papers, each with its nearest row. With `--loo`, it also prints how much the radius grows when each
-  row alone is removed: a proxy for how much each row is needed.
+    worst-covered pool papers, each with its nearest row. With `--loo`, it also prints how much the radius grows when
+    each row alone is removed: a proxy for how much each row is needed.
 - `uv run python -m deeper_research.coverage draw <topic> <R> [--n 10] [--seed <R>]` writes round R's sheet,
-  `coverage-<R>.md`: `--n` pool papers drawn at random, with the seed recorded, from the worst-covered quarter of those
-  outside the coreset and not sampled in an earlier round. It refuses to redraw a round.
+    `coverage-<R>.md`: `--n` pool papers drawn at random, with the seed recorded, from the worst-covered quarter of
+    those outside the coreset and not sampled in an earlier round. It refuses to redraw a round.
 - `uv run python -m deeper_research.coverage judge <topic> <R>` reads `<id><TAB><verdict><TAB><reason>` lines on stdin:
-  `no change`, `changes <target>` or `new cluster`, the target being one of the input's. A verdict given again replaces
-  the earlier one, and the printout says so. With `--recency`, each line adds a candidate from the recency query as a
-  row of its own, and carries the paper's title as a fourth field. A bad line refuses the whole batch.
+    `no change`, `changes <target>` or `new cluster`, the target being one of the input's. A verdict given again
+    replaces the earlier one, and the printout says so. With `--recency`, each line adds a candidate from the recency
+    query as a row of its own, and carries the paper's title as a fourth field. A bad line refuses the whole batch.
 - `uv run python -m deeper_research.coverage query <topic> <R> "<query>" "<window>" <n>` records the round's recency
-  query and its number of results in the sheet's header; run again, it replaces it.
+    query and its number of results in the sheet's header; run again, it replaces it.
 - `uv run python -m deeper_research.coverage line <topic> <R>` prints the round's `Coverage test` line, counted from the
-  sheet, and the bound on what the round missed. It refuses while a candidate has no verdict or the recency query is not
-  recorded. `deeper_research/check.py` compares the pasted line with it, for `G5`.
+    sheet, and the bound on what the round missed. It refuses while a candidate has no verdict or the recency query is
+    not recorded. `deeper_research/check.py` compares the pasted line with it, for `G5`.
 
 On the gate fixture's 195 papers and 19 rows, `radius --loo` takes about 4 seconds. `deeper_research/check.py` reads the
 sheets for `G5`.
@@ -387,17 +387,17 @@ sheets for `G5`.
 Standard library only.
 
 - `reverify <topic> [--seed 1]` draws 10% of the rows verified from the full text, at least five, and writes
-  `reverify.md`, with the claim and dimension cells empty.
+    `reverify.md`, with the claim and dimension cells empty.
 - `fill <topic>` reads `<id><TAB><column><TAB><text>` lines on stdin into those cells. The re-verifying agent uses it.
 - `compare <topic>` writes `reverify-compare.md`: each cell beside the survey's, to judge. It refuses while a cell of
-  `reverify.md` is empty.
+    `reverify.md` is empty.
 - `trace <topic> [--n 15] [--seed 1]` draws 15 output sentences, or all if there are fewer, that cite a coreset paper
-  outside `Questions` and `Reading`, and writes `faithfulness.md`: each sentence, then each cited row's cells and
-  evidence quotes.
+    outside `Questions` and `Reading`, and writes `faithfulness.md`: each sentence, then each cited row's cells and
+    evidence quotes.
 - `judge <topic> reverify|faithfulness` reads verdicts on stdin:
-  `<id><TAB><column><TAB>agree|partly|differ<TAB><reason>` or `S<n><TAB>supported|partly|unsupported<TAB><reason>`.
+    `<id><TAB><column><TAB>agree|partly|differ<TAB><reason>` or `S<n><TAB>supported|partly|unsupported<TAB><reason>`.
 - `line <topic>` prints the `Judgement audit` line, once every row of both sheets has a verdict.
-  `deeper_research/check.py` recomputes it for `G5`.
+    `deeper_research/check.py` recomputes it for `G5`.
 
 Each draw is made once a pass, and refuses to overwrite its sheet.
 
@@ -431,12 +431,13 @@ a miss. A change to a requirement comes with its test case, in the same commit.
 
 ## Formatting
 
-Markdown in this repo is formatted with mdformat, configured in `.mdformat.toml`. It runs automatically when a turn
-ends, on `docs/` and `outputs/` only; if mdformat is not installed, the hook says so. It leaves alone the files agents
-may be editing at that moment (surveys and sheets) and the user's inputs. Do not hand-align table pipes or adjust
-whitespace in the files it formats; it will be normalised regardless.
+Markdown in this repo is formatted with mdformat, as the `mdformat` hook of `.pre-commit-config.yaml` pins it (with the
+`mdformat-mkdocs` and `mdformat-front-matters` plugins), configured in `.mdformat.toml`. It runs automatically when a
+turn ends, on `docs/` and `outputs/` only; if it cannot run, the hook says so. It also runs on every commit, and in
+`uv run poe lint`, on all Markdown except `inputs/`, `surveys/`, `graphs/`, the dated `.audits/` records and
+`CHANGELOG.md`. It leaves alone the files agents may be editing at that moment (surveys and sheets) and the user's
+inputs. Do not hand-align table pipes or adjust whitespace in the files it formats; it will be normalised regardless.
 
-For info: mdformat installed with `uv tool install mdformat --with mdformat-gfm --with mdformat-front-matters`.
-
-To format other files by hand, name them, for example `mdformat CLAUDE.md .audits`. Never run it on `inputs/`, which
-only the user edits, or on a survey while agents are working on it. To check without writing: `mdformat --check docs`.
+To format other files by hand, name them: `uv run pre-commit run mdformat --files CLAUDE.md`. Never run it on `inputs/`,
+which only the user edits, or on a survey while agents are working on it. Do not use a separately installed `mdformat`:
+without the same plugins it formats differently, and the hook would undo it.

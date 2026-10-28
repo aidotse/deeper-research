@@ -19,11 +19,11 @@ audited or redone, and the worst failures of a pass are the silent ones (`.claud
 require the trace even where they cannot assess it:
 
 - a candidate screened out of scope is recorded with its reason: `deeper_research/assign.py reject` in orientation; the
-  `in scope` and `reason` columns of `expand-screen.md` for expansion, which `deeper_research/assign.py add-expand`
-  copies into `rejected.md`, and of `fringe-screen.md` for the fringe routes;
+    `in scope` and `reason` columns of `expand-screen.md` for expansion, which `deeper_research/assign.py add-expand`
+    copies into `rejected.md`, and of `fringe-screen.md` for the fringe routes;
 - a `dissent` row's `selected because` quotes the paper's claim that contradicts the cluster;
 - a verified row keeps the verbatim quotes its claims rest on, in `graphs/<topic>/evidence/<id>.md`
-  (`docs/verification.md`, "Recording the evidence");
+    (`docs/verification.md`, "Recording the evidence");
 - an empty role is recorded in Open work with what was searched;
 - a halt is recorded with the user's decision.
 
@@ -32,11 +32,11 @@ require the trace even where they cannot assess it:
 `uv run python -m deeper_research.check <topic>` runs both.
 
 - **Integrity**: whatever exists must be well formed. A malformed row, a paper twice, a cluster name that is not a
-  computed cluster, a coreset paper missing from the bib, an `abstract`-sourced citation without its `[abstract-only]`
-  marker, or a marker that follows no cited ID. These apply at every moment, to whatever is on disk. The full list is in
-  `docs/tooling.md` ("Consistency check").
+    computed cluster, a coreset paper missing from the bib, an `abstract`-sourced citation without its `[abstract-only]`
+    marker, or a marker that follows no cited ID. These apply at every moment, to whatever is on disk. The full list is
+    in `docs/tooling.md` ("Consistency check").
 - **Gates**: what each step must have left behind. A missing log line, unscreened fringe candidates, a `high` cluster
-  with no dissent search. These apply once the pass has reached the step, as below.
+    with no dissent search. These apply once the pass has reached the step, as below.
 
 ## The gates
 
@@ -73,8 +73,8 @@ Between gates, the plain `uv run python -m deeper_research.check <topic>`, run a
 
 - the `Gates` line: the gates the main session has passed;
 - evidence in the files that a later step has started, as a safety net in case the `Gates` line was not kept: a
-  `Clustering` line means step 3 ran, so `G1` must hold; a `Dissent searches` line, or Coreset rows on a first pass,
-  means step 4 ran, so `G2` must hold; and so on to `Ended`, which requires `G5`.
+    `Clustering` line means step 3 ran, so `G1` must hold; a `Dissent searches` line, or Coreset rows on a first pass,
+    means step 4 ran, so `G2` must hold; and so on to `Ended`, which requires `G5`.
 
 The check requires the higher of the two. The safety net is why papers added after a gate must be fetched before the
 check runs: a pool paper added at step 7 fails `G1`'s `g1.fetched` until `deeper_research/assign.py late` has fetched it
@@ -116,13 +116,13 @@ is reported, not failed. An agent never waives anything.
 The check also compares the survey with the last commit, where one exists. It fails if:
 
 - an earlier pass's log entry was changed, other than by adding to it, since entries are never rewritten
-  (`docs/process.md`, "Rules for re-runs");
+    (`docs/process.md`, "Rules for re-runs");
 - a pool paper was removed without `H12` or a logged merge;
 - a coreset row was removed without a `Demotions` or `Corrections` entry;
 - a row's `source` was lowered;
 - a cell of a verified row (`source` `full-text`, or `snippet` in an older commit) was changed without a
-  `Corrections to existing rows` entry naming the paper. A row still `abstract` is a draft, which verification rewrites
-  freely.
+    `Corrections to existing rows` entry naming the paper. A row still `abstract` is a draft, which verification
+    rewrites freely.
 
 It notes, without failing, an input changed since the last commit: only the user edits the input.
 

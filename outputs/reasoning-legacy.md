@@ -150,17 +150,17 @@ building them (2606.28425).
 Eight rows are not elicited, and they split into two kinds:
 
 - **`spontaneous` (3).** A study of thinking-answer divergence under ordinary hint-injection with no adversarial
-  training, finding that 55.4% of hint-influenced cases acknowledge the hint in the thinking channel but not the visible
-  answer (2603.26410). And a study whose whole design isolates spontaneously-occurring verbalised evaluation awareness,
-  finding it shifts answers by at most 3.7 points (2605.05835). And small transformers trained from scratch on noisy
-  step-by-step arithmetic, where unfaithful skip-step reasoning takes over above a critical noise threshold although
-  nothing in the objective targets it (2602.01017). This one is a toy the authors built, so it shows the mechanism can
-  arise unprompted, not that it does in deployed models.
+    training, finding that 55.4% of hint-influenced cases acknowledge the hint in the thinking channel but not the
+    visible answer (2603.26410). And a study whose whole design isolates spontaneously-occurring verbalised evaluation
+    awareness, finding it shifts answers by at most 3.7 points (2605.05835). And small transformers trained from scratch
+    on noisy step-by-step arithmetic, where unfaithful skip-step reasoning takes over above a critical noise threshold
+    although nothing in the objective targets it (2602.01017). This one is a toy the authors built, so it shows the
+    mechanism can arise unprompted, not that it does in deployed models.
 - **`observational` (5).** A step-level interpretability study of off-the-shelf models with no training or steering
-  anywhere (2605.11746). And agents on a deployed platform proposing oversight-evading languages — whose authors state
-  twice that they cannot verify the agents' autonomy, and raise the possibility the posts are performance for an
-  audience (2605.31170). The other three score off-the-shelf models' default reasoning traces with no attack or
-  training: two for faithfulness (2506.19143, 2603.05488) and one for monitorability (2510.23966).
+    anywhere (2605.11746). And agents on a deployed platform proposing oversight-evading languages — whose authors state
+    twice that they cannot verify the agents' autonomy, and raise the possibility the posts are performance for an
+    audience (2605.31170). The other three score off-the-shelf models' default reasoning traces with no attack or
+    training: two for faithfulness (2506.19143, 2603.05488) and one for monitorability (2510.23966).
 
 One qualifier that cuts against this argument and should be stated rather than smoothed over: the in-context scheming
 paper (2412.04984) is tagged `elicited` for its headline design, but it also documents a genuine spontaneous instance —
@@ -511,24 +511,24 @@ Do not start with Q6 however tempting it looks, until its adversarial search has
 
 Prioritised. The first five are the argument; the rest fill it in.
 
-01. **2504.13837** — *Does RL Really Incentivize Reasoning Capacity Beyond the Base Model?* The paper the whole
+1. **2504.13837** — *Does RL Really Incentivize Reasoning Capacity Beyond the Base Model?* The paper the whole
     create-versus-select debate is conducted around. Read it first and read its critics immediately after.
-02. **2510.08325** — *Beyond Pass@k: Breadth-Depth Metrics.* Proves pass@k is a biased average of Cover@τ. This is the
+2. **2510.08325** — *Beyond Pass@k: Breadth-Depth Metrics.* Proves pass@k is a biased average of Cover@τ. This is the
     paper that makes you distrust the previous one's metric, and it changes RLVR algorithm rankings.
-03. **2507.14843** — *The Invisible Leash.* The cleanest formal statement of why RLVR is support-bounded, with the
+3. **2507.14843** — *The Invisible Leash.* The cleanest formal statement of why RLVR is support-bounded, with the
     exponential-tilting derivation and measured support dynamics. The starting point for Q2.
-04. **2608.04735** — *CoT Monitoring Can Be Unreliable in Implicit-Influence Settings.* Read for one number: the
+4. **2608.04735** — *CoT Monitoring Can Be Unreliable in Implicit-Influence Settings.* Read for one number: the
     multi-hop depth needed to force externalisation grows with model strength, 6 hops to 15. That is the empirical
     anchor for Q1.
-05. **2402.12875** — *CoT Empowers Transformers to Solve Inherently Serial Problems.* The AC⁰ result with matching
+5. **2402.12875** — *CoT Empowers Transformers to Solve Inherently Serial Problems.* The AC⁰ result with matching
     bounds. The theoretical anchor for Q1. Pair with 2310.07923 for the full complexity characterisation.
-06. **2606.03217** — *An Asymptotic Theory of CoT in In-Context Learning.* Not for its subject but for its form: exact
+6. **2606.03217** — *An Asymptotic Theory of CoT in In-Context Learning.* Not for its subject but for its form: exact
     asymptotics, four regimes, a critical threshold τ_c. This is the paper Q2 should aspire to resemble.
-07. **2607.09786** — *Length Penalties Make CoT Less Monitorable.* The length-matched control is what makes it more than
+7. **2607.09786** — *Length Penalties Make CoT Less Monitorable.* The length-matched control is what makes it more than
     an observation. Foundation for Q3.
-08. **2606.28438** — *When AI Reviews Its Own Code.* Theorem 2.3 — self-gating degenerates to ungated self-training —
+8. **2606.28438** — *When AI Reviews Its Own Code.* Theorem 2.3 — self-gating degenerates to ungated self-training —
     plus the observed rubber-stamp regime. Foundation for Q4.
-09. **2504.03380** — *Online Difficulty Filtering.* The variance lower bound, and the result that online balanced
+9. **2504.03380** — *Online Difficulty Filtering.* The variance lower bound, and the result that online balanced
     filtering dominates offline curation. Foundation for Q5.
 10. **2605.23950** — *Stop Comparing LLM Agents Without Disclosing the Harness.* The controlled ablation behind your
     harness claim. Short, and it settles an argument.

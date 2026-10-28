@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Build an interactive citation-graph viewer for one topic's survey.
 
 Usage: uv run python -m deeper_research.graph <topic> [--refresh]
