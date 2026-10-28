@@ -12,20 +12,25 @@ Nothing is sent anywhere; the key is never printed.
 """
 
 import json
+import os
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def load(path):
+# Parsed JSON is as loose as the file: Claude Code's config, or an empty object where it is missing or unreadable.
+def load(path: Path) -> Any:  # noqa: ANN401
+    """Return a JSON file's content, or an empty dict where the file is missing or not JSON."""
     try:
         return json.loads(path.read_text())
     except (OSError, ValueError):
         return {}
 
 
-def find():
+def find() -> tuple[str, dict[str, Any]] | tuple[None, None]:
+    """Return the scope and config of the Asta MCP server that takes precedence, or (None, None) if there is none."""
     home = load(Path.home() / ".claude.json")
     scopes = [
         ("local", home.get("projects", {}).get(str(ROOT), {}).get("mcpServers", {})),
@@ -38,7 +43,8 @@ def find():
     return None, None
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
+    """Report whether the Asta server is configured with a key: return 0 if it is, 1 if not."""
     quiet = "--quiet" in argv
     scope, server = find()
     if server is None:
@@ -48,8 +54,6 @@ def main(argv):
     # An unexpanded "$ASTA_API_KEY" or "${ASTA_API_KEY}" left in a project .mcp.json is expanded by Claude Code
     # from the environment at startup.
     if key.lstrip("${").startswith("ASTA_API_KEY"):
-        import os
-
         key = os.environ.get("ASTA_API_KEY", "")
     if not key.strip():
         print(

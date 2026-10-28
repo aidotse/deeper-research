@@ -51,10 +51,13 @@ import re
 import sys
 import time
 import urllib.error
+from collections.abc import Callable
 from html.parser import HTMLParser
+from pathlib import Path
+from typing import cast
 
-from deeper_research.check import ARXIV_ONLY, ID, ROOT, row_id, sections, table_rows  # noqa: E402
-from deeper_research.net import get_json, request  # noqa: E402
+from deeper_research.check import ARXIV_ONLY, ID, ROOT, row_id, sections, table_rows
+from deeper_research.net import get_json, request
 
 HEADERS = {"User-Agent": "deeper-research fulltext tool"}
 PAUSE = 3
@@ -111,12 +114,20 @@ class Text(HTMLParser):
     keeps a stack of open elements to find where a row ends.
     """
 
-    def __init__(self):
+    out: list[str]
+    skip: list[str]
+    in_math: int
+    open: list[tuple[str, bool]]
+    rows: int
+
+    def __init__(self) -> None:
+        """Start with no text and no open elements."""
         super().__init__(convert_charrefs=True)
         self.out, self.skip, self.in_math = [], [], 0
         self.open, self.rows = [], 0
 
-    def handle_starttag(self, tag, attrs):
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:  # noqa: C901
+        """Open an element: skip it, keep an equation's LaTeX, or mark a row, cell, heading, caption or block."""
         a = dict(attrs)
         classes = set((a.get("class") or "").split())
         if self.skip:
@@ -131,7 +142,7 @@ class Text(HTMLParser):
         if tag == "math":
             # An equation is kept as its LaTeX source, which is what a claim
             # about it can be checked against.
-            self.out.append(f" ${a.get('alttext', '').strip()}$ ")
+            self.out.append(f" ${cast('str', a.get('alttext', '')).strip()}$ ")
             self.in_math = 1
             return
         row = tag == "tr" or "ltx_tr" in classes
@@ -151,7 +162,8 @@ class Text(HTMLParser):
             # Inside a table row, a paragraph in a cell must not break the row.
             self.out.append(" " if self.rows else "\n")
 
-    def handle_endtag(self, tag):
+    def handle_endtag(self, tag: str) -> None:
+        """Close an element, ending any table rows still open inside it."""
         if self.skip:
             if tag == self.skip[-1]:
                 self.skip.pop()
@@ -170,13 +182,15 @@ class Text(HTMLParser):
         if not self.rows and (tag in BLOCK_TAGS or tag in HEADINGS or tag == "figcaption"):
             self.out.append("\n")
 
-    def handle_data(self, data):
+    def handle_data(self, data: str) -> None:
+        """Keep text outside skipped elements and equations, with its whitespace collapsed."""
         if not self.skip and not self.in_math:
             # Line breaks in the HTML source are spaces; structure comes from
             # the tags alone.
             self.out.append(re.sub(r"\s+", " ", data))
 
-    def text(self):
+    def text(self) -> str:
+        """Return the text fed so far, from the document title on, with spaces and blank lines collapsed."""
         lines = (re.sub(r"[ \t\u00a0]+", " ", ln).strip() for ln in "".join(self.out).splitlines())
         text = "\n".join(lines)
         # The site's own chrome (banners, a feedback dialog) precedes the
@@ -186,7 +200,8 @@ class Text(HTMLParser):
         return re.sub(r"\n{3,}", "\n\n", text).strip() + "\n"
 
 
-def get(url):
+def get(url: str) -> tuple[int, str, bytes]:
+    """Return (status, final URL, body), retrying transient failures; a 404 returns status 404 and an empty body."""
     try:
         return request(url, headers=HEADERS, attempts=4, wait=lambda a: 5 * 2**a)
     except urllib.error.HTTPError as e:
@@ -195,7 +210,8 @@ def get(url):
         raise
 
 
-def from_html(aid):
+def from_html(aid: str) -> tuple[str, str, str, str | None] | None:
+    """Return (URL, kind, text, note) from arXiv's HTML rendering, or None where there is none."""
     status, url, body = get(f"https://arxiv.org/html/{aid}")
     page = body.decode("utf-8", "replace")
     if status != 200 or "ltx_document" not in page:
@@ -206,12 +222,17 @@ def from_html(aid):
     return f"https://arxiv.org/html/{aid}{version.group(1) if version else ''}", "html", parser.text(), None
 
 
-def pdf_text(body):
-    """A PDF's extracted text, with page markers and without its bibliography, and a note on what was cut; or None
+def pdf_text(body: bytes) -> tuple[str, str] | None:
+    """Extract a PDF's text, without its bibliography.
+
+    A PDF's extracted text, with page markers and without its bibliography, and a note on what was cut; or None
     for a file pypdf cannot read, which leaves the paper unfetched rather than halting the run.
     """
-    from pypdf import PdfReader
-    from pypdf.errors import PyPdfError
+    # local: keeps pypdf out of the HTML fetch and of `show`
+    from pypdf import PdfReader  # noqa: PLC0415
+
+    # local: keeps pypdf out of the HTML fetch and of `show`
+    from pypdf.errors import PyPdfError  # noqa: PLC0415
 
     try:
         pages = PdfReader(io.BytesIO(body)).pages
@@ -222,7 +243,7 @@ def pdf_text(body):
     return text.strip() + "\n", note
 
 
-def drop_bibliography(text):
+def drop_bibliography(text: str) -> tuple[str, str]:
     """Cut the bibliography out of PDF text. Returns the text and a note on what was cut.
 
     The cut starts at the last references heading that a list of references follows, so that a line that merely
@@ -248,14 +269,15 @@ def drop_bibliography(text):
     return "\n".join(lines[:start] + ["[bibliography removed]"] + pages + lines[end:]), note
 
 
-def from_pdf(aid):
+def from_pdf(aid: str) -> tuple[str, str, str, str | None] | None:
+    """Return (URL, kind, text, note) from arXiv's PDF, or None where there is none or it cannot be read."""
     status, url, body = get(f"https://arxiv.org/pdf/{aid}")
     if status != 200 or not body.startswith(b"%PDF") or not (got := pdf_text(body)):
         return None
     return url, "pdf", *got
 
 
-def from_open_access(pid):
+def from_open_access(pid: str) -> tuple[str, str, str, str | None] | None:
     """A paper without an arXiv ID: the open-access PDF Semantic Scholar lists for it, if any."""
     rec = get_json("https://api.semanticscholar.org/graph/v1/paper/batch?fields=openAccessPdf", {"ids": [pid]})[0]
     url = ((rec or {}).get("openAccessPdf") or {}).get("url") or ""
@@ -271,12 +293,13 @@ def from_open_access(pid):
     return final, "pdf, open access", *got
 
 
-def file_of(topic, pid):
+def file_of(topic: str, pid: str) -> Path:
+    """Return the path of a paper's full-text file in the topic's cache."""
     # Pre-2007 IDs contain a slash (hep-th/9901001), corpus IDs a colon; keep the file name plain.
     return ROOT / "graphs" / topic / "fulltext" / f"{pid.replace('/', '_').replace(':', '_')}.txt"
 
 
-def abstract_rows(topic):
+def abstract_rows(topic: str) -> list[str] | None:
     """The coreset rows still `abstract`-sourced, or None, with a message, where the survey has no coreset to read."""
     path = ROOT / "surveys" / f"{topic}.md"
     secs = sections(path.read_text()) if path.exists() else {}
@@ -287,23 +310,24 @@ def abstract_rows(topic):
             + "; name the papers to fetch instead"
         )
         return None
-    ids = []
+    ids: list[str] = []
     for h, c, _, line in table_rows(secs["Coreset"]):
         if h and h[0] == "paper" and c and c[-1] == "abstract" and row_id(line):
-            ids.append(row_id(line))
+            # The condition above makes this ID a str.
+            ids.append(cast("str", row_id(line)))
     return list(dict.fromkeys(ids))
 
 
 # --- reading a fetched file by section ------------------------------------------------------------
 
 
-def headings(lines, pdf):
+def headings(lines: list[str], pdf: bool) -> list[tuple[int, int, str, str]]:
     """A full text's headings, as (line index, level, label, kind).
 
     HTML text marks its headings in markdown. PDF text has none, so its sections come in two kinds, each running to
     the next heading of its own kind: pages, from the page markers, and lines that look like headings.
     """
-    out = []
+    out: list[tuple[int, int, str, str]] = []
     for i, ln in enumerate(lines):
         if m := re.match(r"(#{1,6}) (\S.*)$", ln):
             out.append((i, len(m.group(1)), m.group(2).strip(), "head"))
@@ -315,14 +339,16 @@ def headings(lines, pdf):
     return out
 
 
-def section_end(heads, k, n):
+def section_end(heads: list[tuple[int, int, str, str]], k: int, n: int) -> int:
     """Where the k-th heading's section ends: at the next heading of its kind at the same level or above."""
     _, level, _, kind = heads[k]
     return next((h[0] for h in heads[k + 1 :] if h[3] == kind and h[1] <= level), n)
 
 
-def answers(label, name):
-    """Whether a heading answers to a section name: the name starts the heading, case ignored, with or without the
+def answers(label: str, name: str) -> int:
+    """Score how well a heading answers to a section name.
+
+    Whether a heading answers to a section name: the name starts the heading, case ignored, with or without the
     heading's number ("3.2", "A", "Appendix B"). Returns 2 where the name ends at a word boundary, 1 for a bare
     prefix, 0 for no match.
     """
@@ -333,11 +359,14 @@ def answers(label, name):
     return 1 if label.startswith(name) or bare.startswith(name) else 0
 
 
-def passages(lines, lo, hi, rx, pdf):
-    """The passages in lines lo to hi that match: a whole paragraph where it is short; in a table, the matching rows
+def passages(lines: list[str], lo: int, hi: int, rx: re.Pattern[str], pdf: bool) -> list[tuple[int, int, int]]:
+    """Find the passages in a span of lines that match a pattern.
+
+    The passages in lines lo to hi that match: a whole paragraph where it is short; in a table, the matching rows
     and the table's first row, which usually names the columns; otherwise, as in a long block or anywhere in PDF text,
     whose blocks are pages, the lines around each match. Returns (start, end, first matching line).
     """
+    out: list[tuple[int, int, int]]
     out, i = [], lo
     while i < hi:
         if not lines[i].strip():
@@ -369,7 +398,8 @@ def passages(lines, lo, hi, rx, pdf):
     return out
 
 
-def show(topic, pid, pattern, names, cap):
+def show(topic: str, pid: str, pattern: str | None, names: list[str], cap: int) -> int:  # noqa: C901
+    """Print a fetched paper's outline, sections or matching passages, up to `cap` tokens; return the exit status."""
     path = file_of(topic, pid)
     if not path.exists():
         print(
@@ -387,9 +417,9 @@ def show(topic, pid, pattern, names, cap):
     body = lines.index("", 0) + 1 if lines[0].startswith("source:") and "" in lines else 0
     heads = headings(lines, pdf)
     ends = [section_end(heads, k, len(lines)) for k in range(len(heads))]
-    size = lambda a, b: sum(len(ln) + 1 for ln in lines[a:b]) // 4  # noqa: E731
+    size: Callable[[int, int], int] = lambda a, b: sum(len(ln) + 1 for ln in lines[a:b]) // 4  # noqa: E731
 
-    def where(i):
+    def where(i: int) -> str:
         """The heading a line sits under; in PDF text, its page too."""
         found = [lines[h[0]].strip() for h in heads if h[0] <= i and h[3] == "head"][-1:]
         page = [lines[h[0]].strip() for h in heads if h[0] <= i and h[3] == "page"][-1:]
@@ -421,7 +451,8 @@ def show(topic, pid, pattern, names, cap):
             best = max(score, default=0)
             if not best:
                 print(
-                    f"error: no heading starts with {name!r}; run `uv run python -m deeper_research.fulltext show {topic} {pid}` "
+                    f"error: no heading starts with {name!r}; run "
+                    f"`uv run python -m deeper_research.fulltext show {topic} {pid}` "
                     f"for the outline"
                 )
                 return 1
@@ -450,6 +481,8 @@ def show(topic, pid, pattern, names, cap):
         + (f" in {', '.join(names)}" if names else "")
         + "; each printed under its heading, with its first line number"
     )
+    shown: str | None
+    rest: list[str]
     shown, rest = None, []
     for a, b, hit in found:
         chunk = "\n".join(lines[a:b])
@@ -469,7 +502,10 @@ def show(topic, pid, pattern, names, cap):
     return 0
 
 
-def show_main(argv):
+def show_main(argv: list[str]) -> int:
+    """Parse the arguments of `show` and run it; return the exit status, 2 for a usage error."""
+    names: list[str]
+    pos: list[str]
     names, cap, pos, it = [], str(CAP), [], iter(argv)
     for a in it:
         key, eq, value = a.partition("=")
@@ -486,7 +522,8 @@ def show_main(argv):
             pos.append(a)
     if len(pos) not in (2, 3) or not all(n.strip() for n in names) or not cap.isdigit() or int(cap) < 1:
         print(
-            "usage: uv run python -m deeper_research.fulltext show <topic> <paper-id> [<pattern>] [--section <name>]... "
+            "usage: uv run python -m deeper_research.fulltext show <topic> <paper-id> [<pattern>] "
+            "[--section <name>]... "
             "[--max <tokens>]"
         )
         return 2
@@ -499,7 +536,8 @@ def show_main(argv):
 # --- fetching -------------------------------------------------------------------------------------
 
 
-def main(argv):
+def main(argv: list[str]) -> int:  # noqa: C901
+    """Fetch the named papers' full text, or run `show`; return the exit status."""
     # `show <topic> <id>` reads a fetched file. A topic named `show` can still fetch: there, an ID follows it.
     rest = [a for a in argv[1:] if not a.startswith("--")]
     if argv[:1] == ["show"] and rest and not ID.match(rest[0]):
@@ -522,6 +560,7 @@ def main(argv):
     out = ROOT / "graphs" / topic / "fulltext"
     out.mkdir(parents=True, exist_ok=True)
     today = datetime.date.today().isoformat()
+    failed: list[str]
     failed, first = [], True
     for aid in dict.fromkeys(ids):
         path = file_of(topic, aid)

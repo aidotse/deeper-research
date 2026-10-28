@@ -1,4 +1,6 @@
-"""The preflight checks that need no agent: the Semantic Scholar Graph API, the arXiv API and HTML, `uv`, and the
+"""Run the preflight checks a pass needs before it starts, other than the ones only an agent can run.
+
+The preflight checks that need no agent: the Semantic Scholar Graph API, the arXiv API and HTML, `uv`, and the
 Asta key (docs/external_services.md, "Preflight").
 
 Usage: uv run python -m deeper_research.preflight
@@ -16,24 +18,30 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+from typing import cast
 
-from deeper_research import asta_config  # noqa: E402
+from deeper_research import asta_config
 
 PAPER = "2106.15928"
 HEADERS = {"User-Agent": "deeper-research preflight"}
 
 
-def status(url, data=None, tries=2):
-    """The HTTP status, or why the service could not be reached. A slow service gets a second try: the arXiv API
+# BUG?: with tries < 1 the loop never runs and the function returns None
+def status(url: str, data: bytes | None = None, tries: int = 2) -> int | str:  # type: ignore[return]
+    """The HTTP status, or why the service could not be reached.
+
+    A slow service gets a second try: the arXiv API
     has been seen to take over 60 s to answer and still answer 200.
     """
-    req = urllib.request.Request(
+    # Callers pass the fixed https URLs of the services checked.
+    req = urllib.request.Request(  # noqa: S310
         url, data=data, headers=dict(HEADERS, **({"Content-Type": "application/json"} if data else {}))
     )
     for attempt in range(tries):
         try:
-            with urllib.request.urlopen(req, timeout=90) as r:
-                return r.status
+            # The request carries a caller's fixed https URL (see above).
+            with urllib.request.urlopen(req, timeout=90) as r:  # noqa: S310
+                return cast("int", r.status)
         except urllib.error.HTTPError as e:
             return e.code
         except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
@@ -41,7 +49,8 @@ def status(url, data=None, tries=2):
                 return f"unreachable ({type(e).__name__}, {tries} tries)"
 
 
-def main():
+def main() -> int:
+    """Run the checks, print one line each and the log's summary, and return 1 if any failed, else 0."""
     checks = []
     s2 = status(
         "https://api.semanticscholar.org/graph/v1/paper/batch?fields=title", f'{{"ids":["ARXIV:{PAPER}"]}}'.encode()
@@ -54,7 +63,12 @@ def main():
     ok = api == 200 and html in (200, 404)  # 404: no HTML for this paper, but the site answers
     checks.append(("arXiv", ok, "ok" if ok else f"failed (API {api}, HTML {html})"))
     uv = shutil.which("uv")
-    version = subprocess.run([uv, "--version"], capture_output=True, text=True).stdout.strip() if uv else ""
+    # A fixed argument list: the `uv` found on PATH, asked for its version.
+    version = (
+        subprocess.run([uv, "--version"], capture_output=True, text=True, check=False).stdout.strip()  # noqa: S603
+        if uv
+        else ""
+    )
     checks.append(("uv", bool(version), "ok" if version else "failed (not installed)"))
     key = asta_config.main(["--quiet"]) == 0
     checks.append(("Asta key", key, "set" if key else "not set"))
