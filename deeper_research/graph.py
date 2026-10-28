@@ -458,7 +458,9 @@ def build(topic: str, refresh: bool = False) -> int:
         mix: dict[str, int] = {}
         for n in members:
             mix[papers[n]["cluster"]] = mix.get(papers[n]["cluster"], 0) + 1
-        comm_list.append({"id": f"c{i + 1}", "size": len(members), "mix": sorted(mix.items(), key=lambda t: -t[1])})
+        # Ties broken by cluster id, so that a rebuild from the same data writes the same page.
+        mix_sorted = sorted(mix.items(), key=lambda t: (-t[1], t[0]))
+        comm_list.append({"id": f"c{i + 1}", "size": len(members), "mix": mix_sorted})
 
     sidecar = topic_dir(topic) / "pool.json"
     records = json.loads(sidecar.read_text())["papers"] if sidecar.exists() else {}
