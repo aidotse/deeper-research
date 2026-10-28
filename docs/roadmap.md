@@ -45,8 +45,29 @@ input for the rerun.
     (`.pre-commit-config.yaml`), because `mdformat-mkdocs` 5.2.0 refuses its "What verify means" list: steps 1–3, two
     paragraphs, then a list that restarts at 4. Either reword it as one list (the two paragraphs indented under step 3,
     or turned into steps), or drop the exclusion once the plugin handles a list's start number.
+- `Rows without an ID` — a Coreset row with no paper link is reported by `check_coreset`, but two later checks then
+    crash with `TypeError` instead of reporting: the anchor in-degree note in `check.check_structure` (sorting `None`
+    with IDs) and `gates.r_abstract_listed` (`None` in `c.abstract`); `gates.r_evidence` would likely do the same for a
+    non-abstract row (UNVERIFIED). Each site is marked `# BUG?` in the code. Fix: skip `None` IDs in those checks.
+- `Retry loops with no attempt` — `net.request(attempts=0)` and `preflight.status(tries=0)` return `None` instead of
+    failing. No caller passes less than 1; marked `# BUG?`.
 
 ## Known gaps, not yet built
+
+### Test coverage
+
+The template's coverage gate is 80 %; `pyproject.toml` sets `fail_under = 49`, the coverage measured when the gate
+suites moved to pytest (subprocess runs included, through `patch = ["subprocess"]`). `gates`, `expand`, `screen` and
+`check` are above 80 %; `asta_config`, `bib`, `fulltext`, `match`, `pool`, `preflight`, `recursive` and `sheets` have no
+tests at all, mostly because they call outside services. Raise the gate as tests are added, with the network calls faked
+as `test_behaviour.py` already does for `expand` and `fringe`.
+
+### Function complexity
+
+35 functions carry `# noqa: C901` (ruff's complexity limit of 10), left as they were when the repo moved onto the
+template rather than refactored, to keep behaviour identical: `grep -rn "noqa: C901" deeper_research tests` lists them.
+Most are the checks in `check.py` and `gates.py` and the scripts' `main` functions. Split one when it is next changed
+for another reason, with the gate suites as the safety net.
 
 ### Theme searches, and the Semantic Scholar key
 
