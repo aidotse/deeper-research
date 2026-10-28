@@ -16,8 +16,8 @@ add         Adds papers to the Pool table by canonical ID (docs/formats.md, "Pap
             needs, cannot enter the pool yet, and is listed for Open work. A
             CorpusId whose paper has an arXiv ID is refused, with the arXiv ID to use instead. A paper already in
             graphs/<topic>/rejected.md is added, with a warning that names the rejection. Afterwards the main session
-            runs deeper_research/pool.py (before step 3) or `assign.py late` (after it), for `year`, `citations` and `cites`,
-            and pastes the `Pool` line it prints.
+            runs deeper_research/pool.py (before step 3) or `assign.py late` (after it), for `year`, `citations` and
+            `cites`, and pastes the `Pool` line it prints.
 add-expand  Adds the candidates marked `yes` in graphs/<topic>/expand-screen.md (step 2, and each targeted expansion),
             each by its arXiv ID or, failing that, its CorpusId, and records each `no` in rejected.md with the
             sheet's reason. Prints the log's `Expansion` line. It refuses while any row is unjudged. A `no` for a
@@ -30,10 +30,10 @@ clusters    Writes each pool paper's computed cluster (graphs/<topic>/clusters.j
             under the name the Clusters table's `computed` column gives it. Run after naming (step 3), and after any
             recluster and remap. Membership is never written by hand.
 late        Processes the late papers as one batch (docs/process.md, "Late papers"): pool papers added after the last
-            full clustering. Fetches their data (deeper_research/pool.py), assigns each to the cluster its k nearest clustered
-            papers favour under the `combined` measure, each voting with its similarity (by text, for a paper with no
-            positive similarity under that measure), records the assignment in clusters.json, writes the Pool column,
-            and prints the log's `Late papers` line. Each paper is assigned against the clustering as it
+            full clustering. Fetches their data (deeper_research/pool.py), assigns each to the cluster its k nearest
+            clustered papers favour under the `combined` measure, each voting with its similarity (by text, for a paper
+            with no positive similarity under that measure), records the assignment in clusters.json, writes the Pool
+            column, and prints the log's `Late papers` line. Each paper is assigned against the clustering as it
             stood, never against other late papers, so the result does not depend on order. If late papers would
             exceed 10% of the pool, it assigns nothing and exits 3: rerun deeper_research/cluster.py instead.
 remap       After a recluster, moves each named cluster's `computed` id to the new cluster it matched (clusters.json,
@@ -52,10 +52,14 @@ Calls to Semantic Scholar are unauthenticated; no key or user identifier is sent
 import json
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
+
+from deeper_research.check import ID, arxiv_of, cells_of, link, row_id, s2_ref, sections, table_rows
+from deeper_research.screen import judged, pool_titles, title_key, verdicts
 
 ROOT = Path(__file__).resolve().parent.parent
-from deeper_research.check import ID, arxiv_of, cells_of, link, row_id, s2_ref, sections, table_rows  # noqa: E402
 
 LATE_SHARE = 0.1  # late papers since the last full clustering, as a share of the pool, above which to recluster
 POOL_HEADER = "| paper | year | cluster | citations | cites |\n| -- | -- | -- | -- | -- |\n"
@@ -63,28 +67,31 @@ S2_TITLES = "https://api.semanticscholar.org/graph/v1/paper/batch?fields=title,e
 S2_ADD = S2_TITLES + ",embedding.specter_v2"
 
 
-def survey_path(topic):
+def survey_path(topic: str) -> Path:
+    """The topic's survey, surveys/<topic>.md."""
     return ROOT / "surveys" / f"{topic}.md"
 
 
-def topic_dir(topic):
+def topic_dir(topic: str) -> Path:
+    """The topic's directory of derived data, graphs/<topic>."""
     return ROOT / "graphs" / topic
 
 
-def section_span(lines, name):
+def section_span(lines: list[str], name: str) -> tuple[int, int]:
     """The (start, end) line indices of a `## name` section's body."""
-    start = next((i + 1 for i, l in enumerate(lines) if l.rstrip("\n") == f"## {name}"), None)
+    start = next((i + 1 for i, line in enumerate(lines) if line.rstrip("\n") == f"## {name}"), None)
     if start is None:
         sys.exit(f"the survey has no `## {name}` section")
     end = next((i for i in range(start, len(lines)) if lines[i].startswith("## ")), len(lines))
     return start, end
 
 
-def rewrite_column(topic, section, key_col, column, values):
+def rewrite_column(topic: str, section: str, key_col: str | None, column: str, values: dict[str, str]) -> int:
     """Set `column` in a section's table to values[key] for each row, keyed by `key_col` (or the row's arXiv ID)."""
     path = survey_path(topic)
     lines = path.read_text().splitlines(keepends=True)
     start, end = section_span(lines, section)
+    header: list[str] | None
     header, changed = None, 0
     for i in range(start, end):
         line = lines[i]
@@ -96,10 +103,11 @@ def rewrite_column(topic, section, key_col, column, values):
             if column not in header:
                 sys.exit(f"the {section} table has no `{column}` column")
             continue
-        if line.startswith("| --") or line.startswith("|--"):
+        if line.startswith(("| --", "|--")):
             continue
         cells = cells_of(line.rstrip("\n"))
-        key = row_id(line) if key_col is None else cells[header.index(key_col)]
+        # A row without a paper link has no key: None, which is in no `values`.
+        key = cast("str", row_id(line)) if key_col is None else cells[header.index(key_col)]
         if key in values and cells[header.index(column)] != values[key]:
             cells[header.index(column)] = values[key]
             lines[i] = "| " + " | ".join(c.replace("\0", "\\|") for c in cells) + " |\n"
@@ -109,12 +117,16 @@ def rewrite_column(topic, section, key_col, column, values):
     return changed
 
 
-def pool_ids(topic):
+def pool_ids(topic: str) -> list[str]:
+    """The IDs of the papers in the survey's Pool table, in table order."""
     secs = sections(survey_path(topic).read_text())
-    return [row_id(l) for h, _, _, l in table_rows(secs.get("Pool", "")) if h and h[0] == "paper" and row_id(l)]
+    return cast(
+        "list[str]",
+        [row_id(line) for h, _, _, line in table_rows(secs.get("Pool", "")) if h and h[0] == "paper" and row_id(line)],
+    )
 
 
-def name_map(topic):
+def name_map(topic: str) -> dict[str, str]:
     """{computed id: named id}, from the Clusters table's `computed` column."""
     secs = sections(survey_path(topic).read_text())
     out = {}
@@ -124,26 +136,27 @@ def name_map(topic):
     return out
 
 
-def load_report(topic):
+def load_report(topic: str) -> tuple[Path, dict[str, Any]]:
+    """(path, contents) of graphs/<topic>/clusters.json; exits if there is none yet."""
     path = topic_dir(topic) / "clusters.json"
     if not path.exists():
         sys.exit(f"no {path.relative_to(ROOT)}; run `uv run python -m deeper_research.cluster {topic}` first")
     return path, json.loads(path.read_text())
 
 
-def rejected(topic):
+def rejected(topic: str) -> dict[str, tuple[str, str]]:
     """{paper id: (date, reason)} from graphs/<topic>/rejected.md, the latest rejection of each paper."""
     path = topic_dir(topic) / "rejected.md"
     if not path.exists():
         return {}
     return {
-        row_id(l): (c[1], c[2])
-        for h, c, _, l in table_rows(path.read_text())
-        if h and h[0] == "paper" and row_id(l) and len(c) >= 3
+        cast("str", row_id(line)): (c[1], c[2])
+        for h, c, _, line in table_rows(path.read_text())
+        if h and h[0] == "paper" and row_id(line) and len(c) >= 3
     }
 
 
-def warn_rejected(topic, added):
+def warn_rejected(topic: str, added: list[str]) -> None:
     """Name each added paper that an earlier screening rejected: two opposite verdicts on record need reconciling."""
     rej = rejected(topic)
     hit = [a for a in added if a in rej]
@@ -155,7 +168,8 @@ def warn_rejected(topic, added):
         )
 
 
-def next_step(topic):
+def next_step(topic: str) -> str:
+    """What the main session runs next, after papers were added: the line to print."""
     return (
         f"next, for the main session: `uv run python -m deeper_research.pool {topic}` before clustering (step 3), or "
         f"`uv run python -m deeper_research.assign late {topic}` after it; paste the `Pool` line it prints into the log"
@@ -165,7 +179,7 @@ def next_step(topic):
 # --- add ------------------------------------------------------------------------------------------
 
 
-def append_pool_rows(topic, titled):
+def append_pool_rows(topic: str, titled: dict[str, str]) -> list[str]:
     """Append rows for {arxiv id: title} not already in the Pool table. Returns the IDs added."""
     have = set(pool_ids(topic))
     new = [(a, t) for a, t in titled.items() if a not in have]
@@ -177,7 +191,7 @@ def append_pool_rows(topic, titled):
     rows = "".join(
         f"| [{t.replace('|', '/').replace('[', '(').replace(']', ')')}]({link(a)}) |  |  |  |  |\n" for a, t in new
     )
-    if not any(l.startswith("|") for l in lines[start:end]):
+    if not any(line.startswith("|") for line in lines[start:end]):
         lines[start:start] = ["\n", POOL_HEADER, rows]
     else:
         last = max(i for i in range(start, end) if lines[i].startswith("|"))
@@ -186,8 +200,10 @@ def append_pool_rows(topic, titled):
     return [a for a, _ in new]
 
 
-def add(topic, ids):
-    from deeper_research.net import get_json
+def add(topic: str, ids: list[str]) -> int:  # noqa: C901
+    """Add papers to the Pool table by canonical ID, titled from Semantic Scholar; returns the exit status."""
+    # local: looked up at call time, so that a replacement of net.get_json (the behaviour tests' fake) is used
+    from deeper_research.net import get_json  # noqa: PLC0415
 
     bad = [a for a in ids if not ID.match(a)]
     if bad or not ids:
@@ -196,10 +212,14 @@ def add(topic, ids):
             file=sys.stderr,
         )
         return 2
+    titled: dict[str, str]
+    unknown: list[str]
+    has_arxiv: dict[str, str | None]
+    no_embedding: list[str]
     titled, unknown, has_arxiv, no_embedding = {}, [], {}, []
     for i in range(0, len(ids), 100):
         batch = ids[i : i + 100]
-        for a, rec in zip(batch, get_json(S2_ADD, {"ids": [s2_ref(x) for x in batch]})):
+        for a, rec in zip(batch, get_json(S2_ADD, {"ids": [s2_ref(x) for x in batch]}), strict=False):
             if not (rec and rec.get("title")):
                 unknown.append(a)
             elif not (rec.get("embedding") or {}).get("vector"):
@@ -228,16 +248,17 @@ def add(topic, ids):
     return 0
 
 
-def add_expand(topic):
-    from deeper_research.expand import canonical, expansion_line, latest_entry, pass_candidates
-    from deeper_research.screen import judged, pool_titles, title_key, verdicts
+def add_expand(topic: str) -> int:
+    """Add the expansion sheet's `yes` candidates to the pool and record its `no`s; returns the exit status."""
+    # local: import cycle with expand
+    from deeper_research.expand import canonical, expansion_line, latest_entry, pass_candidates  # noqa: PLC0415
 
     d = topic_dir(topic)
     for name in ("expand.json", "expand-screen.md"):
         if not (d / name).exists():
             sys.exit(
-                f"no graphs/{topic}/{name}; run `uv run python -m deeper_research.expand collect {topic}` first, then have the "
-                "candidates screened"
+                f"no graphs/{topic}/{name}; run `uv run python -m deeper_research.expand collect {topic}` first, then "
+                "have the candidates screened"
             )
     data = json.loads((d / "expand.json").read_text())
     since = latest_entry(topic)[0]
@@ -252,7 +273,8 @@ def add_expand(topic):
     if absent:
         sys.exit(
             f"{len(absent)} candidate(s) in expand.json have no row in expand-screen.md: {absent[:3]}; rerun "
-            f"`uv run python -m deeper_research.expand collect {topic}` with the same arguments, which restores missing rows"
+            f"`uv run python -m deeper_research.expand collect {topic}` with the same arguments, which restores "
+            "missing rows"
         )
     blank = [s for s in mine if not judged(*said[s])]
     if blank:
@@ -265,7 +287,7 @@ def add_expand(topic):
     no = [s for s in mine if said[s][0].startswith("no")]
     there = [s for s in yes if canonical(cands[s]) in pool or title_key(cands[s]["title"]) in titles]
     no_id = [s for s in yes if not canonical(cands[s])]
-    ids = [canonical(cands[s]) for s in yes if s not in there and canonical(cands[s])]
+    ids = cast("list[str]", [canonical(cands[s]) for s in yes if s not in there and canonical(cands[s])])
     if ids:
         add(topic, ids)  # fetches each paper's record, and refuses one without a SPECTER2 embedding
     print(f"{len(there)} in-scope candidate(s) already in the pool")
@@ -275,35 +297,38 @@ def add_expand(topic):
     conflict = [canonical(cands[s]) for s in no if canonical(cands[s]) in pool]
     _, recorded, _ = write_rejections(
         topic,
-        [
-            (canonical(cands[s]), said[s][1])
-            for s in no
-            if canonical(cands[s]) and canonical(cands[s]) not in pool | set(rej)
-        ],
+        cast(
+            "list[tuple[str, str]]",
+            [
+                (canonical(cands[s]), said[s][1])
+                for s in no
+                if canonical(cands[s]) and canonical(cands[s]) not in pool | set(rej)
+            ],
+        ),
     )
     print(f"recorded {len(recorded)} rejection(s) in graphs/{topic}/rejected.md")
     if conflict:
         print(
             f"judged `no` on the sheet but in the pool, so not recorded as rejected: {conflict}; one verdict is wrong: "
-            f"re-judge the row with `uv run python -m deeper_research.expand judge {topic}`, or ask the user to take the paper out of "
-            "the pool (H12)"
+            f"re-judge the row with `uv run python -m deeper_research.expand judge {topic}`, or ask the user to take "
+            "the paper out of the pool (H12)"
         )
     print("\nlog line, in place of any earlier `Expansion` line of this pass:")
     print(expansion_line(data, said, since))
     return 0
 
 
-def add_fringe(topic):
+def add_fringe(topic: str) -> int:  # noqa: C901
+    """Add the fringe sheet's `yes` candidates to the Pool table; returns the exit status."""
     d = topic_dir(topic)
     for name in ("fringe.json", "fringe-screen.md"):
         if not (d / name).exists():
             sys.exit(
-                f"no graphs/{topic}/{name}; run `uv run python -m deeper_research.fringe collect {topic}` first, then have the "
-                "candidates screened"
+                f"no graphs/{topic}/{name}; run `uv run python -m deeper_research.fringe collect {topic}` first, then "
+                "have the candidates screened"
             )
     data = json.loads((d / "fringe.json").read_text())
     cands = data["candidates"]
-    from deeper_research.screen import judged, verdicts
 
     rows = verdicts((d / "fringe-screen.md").read_text())
     screened = {s: v for s, (v, _) in rows.items()}
@@ -318,15 +343,17 @@ def add_fringe(topic):
     if unknown:
         sys.exit(
             f"{len(unknown)} row(s) of fringe-screen.md are not in fringe.json: {unknown[:3]}; rerun "
-            f"`uv run python -m deeper_research.fringe collect {topic}`, which keeps the judgements already on the sheet"
+            f"`uv run python -m deeper_research.fringe collect {topic}`, which keeps the judgements already on the "
+            "sheet"
         )
     yes = [s for s, v in screened.items() if v.startswith("yes")]
     # The canonical ID: the arXiv ID where there is one, otherwise the corpus ID (docs/formats.md).
     missing = [s for s in yes if not cands[s].get("arxiv")]
     if missing:
-        from deeper_research.net import get_json
+        # local: looked up at call time, so that a replacement of net.get_json (the behaviour tests' fake) is used
+        from deeper_research.net import get_json  # noqa: PLC0415
 
-        for s, rec in zip(missing, get_json(S2_TITLES, {"ids": missing})):
+        for s, rec in zip(missing, get_json(S2_TITLES, {"ids": missing}), strict=False):
             if arxiv_of(rec):
                 cands[s]["arxiv"] = arxiv_of(rec)
             elif rec and (rec.get("externalIds") or {}).get("CorpusId"):
@@ -359,12 +386,14 @@ def add_fringe(topic):
 # --- clusters, late, remap ------------------------------------------------------------------------
 
 
-def write_clusters(topic):
+def write_clusters(topic: str) -> int:
+    """Write each pool paper's computed cluster, by name, into the Pool `cluster` column; returns the exit status."""
     _, report = load_report(topic)
     if report.get("previous") and not report["previous"].get("remapped") and name_map(topic):
         print(
             f"FAIL  clusters.json is a new clustering whose names have not been carried over; run "
-            f"`uv run python -m deeper_research.assign remap {topic}` first, or the old names would land on the new clusters"
+            f"`uv run python -m deeper_research.assign remap {topic}` first, or the old names would land on the new "
+            "clusters"
         )
         return 1
     names = name_map(topic)
@@ -383,16 +412,22 @@ def write_clusters(topic):
     print(f"Pool table: {changed} `cluster` cell(s) written")
     if waiting:
         print(
-            f"late papers awaiting assignment ({len(waiting)}): {waiting}; run `uv run python -m deeper_research.assign late {topic}`"
+            f"late papers awaiting assignment ({len(waiting)}): {waiting}; run "
+            f"`uv run python -m deeper_research.assign late {topic}`"
         )
     return 0
 
 
-def late(topic):
-    import numpy as np
+def late(topic: str) -> int:
+    """Assign the late papers to their nearest clusters, as one batch; returns the exit status."""
+    # local: keeps numpy out of the commands that do not assign late papers
+    import numpy as np  # noqa: PLC0415
 
-    from deeper_research import pool
-    from deeper_research.cluster import combined_sim, refs_sim, text_sim
+    # local: a top-level import would load pool, binding its net.get_json, before a test could replace it
+    from deeper_research import pool  # noqa: PLC0415
+
+    # local: keeps numpy, igraph, leidenalg and scikit-learn out of the commands that do not assign late papers
+    from deeper_research.cluster import combined_sim, refs_sim, text_sim  # noqa: PLC0415
 
     pool.main([topic])
     path, report = load_report(topic)
@@ -412,8 +447,9 @@ def late(topic):
         # One decimal: in whole percents, 10.3% would read "10% of the pool, above 10%".
         print(
             f"RECLUSTER: late papers since the last full clustering would be {n_late} of {len(members)} "
-            f"({n_late / len(members):.1%}), above {LATE_SHARE:.0%} of the pool: rerun `uv run python -m deeper_research.cluster "
-            f"{topic}` instead, then `uv run python -m deeper_research.assign remap {topic}`"
+            f"({n_late / len(members):.1%}), above {LATE_SHARE:.0%} of the pool: rerun "
+            f"`uv run python -m deeper_research.cluster {topic}` instead, then "
+            f"`uv run python -m deeper_research.assign remap {topic}`"
         )
         return 3
 
@@ -426,12 +462,12 @@ def late(topic):
     labels = [report["assignment"][a] for a in base]
     late_rec, today = report.setdefault("late", {}), time.strftime("%Y-%m-%d")
     names = name_map(topic)
-    shown = []
+    shown: list[str] = []
     for j, a in enumerate(queue):
         row = S[n + j, :n]
         if not np.any(row > 0):  # e.g. no shared references at all under `refs`: fall back on text
             row = T[n + j, :n]
-        votes = {}
+        votes: dict[str, float] = {}
         for i in np.argsort(row)[::-1][:k]:
             votes[labels[i]] = votes.get(labels[i], 0.0) + float(max(row[i], 0.0))
         best = sorted(votes.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
@@ -447,7 +483,8 @@ def late(topic):
     return status
 
 
-def remap(topic):
+def remap(topic: str) -> int:
+    """Carry each named cluster's `computed` id over to the new cluster it matched after a recluster."""
     path, report = load_report(topic)
     prev = report.get("previous")
     if not prev:
@@ -455,10 +492,12 @@ def remap(topic):
     if prev.get("remapped"):
         sys.exit("already remapped after this clustering")
     names = name_map(topic)
-    carry = {}
+    carry: dict[str, str] = {}
     for b, x in prev["new"].items():
         if x["case"] == "matched":
             carry[x["from"][0]] = b
+    values: dict[str, str]
+    lost: list[str]
     values, lost = {}, []
     for old, named in names.items():
         if old in carry:
@@ -487,8 +526,10 @@ def remap(topic):
 
 REJECTED_HEADER = """# Rejected candidates: {topic}
 
-Candidates screened out of scope, one row per judgement: in orientation, by `deeper_research/assign.py reject`; in expansion and
-targeted expansions, copied from `expand-screen.md` by `deeper_research/assign.py add-expand`. The fringe routes' judgements are in
+Candidates screened out of scope, one row per judgement: in orientation, by `deeper_research/assign.py reject`; in \
+expansion and
+targeted expansions, copied from `expand-screen.md` by `deeper_research/assign.py add-expand`. The fringe routes' \
+judgements are in
 `fringe-screen.md`. See docs/gates.md.
 
 | paper | date | reason |
@@ -496,9 +537,12 @@ targeted expansions, copied from `expand-screen.md` by `deeper_research/assign.p
 """
 
 
-def write_rejections(topic, todo):
-    """Append [(paper id, reason)] to rejected.md, dated today, skipping a paper already recorded today. Returns
-    (path, recorded, skipped).
+def write_rejections(
+    topic: str, todo: list[tuple[str, str]]
+) -> tuple[Path, list[tuple[str, str]], list[tuple[str, str]]]:
+    """Append [(paper id, reason)] to rejected.md, dated today, skipping a paper already recorded today.
+
+    Returns (path, recorded, skipped).
     """
     path = topic_dir(topic) / "rejected.md"
     if not path.exists():
@@ -506,7 +550,11 @@ def write_rejections(topic, todo):
         path.write_text(REJECTED_HEADER.format(topic=topic))
     today = time.strftime("%Y-%m-%d")
     text = path.read_text()
-    done = {row_id(l) for h, c, _, l in table_rows(text) if h and h[0] == "paper" and len(c) > 1 and c[1] == today}
+    done = {
+        row_id(line) for h, c, _, line in table_rows(text) if h and h[0] == "paper" and len(c) > 1 and c[1] == today
+    }
+    new: list[tuple[str, str]]
+    again: list[tuple[str, str]]
     new, again = [], []
     for pid, reason in todo:
         (again if pid in done else new).append((pid, reason))
@@ -516,7 +564,7 @@ def write_rejections(topic, todo):
     return path, new, again
 
 
-def reject(topic, args):
+def reject(topic: str, args: list[str]) -> int:  # noqa: C901
     """args: a paper ID and its reason; or none, to read `<paper-id><TAB><reason>` lines from stdin."""
     if args:
         items = [(1, args[0], " ".join(args[1:]))]
@@ -529,14 +577,16 @@ def reject(topic, args):
         if not items:
             sys.exit("no `<paper-id><TAB><reason>` lines on stdin; nothing recorded")
     pool = {
-        row_id(l)
-        for h, _, _, l in table_rows(sections(survey_path(topic).read_text()).get("Pool", ""))
+        row_id(row)
+        for h, _, _, row in table_rows(sections(survey_path(topic).read_text()).get("Pool", ""))
         if h and h[0] == "paper"
     }
     # Check every line before writing any, so that a batch is recorded whole or not at all.
+    todo: list[tuple[str, str]]
+    problems: list[str]
     todo, problems = [], []
-    for n, pid, reason in items:
-        reason = " ".join(reason.replace("|", "/").split())
+    for n, pid, given in items:
+        reason = " ".join(given.replace("|", "/").split())
         where = "" if args else f"line {n}: "
         if not ID.match(pid):
             problems.append(f'{where}{pid!r} is not a canonical paper ID (docs/formats.md, "Paper IDs")')
@@ -567,8 +617,9 @@ def reject(topic, args):
     return 0
 
 
-def main(argv):
-    commands = {
+def main(argv: list[str]) -> int:
+    """Run the command line; returns the exit status."""
+    commands: dict[str, Callable[[str], int]] = {
         "add": lambda t: add(t, argv[2:]),
         "add-expand": add_expand,
         "add-fringe": add_fringe,

@@ -3,7 +3,7 @@
 Usage:
   uv run python -m deeper_research.expand collect <topic>
   uv run python -m deeper_research.expand collect <topic> [--targeted <id>[,<id> ...]] --query "<theme>" --why "<why>"
-  uv run python -m deeper_research.expand judge <topic> < lines        (one `<s2><TAB>yes|no|maybe<TAB><reason>` per line)
+  uv run python -m deeper_research.expand judge <topic> < lines      (one `<s2><TAB>yes|no|maybe<TAB><reason>` per line)
 
 `collect`, on a pass's first expansion, reads the seeds, the frontier candidates and the themes from the latest pass's
 `Orientation` line, and calls the Semantic Scholar Graph API:
@@ -30,13 +30,13 @@ screening sheet graphs/<topic>/expand-screen.md, one numbered row each, with tit
 a row keeps its number and its verdict. Rerunning a collection in the same pass replaces its record and appends only
 what is new, and any candidate of expand.json that has lost its row gets it back.
 
-Progress is saved in expand.json after every batch and every search. If the Graph API stays busy past its retries, `collect` stops and
-says so, and the same command run again resumes where it stopped.
+Progress is saved in expand.json after every batch and every search. If the Graph API stays busy past its retries,
+`collect` stops and says so, and the same command run again resumes where it stopped.
 
-`judge` writes screening verdicts into the sheet. It is the shared judge of deeper_research/screen.py, which says what it refuses,
-and it locks the sheet while it writes, so that agents judging disjoint rows may run at once; `collect` takes the same
-lock to append. Then `uv run python -m deeper_research.assign add-expand <topic>` adds each `yes` to the pool, records each `no` in
-rejected.md, and prints the log's `Expansion` line.
+`judge` writes screening verdicts into the sheet. It is the shared judge of deeper_research/screen.py, which says what
+it refuses, and it locks the sheet while it writes, so that agents judging disjoint rows may run at once; `collect`
+takes the same lock to append. Then `uv run python -m deeper_research.assign add-expand <topic>` adds each `yes` to the
+pool, records each `no` in rejected.md, and prints the log's `Expansion` line.
 
 Calls are unauthenticated; no key or user identifier is sent.
 """
@@ -50,12 +50,14 @@ import time
 import urllib.error
 import urllib.parse
 from pathlib import Path
+from typing import Any, cast
+
+from deeper_research.assign import pool_ids, rejected, survey_path, topic_dir
+from deeper_research.check import BARE_ID, ID, arxiv_of, s2_ref, sections
+from deeper_research.net import get_json
+from deeper_research.screen import Papers, clean, judge, judged, pool_titles, verdicts
 
 ROOT = Path(__file__).resolve().parent.parent
-from deeper_research.assign import pool_ids, rejected, survey_path, topic_dir  # noqa: E402
-from deeper_research.check import BARE_ID, ID, arxiv_of, s2_ref, sections  # noqa: E402
-from deeper_research.net import get_json  # noqa: E402
-from deeper_research.screen import Papers, clean, judge, judged, pool_titles, verdicts  # noqa: E402
 
 API = "https://api.semanticscholar.org/graph/v1"
 SEARCH_LIMIT = 50  # results kept per theme search, as Asta's relevance search returns by default
@@ -66,24 +68,31 @@ META = "title,abstract,externalIds,openAccessPdf"
 LEFT_OUT = ("in the pool", "rejected earlier", "on the sheet already", "another record", "not found")
 SHEET = """# Expansion screening sheet
 
-Candidates for `{topic}` from expansion, one numbered row each (`uv run python -m deeper_research.expand collect`). Mark `in scope` as
-`yes` or `no`, with a reason of at least two words tied to the topic (`uv run python -m deeper_research.expand judge {topic}`).
+Candidates for `{topic}` from expansion, one numbered row each (`uv run python -m deeper_research.expand collect`). \
+Mark `in scope` as
+`yes` or `no`, with a reason of at least two words tied to the topic (`uv run python -m deeper_research.expand \
+judge {topic}`).
 
 | # | s2 | title | abstract | in scope | reason |
 | -- | -- | -- | -- | -- | -- |
 """
 
 
-def call(url, body=None):
+# The parsed JSON of a Graph API response: an object, or a list of them for the batch endpoint.
+def call(url: str, body: dict[str, Any] | None = None) -> Any:  # noqa: ANN401
+    """`net.get_json` after a one-second pause, to stay within the shared rate limit."""
     time.sleep(1)  # the unauthenticated endpoint shares one rate limit across all its users; net retries a 429
     return get_json(url, body)
 
 
-def orientation_parts(line):
+def orientation_parts(line: str) -> list[list[str]]:
     """(seeds, frontier candidates, themes) from an `Orientation` line, each in order and without repeats."""
+    seeds: list[str]
+    frontier: list[str]
+    themes: list[str]
     seeds, frontier, themes = [], [], []
-    for part in line.split(";"):
-        part = part.strip()
+    for piece in line.split(";"):
+        part = piece.strip()
         if part.startswith("seeds from the input:"):
             seeds = BARE_ID.findall(part)
         elif part.startswith("frontier candidates:"):
@@ -93,9 +102,10 @@ def orientation_parts(line):
     return [list(dict.fromkeys(x)) for x in (seeds, frontier, themes)]
 
 
-def latest_entry(topic):
+def latest_entry(topic: str) -> tuple[str, str]:
     """(date, Orientation line) of the retrieval log's latest pass entry."""
-    from deeper_research.gates import log_entries
+    # local: import cycle with gates
+    from deeper_research.gates import log_entries  # noqa: PLC0415
 
     entries = log_entries(sections(survey_path(topic).read_text()).get("Retrieval log", ""))
     if not entries:
@@ -103,9 +113,10 @@ def latest_entry(topic):
     return entries[-1]["date"], " ".join(entries[-1]["lines"].get("Orientation", []))
 
 
-def paged(pid, direction):
+def paged(pid: str, direction: str) -> tuple[list[dict[str, Any]], bool]:
     """Every entry of one paper's references or citations list, from its own endpoint: (entries, capped)."""
     endpoint = "references" if direction == "backward" else "citations"
+    out: list[dict[str, Any]]
     out, offset = [], 0
     while True:
         try:
@@ -123,9 +134,9 @@ def paged(pid, direction):
         offset = d["next"]
 
 
-def traversal(pid, direction, rec):
+def traversal(pid: str, direction: str, rec: dict[str, Any] | None) -> dict[str, Any]:
     """A source record for one traversal, from the paper's batch record."""
-    src = {"kind": direction, "from": pid, "ids": [], "unresolved": 0}
+    src: dict[str, Any] = {"kind": direction, "from": pid, "ids": [], "unresolved": 0}
     key, count, inner = (
         ("references", "referenceCount", "citedPaper")
         if direction == "backward"
@@ -151,12 +162,15 @@ def traversal(pid, direction, rec):
     return src
 
 
-def phrase(query):
-    """A theme as the phrase searched: quotes dropped, whitespace collapsed; hyphens kept, which the endpoint matches."""
+def phrase(query: str) -> str:
+    """The exact phrase a theme is searched as.
+
+    A theme as the phrase searched: quotes dropped, whitespace collapsed; hyphens kept, which the endpoint matches.
+    """
     return " ".join(query.replace('"', " ").split())
 
 
-def search(query):
+def search(query: str) -> dict[str, Any]:
     """One theme's search: the theme as an exact phrase in title or abstract, its SEARCH_LIMIT most-cited matches."""
     q = urllib.parse.quote('"' + phrase(query) + '"')
     d = call(f"{API}/paper/search/bulk?query={q}&fields=paperId&sort=citationCount:desc")
@@ -172,7 +186,7 @@ def search(query):
     }
 
 
-def lite(rec):
+def lite(rec: dict[str, Any] | None) -> dict[str, str | None] | None:
     """What a candidate keeps of its batch record: title, abstract and canonical IDs; None for a paper not found."""
     if not rec or not rec.get("title"):
         return None
@@ -185,23 +199,23 @@ def lite(rec):
     }
 
 
-def canonical(c):
+def canonical(c: dict[str, Any]) -> str | None:
     """A candidate's canonical ID (docs/formats.md, "Paper IDs"): its arXiv ID, or failing that its corpus ID."""
-    return c.get("arxiv") or c.get("corpus")
+    return cast("str | None", c.get("arxiv") or c.get("corpus"))
 
 
-def pass_rounds(data, since):
+def pass_rounds(data: dict[str, Any], since: str) -> list[int]:
     """The indices of the rounds collected in the pass begun on `since`."""
     return [i for i, r in enumerate(data["rounds"]) if r["collected"] >= since]
 
 
-def pass_candidates(data, since):
+def pass_candidates(data: dict[str, Any], since: str) -> set[str]:
     """The candidates first put on the sheet by a round of this pass."""
     rounds = set(pass_rounds(data, since))
     return {x for x, c in data["candidates"].items() if c.get("round") in rounds}
 
 
-def append_rows(topic, data):
+def append_rows(topic: str, data: dict[str, Any]) -> tuple[int, int, dict[str, tuple[str, str]]]:
     """Append a numbered row for every candidate in expand.json without one, under the sheet's lock."""
     sheet = topic_dir(topic) / "expand-screen.md"
     if not sheet.exists():
@@ -226,12 +240,20 @@ def append_rows(topic, data):
     return first, len(missing), {**have, **dict.fromkeys(missing, ("", ""))}
 
 
-def collect(topic, targeted=None, query=None, why=None):
+def collect(  # noqa: C901
+    topic: str, targeted: list[str] | None = None, query: str | None = None, why: str | None = None
+) -> int:
+    """Collect a round of candidates onto the sheet: the pass's first expansion, or with `query` a targeted one.
+
+    Returns the exit status; exits with a message when there is nothing to collect from or the Graph API fails.
+    """
     d = topic_dir(topic)
     since, line = latest_entry(topic)
     seeds, frontier, themes = orientation_parts(line)
+    directions: tuple[str, ...]
     if query:
-        starts, directions, queries, kind = targeted, ("backward",), [query], "targeted"
+        # main passes a list of IDs, empty without --targeted, whenever it passes a query
+        starts, directions, queries, kind = cast("list[str]", targeted), ("backward",), [query], "targeted"
     else:
         starts = list(dict.fromkeys(seeds + frontier))
         if not starts:
@@ -258,7 +280,10 @@ def collect(topic, targeted=None, query=None, why=None):
         part = data["partial"] = {"key": key, "since": since, "sources": {}, "meta": {}}
     elif part["sources"] or part["meta"]:
         print(f"resuming: {len(part['sources'])} source(s) and {len(part['meta'])} record(s) already fetched")
-    save = lambda: path.write_text(json.dumps(data, indent=1))
+
+    def save() -> int:
+        return path.write_text(json.dumps(data, indent=1))
+
     labels = [f"{k} {p}" for k in directions for p in starts] + [f"search {q}" for q in queries]
     # The same collection rerun in the same pass replaces its record; its candidates on the sheet stay its own.
     idx = next(
@@ -273,7 +298,9 @@ def collect(topic, targeted=None, query=None, why=None):
         todo = [p for p in starts if any(f"{k} {p}" not in part["sources"] for k in directions)]
         for i in range(0, len(todo), BATCH):
             batch = todo[i : i + BATCH]
-            for p, rec in zip(batch, call(f"{API}/paper/batch?fields={LISTS}", {"ids": [s2_ref(x) for x in batch]})):
+            for p, rec in zip(
+                batch, call(f"{API}/paper/batch?fields={LISTS}", {"ids": [s2_ref(x) for x in batch]}), strict=False
+            ):
                 for k in directions:
                     part["sources"][f"{k} {p}"] = traversal(p, k, rec)
                     print(f"{k} from {p}: {part['sources'][f'{k} {p}']['returned']}")
@@ -293,7 +320,7 @@ def collect(topic, targeted=None, query=None, why=None):
         in_pool_s2 = (
             {r["s2"] for r in json.loads(pool_json.read_text())["papers"].values()} if pool_json.exists() else set()
         )
-        left = {k: [] for k in LEFT_OUT}
+        left: dict[str, list[str]] = {k: [] for k in LEFT_OUT}
         todo = []
         for x in dict.fromkeys(x for s in sources for x in s["ids"]):
             if x in own:
@@ -309,7 +336,9 @@ def collect(topic, targeted=None, query=None, why=None):
             print(f"fetching titles and abstracts of {len(need)} candidate(s)...")
         for i in range(0, len(need), BATCH):
             batch = need[i : i + BATCH]
-            part["meta"].update(zip(batch, map(lite, call(f"{API}/paper/batch?fields={META}", {"ids": batch}))))
+            part["meta"].update(
+                zip(batch, map(lite, call(f"{API}/paper/batch?fields={META}", {"ids": batch})), strict=False)
+            )
             save()
     except (urllib.error.URLError, http.client.HTTPException, TimeoutError, ConnectionError) as e:
         save()
@@ -323,6 +352,8 @@ def collect(topic, targeted=None, query=None, why=None):
     sheet, seen = Papers(), Papers()  # earlier rounds' rows; this round's papers, a rerun's own rows among them
     for x, c in cands.items():
         (sheet if x in on_sheet else seen).add(x, (c.get("arxiv"), c.get("corpus")), c["title"])
+    paper: dict[str, str | None]
+    keep: dict[str | None, str]
     paper, keep = {}, {}  # candidate -> the paper it is a record of; paper -> the record kept: the first with an
     for x in todo:  # arXiv ID, else the first. A rerun's own row is kept already, so a match to it is left out.
         m = part["meta"].get(x)
@@ -333,7 +364,7 @@ def collect(topic, targeted=None, query=None, why=None):
                 paper[x] = keep[x] = x
             elif paper[x] in keep and m["arxiv"] and not part["meta"][keep[paper[x]]]["arxiv"]:
                 keep[paper[x]] = x
-    new = []
+    new: list[str] = []
     for x in todo:
         m = part["meta"].get(x)
         ids = (m["arxiv"], m["corpus"]) if m else ()
@@ -379,16 +410,18 @@ def collect(topic, targeted=None, query=None, why=None):
     return 0
 
 
-def expansion_line(data, verdict_of, since):
-    """The log's `Expansion` line, from expand.json and the sheet's verdicts, over the rounds of the pass begun on
+def expansion_line(data: dict[str, Any], verdict_of: dict[str, tuple[str, str]], since: str) -> str:
+    """The log's `Expansion` line for the pass begun on `since`.
+
+    The log's `Expansion` line, from expand.json and the sheet's verdicts, over the rounds of the pass begun on
     `since`. Each round is one part; a targeted round opens with `targeted, <region> (<why>):`.
     """
-    parts = []
+    parts: list[str] = []
     for i, r in enumerate(data["rounds"]):
         if r["collected"] < since:
             continue
         src = r["sources"]
-        bits = []
+        bits: list[str] = []
         for kind in ("backward", "forward"):
             items = [s for s in src if s["kind"] == kind]
             if items:
@@ -432,7 +465,8 @@ def expansion_line(data, verdict_of, since):
     return "- **Expansion:** " + "; ".join(parts)
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
+    """Run the command line; returns the exit status."""
     if len(argv) < 2 or argv[0] not in ("collect", "judge"):
         print(__doc__.strip())
         return 2
@@ -446,6 +480,7 @@ def main(argv):
         return judge(
             topic_dir(topic) / "expand-screen.md", f"`uv run python -m deeper_research.expand collect {topic}`"
         )
+    opts: dict[str, str] | None
     try:
         opts = {argv[i]: argv[i + 1] for i in range(2, len(argv), 2)}
     except IndexError:
