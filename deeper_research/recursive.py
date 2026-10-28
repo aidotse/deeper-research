@@ -1,8 +1,11 @@
-"""Experiment: recursive clustering with a per-cluster stopping rule, against the global levels of deeper_research/cluster.py.
+"""Recursive clustering with a per-cluster stopping rule: an experiment, not part of a pass.
 
-Usage: uv run python -m deeper_research.recursive <topic> [--rules tau,strict,partial,confirmed,partial-confirmed] [--min-node 20]
-                                          [--max-split 6] [--tau 0.75] [--child 0.6] [--delta 0.15] [--reps 20]
-                                          [--reruns 10] [--workers 12]
+Experiment: recursive clustering with a per-cluster stopping rule, against the global levels of
+deeper_research/cluster.py.
+
+Usage: uv run python -m deeper_research.recursive <topic> [--rules tau,strict,partial,confirmed,partial-confirmed]
+                                          [--min-node 20] [--max-split 6] [--tau 0.75] [--child 0.6] [--delta 0.15]
+                                          [--reps 20] [--reruns 10] [--workers 12]
 
 The global method picks one level for the whole pool. This experiment starts from that clustering and then splits each
 cluster on its own, and so on, until a cluster no longer divides reliably. Each cluster is clustered as if it were a
@@ -38,21 +41,23 @@ graphs/<topic>/recursive.json. Not part of a pass. Deterministic: every random c
 import json
 import sys
 import time
+from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor
 from datetime import date
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
+from numpy.typing import NDArray
 from sklearn.metrics import adjusted_mutual_info_score as ami
 from sklearn.metrics import adjusted_rand_score as ari
 
-ROOT = Path(__file__).resolve().parent.parent
 from deeper_research.cluster import (
     HOLDOUT_MONTHS,
     LEVELS,
     MIN_CLUSTER,
     MIN_HOLDOUT_SHARE,
-    NO_STRUCTURE,  # noqa: E402
+    NO_STRUCTURE,
     SUBCLUSTER_SCORE,
     TAU,
     best_jaccard,
@@ -69,44 +74,59 @@ from deeper_research.cluster import (
     text_sim,
     tune,
 )
-from deeper_research.graph import parse, topic_dir  # noqa: E402
+from deeper_research.graph import parse, topic_dir
+
+ROOT = Path(__file__).resolve().parent.parent
 
 # Set in each worker by setup(): the pool's records, dates and the run's settings.
+RECS: Any
+DATES: Any
+CFG: Any
 RECS, DATES, CFG = None, None, None
 
 
-def setup(recs, dates, cfg):
+def setup(recs: list[dict[str, Any]], dates: NDArray[np.str_], cfg: dict[str, Any]) -> None:
+    """Set the pool's records, dates and the run's settings, in this process or in a worker."""
     global RECS, DATES, CFG
     RECS, DATES, CFG = recs, dates, cfg
 
 
-def similarity(idx, rng=None):
+def similarity(idx: NDArray[np.intp], rng: np.random.Generator | None = None) -> NDArray[np.float64]:
     """The measure on the papers idx alone, or, with rng, on structure-free data of the same shape."""
     recs, m = [RECS[i] for i in idx], CFG["measure"]
     if rng is None:
         T, C = (text_sim(recs) if m != "refs" else None), (refs_sim(recs) if m != "text" else None)
     else:
         T, C = (null_text(recs, rng) if m != "refs" else None), (null_refs(recs, rng) if m != "text" else None)
-    return {"text": T, "refs": C}.get(m) if m != "combined" else combined_sim(T, C, recs, CFG["c"])
+    # Under `combined` both T and C are computed; under `text` or `refs` the one the measure names is.
+    return (
+        cast(NDArray[np.float64], {"text": T, "refs": C}.get(m))
+        if m != "combined"
+        else combined_sim(cast(NDArray[np.float64], T), cast(NDArray[np.float64], C), recs, CFG["c"])
+    )
 
 
-def cutoffs_for(dates):
+def cutoffs_for(dates: NDArray[np.str_]) -> list[str]:
+    """The holdout cutoffs, months back from the latest date, that leave enough older papers."""
     latest = date.fromisoformat(max(dates))
     return [cut for cut in (month_back(latest, m) for m in HOLDOUT_MONTHS) if (dates < cut).mean() >= MIN_HOLDOUT_SHARE]
 
 
-def stats(S, target, cuts, dates):
+def stats(S: NDArray[np.float64], target: int, cuts: list[str], dates: NDArray[np.str_]) -> dict[str, Any]:
+    """level_stats with the run's settings; without holdout cutoffs, stability is the resampling score."""
     st = level_stats(S, CFG["k"], target, cuts, dates, CFG["reps"], np.random.default_rng(0))
     if not cuts:  # too few older papers in this cluster for a time holdout: resampling alone
         st["stability"] = st["resample_ari"]
     return st
 
 
-def groups(idx, lab):
+def groups(idx: NDArray[np.intp], lab: NDArray[np.int64]) -> list[NDArray[np.intp]]:
+    """The papers idx split by their labels lab, one array per label, in label order."""
     return [idx[lab == c] for c in np.unique(lab)]
 
 
-def jaccard(a, b):
+def jaccard(a: Iterable[int], b: Iterable[int]) -> float:
+    """The Jaccard overlap of two sets of papers; 0.0 if both are empty."""
     a, b = set(a), set(b)
     return len(a & b) / len(a | b) if a | b else 0.0
 
@@ -116,20 +136,29 @@ def jaccard(a, b):
 # step above it, best matches the node. A candidate split is scored by reclustering each perturbed version.
 
 
-def perturbations(root):
+def perturbations(root: NDArray[np.intp]) -> list[tuple[str, NDArray[np.intp], int]]:
     """Disturbed versions of the pool: time holdouts (three seeds each) and resamples of 80%."""
     d = DATES[root]
+    out: list[tuple[str, NDArray[np.intp], int]]
     out = [("holdout", root[d < cut], s) for cut in cutoffs_for(d) for s in range(3)]
     rng = np.random.default_rng(0)
     out += [("resample", np.sort(rng.choice(root, int(0.8 * len(root)), replace=False)), r) for r in range(CFG["reps"])]
     return out
 
 
-def follow(perts, versions, gamma, parts):
+def follow(
+    perts: list[tuple[str, NDArray[np.intp], int]],
+    versions: list[NDArray[np.intp]],
+    gamma: float,
+    parts: list[NDArray[np.intp]],
+) -> tuple[list[list[NDArray[np.intp]]], list[float]]:
     """Recluster each perturbed version at gamma; per part, its best-matching group in each, and its score."""
+    found: list[list[NDArray[np.intp]]]
+    sims: list[list[tuple[str, float]]]
+    scores: list[float]
     found = [[] for _ in parts]
     sims = [[] for _ in parts]
-    for (kind, P, seed), Q in zip(perts, versions):
+    for (kind, P, seed), Q in zip(perts, versions, strict=False):
         if len(Q) < 4:
             gs = [Q]
         else:
@@ -151,12 +180,14 @@ def follow(perts, versions, gamma, parts):
 # --- recursive method -----------------------------------------------------------------------------
 
 
-def try_splits(node, rule, perts):
+def try_splits(node: dict[str, Any], rule: str, perts: list[tuple[str, NDArray[np.intp], int]]) -> list[dict[str, Any]]:
     """Every candidate split of the node, with its local stability and, if needed, its parts' end-to-end scores."""
     idx = node["idx"]
     S, dates = similarity(idx), DATES[idx]
     cuts = cutoffs_for(dates)
     nulls = [similarity(idx, np.random.default_rng(1000 + d)) for d in range(CFG["nulls"])] if rule == "null" else []
+    cands: list[dict[str, Any]]
+    x: dict[str, Any]
     cands = []
     for t in range(2, min(CFG["max_split"], len(idx) // 4) + 1):
         st = stats(S, t, cuts, dates)
@@ -174,10 +205,18 @@ def try_splits(node, rule, perts):
 BASE = {"confirmed": "strict", "partial-confirmed": "partial"}
 
 
-def shakedown(node, x, keep, perts, base):
+def shakedown(
+    node: dict[str, Any],
+    x: dict[str, Any],
+    keep: list[int],
+    perts: list[tuple[str, NDArray[np.intp], int]],
+    base: str,
+) -> tuple[list[float], int]:
     """Redo the split decision from scratch on each disturbed version of the node; per kept part, its score."""
+    sims: list[list[tuple[str, float]]]
+    scores: list[float]
     sims, made = [[] for _ in keep], 0
-    for (kind, P, _), V in zip(perts, node["versions"]):
+    for (kind, P, _), V in zip(perts, node["versions"], strict=False):
         parts = [V]
         if len(V) >= CFG["min_node"]:
             local = perturbations(V)
@@ -198,9 +237,11 @@ def shakedown(node, x, keep, perts, base):
     return scores, made
 
 
-def choose(cands, rule):
+def choose(cands: list[dict[str, Any]], rule: str) -> tuple[dict[str, Any], list[int]] | None:
     """The accepted candidate under the rule, and which of its parts are kept as clusters; or None."""
     tau, child = CFG["tau"], CFG["child"]
+    best: tuple[tuple[int, int], dict[str, Any], list[int]] | None
+    ok: list[dict[str, Any]]
     if rule == "partial":
         best = None
         for x in cands:
@@ -228,7 +269,9 @@ def choose(cands, rule):
     return x, list(range(len(x["parts"])))
 
 
-def refine(node, rule, perts):
+def refine(node: dict[str, Any], rule: str, perts: list[tuple[str, NDArray[np.intp], int]]) -> dict[str, Any]:
+    """Split the node under the rule, if a split passes, and refine each kept part in turn; returns the node."""
+    rest: int | list[int]  # the papers left out of the kept parts: first counted, then listed
     if node["size"] < CFG["min_node"]:
         node["stop"] = "too small to split"
         return node
@@ -259,7 +302,7 @@ def refine(node, rule, perts):
             "splits_made": made,
             "reruns": len(perts),
         }
-        passed = [j for j, sc in zip(big, scores) if sc >= CFG["child"]]
+        passed = [j for j, sc in zip(big, scores, strict=False) if sc >= CFG["child"]]
         if base == "strict" and len(passed) < len(big):
             node["stop"] = "split not confirmed"
             return node
@@ -293,12 +336,13 @@ def refine(node, rule, perts):
     return node
 
 
-def build(root, rule):
+def build(root: NDArray[np.intp], rule: str) -> dict[str, Any]:
     """The global clustering of the papers root, then each of its clusters refined under the rule."""
     gamma, lab = global_split(root)
     perts = perturbations(root)
     parts = sorted(groups(root, lab), key=len, reverse=True)
     found, scores = follow(perts, [P for _, P, _ in perts], gamma, parts)
+    tree: dict[str, Any]
     tree = {
         "depth": 0,
         "size": len(root),
@@ -306,16 +350,18 @@ def build(root, rule):
         "split": {"clusters": len(parts), "global": True},
         "children": [],
     }
-    for p, f, s in zip(parts, found, scores):
+    for p, f, s in zip(parts, found, scores, strict=False):
         tree["children"].append(refine({"depth": 1, "size": len(p), "idx": p, "score": s, "versions": f}, rule, perts))
     return tree
 
 
-def leaves(node):
+def leaves(node: dict[str, Any]) -> list[dict[str, Any]]:
+    """The leaves of the tree under node, depth first, in children order."""
     return [node] if "children" not in node else [x for ch in node["children"] for x in leaves(ch)]
 
 
-def leaf_labels(tree, n):
+def leaf_labels(tree: dict[str, Any], n: int) -> NDArray[np.int64]:
+    """Per paper of a pool of n, the index of the tree's leaf holding it; -1 for papers outside the tree."""
     lab = np.full(n, -1)
     for j, lf in enumerate(leaves(tree)):
         lab[lf["idx"]] = j
@@ -325,7 +371,7 @@ def leaf_labels(tree, n):
 # --- global method --------------------------------------------------------------------------------
 
 
-def global_split(idx, target=None):
+def global_split(idx: NDArray[np.intp], target: int | None = None) -> tuple[float, NDArray[np.int64]]:
     """The global method on the papers idx: the finest level reaching tau, or, with target, that many clusters."""
     S = similarity(idx)
     if target is not None:
@@ -334,15 +380,15 @@ def global_split(idx, target=None):
         return gamma, leiden(g, gamma, 0)
     cuts = cutoffs_for(DATES[idx])
     levels = [stats(S, L, cuts, DATES[idx]) for L in LEVELS if L <= len(idx) // 4]
-    ok = [l for l in levels if l["stability"] >= CFG["tau"]] or levels[:1]
-    best = max(ok, key=lambda l: l["clusters"])
+    ok = [lv for lv in levels if lv["stability"] >= CFG["tau"]] or levels[:1]
+    best = max(ok, key=lambda lv: lv["clusters"])
     return best["gamma"], np.array(best["labels"])
 
 
 # --- reruns from scratch --------------------------------------------------------------------------
 
 
-def run(job):
+def run(job: tuple[str, NDArray[np.intp]]) -> tuple[NDArray[np.int64], dict[str, Any] | None]:
     """One method on the papers idx, from scratch; returns (labels over idx, tree or None)."""
     method, idx = job
     # Size thresholds scale with the share of the pool a rerun sees; otherwise a rerun on 80% meets a stricter rule.
@@ -355,7 +401,7 @@ def run(job):
     return leaf_labels(tree, len(RECS))[idx], tree
 
 
-def compare(ref, idx, lab):
+def compare(ref: NDArray[np.int64], idx: NDArray[np.intp], lab: NDArray[np.int64]) -> tuple[float, dict[int, float]]:
     """ARI against the reference over the rerun's papers, and per reference cluster of 3+ its best Jaccard match."""
     r = ref[idx]
     big = [c for c in np.unique(ref) if (ref == c).sum() >= MIN_CLUSTER]
@@ -363,7 +409,8 @@ def compare(ref, idx, lab):
     return float(ari(r, lab)), {int(c): bj[int(c)] for c in big if int(c) in bj}
 
 
-def main(argv):
+def main(argv: list[str]) -> None:  # noqa: C901
+    """Build the recursive trees, rerun every method from scratch, print the comparison and write recursive.json."""
     if not argv or argv[0].startswith("-"):
         sys.exit(__doc__)
     topic = argv[0]
@@ -397,7 +444,7 @@ def main(argv):
     t0 = time.time()
     everyone = np.arange(n)
     with ProcessPoolExecutor(workers, initializer=setup, initargs=(recs, dates, cfg)) as ex:
-        full = dict(zip(["global"] + rules, ex.map(run, [(m, everyone) for m in ["global"] + rules])))
+        full = dict(zip(["global"] + rules, ex.map(run, [(m, everyone) for m in ["global"] + rules]), strict=False))
         print(f"full-pool runs done in {time.time() - t0:.0f}s")
         refs = {m: lab for m, (lab, _) in full.items()}
         trees = {m: t for m, (_, t) in full.items() if t is not None}
@@ -413,11 +460,13 @@ def main(argv):
         results = list(ex.map(run, [(m, idx) for m in methods for _, idx in subsets]))
     print(f"reruns done in {time.time() - t0:.0f}s")
 
+    summary: dict[str, dict[str, Any]]
+    cw: dict[int, list[float]]
     summary = {}
     kinds = np.array([k for k, _ in subsets])
     for mi, m in enumerate(methods):
         rows = results[mi * len(subsets) : (mi + 1) * len(subsets)]
-        comp = [compare(refs[m], idx, lab) for (_, idx), (lab, _) in zip(subsets, rows)]
+        comp = [compare(refs[m], idx, lab) for (_, idx), (lab, _) in zip(subsets, rows, strict=False)]
         aris = np.array([a for a, _ in comp])
         cw = {}
         for _, d in comp:
@@ -436,7 +485,7 @@ def main(argv):
 
     cites = np.array([r["citations"] or 0 for r in recs])
 
-    def show(node, out, prefix=""):
+    def show(node: dict[str, Any], out: list[str], prefix: str = "") -> None:
         comp = np.bincount(glob[node["idx"]], minlength=7)[1:]
         mix = ", ".join(f"c{j + 1}:{x}" for j, x in sorted(enumerate(comp), key=lambda t: -t[1]) if x)
         score = f" e2e {node['score']:.2f}" if node.get("score") is not None else ""
@@ -454,12 +503,12 @@ def main(argv):
             sd = node["shakedown"]
             out.append(
                 f"{prefix}      shakedown of the {sd['clusters']}-split: made in {sd['splits_made']} of {sd['reruns']} "
-                "reruns; parts " + " ".join(f"{p}:{v:.2f}" for p, v in zip(sd["parts"], sd["scores"]))
+                "reruns; parts " + " ".join(f"{p}:{v:.2f}" for p, v in zip(sd["parts"], sd["scores"], strict=False))
             )
         for x in node.get("candidates", []):
             out.append(
                 f"{prefix}      try {x['clusters']}: stability {x['stability']:.2f}; parts "
-                + " ".join(f"{p}:{s:.2f}" for p, s in zip(x["parts"], x["scores"]))
+                + " ".join(f"{p}:{s:.2f}" for p, s in zip(x["parts"], x["scores"], strict=False))
             )
         if "children" not in node:
             top = node["idx"][np.argmax(cites[node["idx"]])]
@@ -467,6 +516,7 @@ def main(argv):
         for ch in node.get("children", []):
             show(ch, out, prefix + "    ")
 
+    lines: list[str]
     for r, t in trees.items():
         lines = []
         show(t, lines)
@@ -476,7 +526,8 @@ def main(argv):
         )
     print("\nreruns from scratch on each time holdout and each resample, compared with the full-pool result")
     print(
-        f"{'method':12}{'clusters':>9}{'(3+)':>6}{'holdout':>9}{'resample':>10}{'AMI blocks':>12}  per-cluster scores (size:score)"
+        f"{'method':12}{'clusters':>9}{'(3+)':>6}{'holdout':>9}{'resample':>10}{'AMI blocks':>12}"
+        "  per-cluster scores (size:score)"
     )
     for m, s in summary.items():
         cs = " ".join(
@@ -484,11 +535,11 @@ def main(argv):
             for c, v in sorted(s["cluster_scores"].items(), key=lambda kv: -s["sizes"][kv[0]])
         )
         print(
-            f"{m:12}{s['clusters']:>9}{s[f'clusters_{MIN_CLUSTER}plus']:>6}{s['holdout_ari']:>9.2f}{s['resample_ari']:>10.2f}"
-            f"{s['ami_vs_survey']:>12.2f}  {cs}"
+            f"{m:12}{s['clusters']:>9}{s[f'clusters_{MIN_CLUSTER}plus']:>6}{s['holdout_ari']:>9.2f}"
+            f"{s['resample_ari']:>10.2f}{s['ami_vs_survey']:>12.2f}  {cs}"
         )
 
-    def strip(node):
+    def strip(node: dict[str, Any]) -> dict[str, Any]:
         out = {x: node[x] for x in node if x not in ("idx", "children", "versions")}
         out["members"] = [ids[i] for i in node["idx"]] if "children" not in node else None
         if "children" in node:

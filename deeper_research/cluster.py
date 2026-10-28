@@ -3,13 +3,13 @@
 Usage: uv run python -m deeper_research.cluster <topic> [--k 10] [--c 10] [--tau 0.75] [--reps 20] [--nulls 1]
                                         [--levels 3,4,5,6,8,10,12,15,18,22] [--level coarser|finer|N]
 
-Reads the pool sidecar graphs/<topic>/pool.json (from deeper_research/pool.py). The similarity measure is fixed: `combined`, the
-text similarity (SPECTER2 embeddings) and the reference similarity (bibliographic coupling), each converted to
-per-paper neighbour ranks and mixed per pair with weight w = n / (n + c) on references, n being the shorter of the two
-reference lists. For each level of a grid of cluster counts, it clusters the pool with Leiden and measures stability by
-time holdout and resampling. A holdout rerun recomputes the similarity on the older papers alone, rank normalisation
-included, as the pool would have been months ago. The chosen level is the finest whose stability is at least --tau,
-0.75 by default, even if a coarser level dips below it. If every holdout cutoff is skipped (less
+Reads the pool sidecar graphs/<topic>/pool.json (from deeper_research/pool.py). The similarity measure is fixed:
+`combined`, the text similarity (SPECTER2 embeddings) and the reference similarity (bibliographic coupling), each
+converted to per-paper neighbour ranks and mixed per pair with weight w = n / (n + c) on references, n being the shorter
+of the two reference lists. For each level of a grid of cluster counts, it clusters the pool with Leiden and measures
+stability by time holdout and resampling. A holdout rerun recomputes the similarity on the older papers alone, rank
+normalisation included, as the pool would have been months ago. The chosen level is the finest whose stability is at
+least --tau, 0.75 by default, even if a coarser level dips below it. If every holdout cutoff is skipped (less
 than 30% of the pool older than it), stability is the resampling score alone, and the printout says so.
 
 It also runs the same pipeline once on structure-free null data of the same size and shape (--nulls draws, 1 by
@@ -24,8 +24,8 @@ nearest to it by publication date. The score is a percentile within that cohort.
 The input's `granularity` steering (docs/formats.md) moves the chosen level one step coarser or finer, or to the
 level of N clusters; --level does the same as a user override and takes precedence. A level below tau is flagged.
 
-If a previous clusters.json exists, the new clustering is matched to it by shared papers (deeper_research/match.py, `match`), so
-that `deeper_research/assign.py remap` can carry cluster names over.
+If a previous clusters.json exists, the new clustering is matched to it by shared papers (deeper_research/match.py,
+`match`), so that `deeper_research/assign.py remap` can carry cluster names over.
 
 Writes graphs/<topic>/clusters.json and prints the retrieval log's `Clustering` line. Deterministic: every random
 choice is seeded, and `params` records the seeds, the defaults used and the installed package versions. Usage errors
@@ -36,20 +36,27 @@ import json
 import platform
 import sys
 import time
+from collections.abc import Callable, Iterable
 from datetime import date
 from importlib.metadata import version
 from itertools import combinations
 from pathlib import Path
+from statistics import NormalDist
+from typing import Any, NoReturn, cast
 
 import igraph as ig
 import leidenalg as la
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
 from sklearn.metrics import adjusted_mutual_info_score as ami
 from sklearn.metrics import adjusted_rand_score as ari
 from sklearn.metrics import silhouette_score
 
+from deeper_research.check import sections, table_rows
+from deeper_research.graph import parse, topic_dir
+from deeper_research.inputs import read_input
+
 ROOT = Path(__file__).resolve().parent.parent
-from deeper_research.graph import parse, topic_dir  # noqa: E402
 
 LEVELS = [3, 4, 5, 6, 8, 10, 12, 15, 18, 22]
 MEASURE = "combined"  # fixed; `text` and `refs` are its inputs, and the fringe score's
@@ -86,12 +93,14 @@ SEEDS = {
 PACKAGES = ["numpy", "scikit-learn", "igraph", "leidenalg"]
 
 
-def usage(msg):
+def usage(msg: str) -> NoReturn:
+    """Print a usage error and exit with status 2."""
     print(f"usage error: {msg}", file=sys.stderr)
     sys.exit(2)
 
 
-def opt(argv, name, default, cast):
+def opt[T](argv: list[str], name: str, default: T, cast: Callable[[str], T]) -> T:
+    """The value after the flag `name` in argv, converted by cast; default if absent. A missing or bad value exits 2."""
     if name not in argv:
         return default
     try:
@@ -103,13 +112,15 @@ def opt(argv, name, default, cast):
 # --- similarity measures --------------------------------------------------------------------------
 
 
-def text_sim(recs):
+def text_sim(recs: list[dict[str, Any]]) -> NDArray[np.float64]:
+    """The text similarity: cosine similarity of the papers' embeddings."""
     X = np.array([r["embedding"] for r in recs], dtype=float)
     X /= np.linalg.norm(X, axis=1, keepdims=True)
-    return X @ X.T
+    return cast(NDArray[np.float64], X @ X.T)
 
 
-def refs_sim(recs):
+def refs_sim(recs: list[dict[str, Any]]) -> NDArray[np.float64]:
+    """The reference similarity: bibliographic coupling, shared references over the geometric mean of the list sizes."""
     sets = [set(r["refs"]) for r in recs]
     n = len(sets)
     S = np.zeros((n, n))
@@ -120,7 +131,7 @@ def refs_sim(recs):
     return S
 
 
-def rank_norm(S, zero_is_missing=False):
+def rank_norm(S: NDArray[np.float64], zero_is_missing: bool = False) -> NDArray[np.float64]:
     """Per-paper percentile rank of every other paper, symmetrised, so that two measures share one scale."""
     n = len(S)
     R = np.zeros_like(S)
@@ -134,17 +145,22 @@ def rank_norm(S, zero_is_missing=False):
     return (R + R.T) / 2
 
 
-def combined_sim(T, C, recs, c):
+def combined_sim(
+    T: NDArray[np.float64], C: NDArray[np.float64], recs: list[dict[str, Any]], c: float
+) -> NDArray[np.float64]:
+    """The `combined` measure: rank-normalised references and text, mixed per pair with weight n / (n + c)."""
     n_refs = np.array([len(r["refs"]) for r in recs], dtype=float)
     n = np.minimum.outer(n_refs, n_refs)
     w = n / (n + c)
-    return w * rank_norm(C, zero_is_missing=True) + (1 - w) * rank_norm(T)
+    return cast(NDArray[np.float64], w * rank_norm(C, zero_is_missing=True) + (1 - w) * rank_norm(T))
 
 
 # --- clustering -----------------------------------------------------------------------------------
 
 
-def knn_graph(S, k):
+def knn_graph(S: NDArray[np.float64], k: int) -> ig.Graph:
+    """The weighted graph linking each paper to its k most similar papers, of positive similarity."""
+    edges: dict[tuple[int, int], float]
     edges = {}
     for i in range(len(S)):
         row = S[i].copy()
@@ -158,19 +174,22 @@ def knn_graph(S, k):
     return g
 
 
-def leiden(g, gamma, seed):
+def leiden(g: ig.Graph, gamma: float, seed: int) -> NDArray[np.int64]:
+    """Leiden communities of g at resolution gamma, with the given seed: a cluster label per paper."""
     p = la.find_partition(
         g, la.RBConfigurationVertexPartition, weights="weight", resolution_parameter=gamma, seed=seed, n_iterations=-1
     )
     return np.array(p.membership)
 
 
-def n_clusters(labels):
+def n_clusters(labels: NDArray[np.int64]) -> int:
+    """The number of clusters with two or more papers."""
     return int(sum(np.bincount(labels) >= 2))
 
 
-def tune(g, target):
+def tune(g: ig.Graph, target: int) -> tuple[float, int]:
     """Bisect the resolution towards `target` clusters of two or more papers; return the closest found."""
+    best: tuple[float, int] | None
     lo, hi, best = 0.02, 50.0, None
     for _ in range(40):
         mid = np.sqrt(lo * hi)
@@ -180,7 +199,7 @@ def tune(g, target):
         if got == target:
             break
         lo, hi = (mid, hi) if got < target else (lo, mid)
-    return best
+    return cast(tuple[float, int], best)
 
 
 # --- null model -----------------------------------------------------------------------------------
@@ -189,20 +208,21 @@ def tune(g, target):
 # stability removes that.
 
 
-def null_text(recs, rng):
+def null_text(recs: list[dict[str, Any]], rng: np.random.Generator) -> NDArray[np.float64]:
     """Gaussian vectors with the embeddings' mean and covariance: same spread, no cluster structure."""
     X = np.array([r["embedding"] for r in recs], dtype=float)
     mu, Xc = X.mean(axis=0), X - X.mean(axis=0)
     Z = rng.standard_normal((len(X), len(X))) / np.sqrt(len(X) - 1)
     Y = mu + Z @ Xc
     Y /= np.linalg.norm(Y, axis=1, keepdims=True)
-    return Y @ Y.T
+    return cast(NDArray[np.float64], Y @ Y.T)
 
 
-def null_refs(recs, rng):
+def null_refs(recs: list[dict[str, Any]], rng: np.random.Generator) -> NDArray[np.float64]:
     """Reference lists reshuffled among papers, keeping each paper's list length and each reference's popularity."""
     stubs = [x for r in recs for x in r["refs"]]
     rng.shuffle(stubs)
+    fake: list[dict[str, Any]]
     fake, i = [], 0
     for r in recs:
         fake.append({"refs": stubs[i : i + len(r["refs"])]})
@@ -210,11 +230,14 @@ def null_refs(recs, rng):
     return refs_sim(fake)
 
 
-def recluster(S, idx, k, gamma, seed):
+def recluster(S: NDArray[np.float64], idx: NDArray[np.intp], k: int, gamma: float, seed: int) -> NDArray[np.int64]:
+    """Leiden labels of the papers idx alone, on S sliced to them."""
     return leiden(knn_graph(S[np.ix_(idx, idx)], k), gamma, seed)
 
 
-def subset_sim(T, C, recs, c):
+def subset_sim(
+    T: NDArray[np.float64], C: NDArray[np.float64], recs: list[dict[str, Any]], c: float
+) -> Callable[[NDArray[np.intp]], NDArray[np.float64]]:
     """The `combined` measure recomputed on a subset of papers, given by their indices: rank normalisation included."""
     return lambda idx: combined_sim(T[np.ix_(idx, idx)], C[np.ix_(idx, idx)], [recs[i] for i in idx], c)
 
@@ -222,7 +245,9 @@ def subset_sim(T, C, recs, c):
 # --- scores ---------------------------------------------------------------------------------------
 
 
-def best_jaccard(ref, labels):
+def best_jaccard(ref: NDArray[np.int64], labels: NDArray[np.int64]) -> dict[int, float]:
+    """Per cluster of ref, its best Jaccard overlap with any cluster of labels, over the same papers."""
+    out: dict[int, float]
     out = {}
     for c in np.unique(ref):
         A = set(np.flatnonzero(ref == c))
@@ -232,11 +257,14 @@ def best_jaccard(ref, labels):
     return out
 
 
-def part_score(part, reruns):
-    """The clusterwise score of any set of papers: its best Jaccard overlap with a cluster of each resampling rerun, on
+def part_score(part: Iterable[int], reruns: list[tuple[NDArray[np.int64], NDArray[np.int64]]]) -> float | None:
+    """The clusterwise score of any set of papers, averaged over the resampling reruns.
+
+    The clusterwise score of any set of papers: its best Jaccard overlap with a cluster of each resampling rerun, on
     the papers the rerun kept, averaged. For a whole cluster it equals that cluster's clusterwise score.
     """
-    part, js = set(int(i) for i in part), []
+    js: list[float]
+    part, js = {int(i) for i in part}, []
     for idx, lab in reruns:
         A = {j for j, i in enumerate(idx) if i in part}
         if A:
@@ -244,19 +272,25 @@ def part_score(part, reruns):
     return float(np.mean(js)) if js else None
 
 
-def mean_se(xs):
+def mean_se(xs: ArrayLike) -> tuple[float, float]:
+    """The mean of xs and its standard error; the error is 0.0 for a single value."""
     xs = np.asarray(xs, dtype=float)
     return float(xs.mean()), float(xs.std(ddof=1) / np.sqrt(len(xs))) if len(xs) > 1 else 0.0
 
 
-def link_lift(labels, edges):
+def link_lift(labels: NDArray[np.int64], edges: list[tuple[int, ...]]) -> float | None:
+    """The share of citation links within a cluster, over the share expected by chance; None without links."""
     if not edges:
         return None
     inside = np.mean([labels[a] == labels[b] for a, b in edges])
     return float(inside / (np.bincount(labels) / len(labels)).__pow__(2).sum())
 
 
-def cohesion(labels, T, C, edges):
+def cohesion(
+    labels: NDArray[np.int64], T: NDArray[np.float64], C: NDArray[np.float64], edges: list[tuple[int, ...]]
+) -> dict[str, float | None]:
+    """The clustering's silhouette on text and on reference distances, and its citation link lift."""
+    out: dict[str, float | None]
     out = {}
     for name, S in (("text", T), ("refs", C)):
         D = np.clip(1 - S, 0, None)
@@ -268,20 +302,35 @@ def cohesion(labels, T, C, edges):
     return out
 
 
-def level_stats(S, k, target, cutoffs, dates, reps, rng, sub=None):
-    """Stability at one level. `sub(idx)`, if given, recomputes the similarity on the papers idx alone, for the time
+def level_stats(
+    S: NDArray[np.float64],
+    k: int,
+    target: int,
+    cutoffs: list[str],
+    dates: NDArray[np.str_],
+    reps: int,
+    rng: np.random.Generator,
+    sub: Callable[[NDArray[np.intp]], NDArray[np.float64]] | None = None,
+) -> dict[str, Any]:
+    """Stability at one level.
+
+    `sub(idx)`, if given, recomputes the similarity on the papers idx alone, for the time
     holdout: the older papers on their own, as an earlier pass would have measured them. Without it, S is sliced.
     """
     g = knn_graph(S, k)
     gamma, got = tune(g, target)
     full = leiden(g, gamma, 0)
     n = len(S)
+    hold: list[float]
     hold = []
     for cut in cutoffs:
         idx = np.flatnonzero(dates < cut)
         g_old = knn_graph(sub(idx) if sub else S[np.ix_(idx, idx)], k)
         for seed in range(3):
             hold.append(ari(full[idx], leiden(g_old, gamma, seed)))
+    res: list[float]
+    cw: dict[int, Any]  # a list of rerun scores per cluster, then their mean
+    reruns: list[tuple[NDArray[np.int64], NDArray[np.int64]]]
     res, cw, reruns = [], {c: [] for c in np.unique(full) if (full == c).sum() >= MIN_CLUSTER}, []
     for r in range(reps):
         idx = np.sort(rng.choice(n, int(0.8 * n), replace=False))
@@ -293,6 +342,8 @@ def level_stats(S, k, target, cutoffs, dates, reps, rng, sub=None):
                 cw[c].append(j)
     seeds = [leiden(g, gamma, s) for s in range(5)]
     s, sse = mean_se(res)
+    h: float | None
+    hse: float | None
     if hold:
         h, hse = mean_se(hold)
         st, st_se = (h + s) / 2, 0.5 * float(np.hypot(hse, sse))
@@ -321,9 +372,9 @@ def level_stats(S, k, target, cutoffs, dates, reps, rng, sub=None):
 # --- choices --------------------------------------------------------------------------------------
 
 
-def choose_level(levels, tau):
+def choose_level(levels: list[dict[str, Any]], tau: float) -> tuple[int, str]:
     """The finest level whose stability reaches tau, even if a coarser level dips below it (docs/process.md)."""
-    ok = [j for j, l in enumerate(levels) if l["stability"] >= tau]
+    ok = [j for j, lv in enumerate(levels) if lv["stability"] >= tau]
     if not ok:
         return 0, f"no level reaches stability {tau}; coarsest level used"
     j = max(ok, key=lambda j: levels[j]["clusters"])
@@ -335,15 +386,17 @@ def choose_level(levels, tau):
     return j, f"finest level with stability >= {tau}: {levels[j]['stability']:.2f}{after}"
 
 
-def mid_percentile(x):
+def mid_percentile(x: NDArray[np.float64]) -> NDArray[np.float64]:
     """Each value's percentile within x, strictly between 0 and 1; tied values share the middle of their ranks."""
     _, inv, counts = np.unique(x, return_inverse=True, return_counts=True)
     below = np.concatenate([[0], np.cumsum(counts)[:-1]])
     return (below[inv] + counts[inv] / 2) / len(x)
 
 
-def age_cohorts(recs, size):
-    """Per paper, its age cohort: the `size` papers nearest to it by publication date (itself included), widened to
+def age_cohorts(recs: list[dict[str, Any]], size: int) -> list[NDArray[np.intp]]:
+    """Per paper, the indices of its age cohort.
+
+    Per paper, its age cohort: the `size` papers nearest to it by publication date (itself included), widened to
     take in every paper tied with the last. The date is the record's, or else mid-year of its year. An undated paper,
     and every paper of a pool no larger than `size`, has the whole pool as its cohort.
     """
@@ -358,6 +411,7 @@ def age_cohorts(recs, size):
     ]
     known = np.array([d is not None for d in day])
     days = np.array([d if d is not None else 0 for d in day], dtype=float)
+    out: list[NDArray[np.intp]]
     out = []
     for i in range(n):
         if day[i] is None or known.sum() <= size:
@@ -368,7 +422,14 @@ def age_cohorts(recs, size):
     return out
 
 
-def fringe_scores(T, C, recs, k, c, cohort=COHORT):
+def fringe_scores(
+    T: NDArray[np.float64],
+    C: NDArray[np.float64],
+    recs: list[dict[str, Any]],
+    k: int,
+    c: float,
+    cohort: int = COHORT,
+) -> tuple[NDArray[np.float64], NDArray[np.float64], dict[str, NDArray[np.float64]]]:
     """Per paper: distance to its k nearest neighbours, text and references mixed, ranked within its age cohort, 0 to 1.
 
     The two distances live on different scales, so each is first put on a common one: its normal score, from its
@@ -384,8 +445,6 @@ def fringe_scores(T, C, recs, k, c, cohort=COHORT):
     within the paper's age cohort (`age_cohorts`): the share of its cohort that it exceeds. Returns that percentile, the
     mixed score (for breaking ties between percentiles), and the nearest-neighbour similarities.
     """
-    from statistics import NormalDist
-
     n = len(recs)
     off = ~np.eye(n, dtype=bool)
     near = {
@@ -405,29 +464,43 @@ def fringe_scores(T, C, recs, k, c, cohort=COHORT):
     return score, mixed, near
 
 
-def exchange_rates(S, full, k, gamma, reps, rng):
+def exchange_rates(
+    S: NDArray[np.float64], full: NDArray[np.int64], k: int, gamma: float, reps: int, rng: np.random.Generator
+) -> dict[tuple[int, int], float]:
     """For each pair of clusters, how often papers of one are grouped with papers of the other in reruns on 80%."""
     n, cl = len(S), np.unique(full)
+    hits: dict[tuple[int, int], list[float]]
     hits = {(a, b): [] for a in cl for b in cl if a < b}
     for r in range(reps):
         idx = np.sort(rng.choice(n, int(0.8 * n), replace=False))
         lab, f = recluster(S, idx, k, gamma, r), full[idx]
-        for a, b in hits:
+        for (a, b), hit in hits.items():
             A, B = lab[f == a], lab[f == b]
             if len(A) and len(B):
-                hits[(a, b)].append(float((A[:, None] == B[None, :]).mean()))
+                hit.append(float((A[:, None] == B[None, :]).mean()))
     return {key: float(np.mean(v)) for key, v in hits.items() if v}
 
 
-def diagnose(curve, null_curve, chosen, clusters, exchange, tau, recs, rename):
+def diagnose(
+    curve: list[dict[str, Any]],
+    null_curve: list[dict[str, float]],
+    chosen: dict[str, Any],
+    clusters: list[dict[str, Any]],
+    exchange: dict[tuple[int, int], float],
+    tau: float,
+    recs: list[dict[str, Any]],
+    rename: dict[int, str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, float]]:
     """The cases in docs/process.md, "When stability fails", each with its action; and the plain notes.
 
     Diagnostics, each with an action: `no structure`, `no stable level`, `thin cluster`, `clusters trade papers`.
     Notes, plain text that drives no action: a broad scope (only the coarsest level reaches tau, very stably), and an
     unstable cluster that is neither thin nor trading papers.
     """
+    out: list[dict[str, Any]]
+    notes: list[dict[str, Any]]
     out, notes = [], []
-    excess = [l["stability"] - nl["stability"] for l, nl in zip(curve, null_curve)]
+    excess = [lv["stability"] - nl["stability"] for lv, nl in zip(curve, null_curve, strict=False)]
     thin_share = float(np.mean([len(r["refs"]) < THIN_REFS for r in recs]))
     if max(excess) < NO_STRUCTURE:
         out.append(
@@ -437,13 +510,14 @@ def diagnose(curve, null_curve, chosen, clusters, exchange, tau, recs, rename):
                 "action": "use very few clusters, possibly one, and halt for review (H4)",
             }
         )
-    passing = [l for l in curve if l["stability"] >= tau]
+    passing = [lv for lv in curve if lv["stability"] >= tau]
     if not passing:
         out.append(
             {
                 "case": "no stable level",
                 "detail": f"no level reaches {tau}; {thin_share:.0%} of papers have fewer than {THIN_REFS} references",
-                "action": "expand the thinnest regions (step 2) and rerun; if still unstable, take the coarsest level and halt for review (H5), so that the user chooses with the slider",
+                "action": "expand the thinnest regions (step 2) and rerun; if still unstable, take the coarsest level "
+                "and halt for review (H5), so that the user chooses with the slider",
             }
         )
     elif passing == [curve[0]] and curve[0]["stability"] >= BROAD:
@@ -481,6 +555,7 @@ def diagnose(curve, null_curve, chosen, clusters, exchange, tau, recs, rename):
                 "action": "expand this region in a targeted way (step 2) and rerun",
             }
         )
+    trading: set[str]
     trading = set()
     for (a, b), x in sorted(rates.items(), key=lambda kv: -kv[1]):
         if x >= EXCHANGE and {a, b} <= unstable - thin:
@@ -489,8 +564,10 @@ def diagnose(curve, null_curve, chosen, clusters, exchange, tau, recs, rename):
                 {
                     "case": "clusters trade papers",
                     "clusters": [a, b],
-                    "detail": f"{a} ({by_id[a]['stability']:.2f}) and {b} ({by_id[b]['stability']:.2f}) are grouped together in {x:.0%} of rerun pairs",
-                    "action": "keep both; treat the boundary as open, require a bridge paper between them, and note the tension for the Landscape",
+                    "detail": f"{a} ({by_id[a]['stability']:.2f}) and {b} ({by_id[b]['stability']:.2f}) are grouped "
+                    f"together in {x:.0%} of rerun pairs",
+                    "action": "keep both; treat the boundary as open, require a bridge paper between them, and note "
+                    "the tension for the Landscape",
                 }
             )
     for cid in sorted(unstable - thin - trading):
@@ -514,10 +591,8 @@ def diagnose(curve, null_curve, chosen, clusters, exchange, tau, recs, rename):
     )
 
 
-def named_computed(topic):
+def named_computed(topic: str) -> set[str]:
     """The computed ids the survey's Clusters table names (its `computed` column)."""
-    from deeper_research.check import sections, table_rows
-
     secs = sections((ROOT / "surveys" / f"{topic}.md").read_text())
     return {
         c[h.index("computed")]
@@ -526,10 +601,17 @@ def named_computed(topic):
     }
 
 
-def steer(argv, topic, levels, li, rule, reason, curve, tau):
+def steer(
+    argv: list[str],
+    topic: str,
+    levels: list[int],
+    li: int,
+    rule: str,
+    reason: str,
+    curve: list[dict[str, Any]],
+    tau: float,
+) -> tuple[int, str, str]:
     """Apply --level, or else the input's granularity steering, to the level the rule chose."""
-    from deeper_research.inputs import read_input
-
     how = opt(argv, "--level", None, str)
     source = "user override" if how else "granularity steering"
     if how is None:
@@ -542,13 +624,13 @@ def steer(argv, topic, levels, li, rule, reason, curve, tau):
         new = min(li + 1, len(levels) - 1)
     elif how.isdigit() and int(how) in levels:
         new = levels.index(int(how))
-    elif how.isdigit() and int(how) in [l["clusters"] for l in curve]:
+    elif how.isdigit() and int(how) in [lv["clusters"] for lv in curve]:
         # The viewer's slider shows the number of clusters each level reached, which can differ from its target.
-        new = [l["clusters"] for l in curve].index(int(how))
+        new = [lv["clusters"] for lv in curve].index(int(how))
     else:
         msg = (
             f"--level or granularity must be coarser, finer, or one of this pool's levels: targets {levels}, "
-            f"reached {[l['clusters'] for l in curve]}; not {how!r}"
+            f"reached {[lv['clusters'] for lv in curve]}; not {how!r}"
         )
         if source == "user override":
             usage(msg)  # a bad --level is a usage error; a bad granularity in the input is not
@@ -564,7 +646,19 @@ def steer(argv, topic, levels, li, rule, reason, curve, tau):
     )
 
 
-def clustering_line(chosen, rule, curve, li, sensitivity, tau, k, c, cutoffs, diagnostics, override="none"):
+def clustering_line(
+    chosen: dict[str, Any],
+    rule: str,
+    curve: list[dict[str, Any]],
+    li: int,
+    sensitivity: dict[str, int],
+    tau: float,
+    k: int,
+    c: float,
+    cutoffs: list[str],
+    diagnostics: list[dict[str, Any]],
+    override: str = "none",
+) -> str:
     """The retrieval log's Clustering line, in the form docs/formats.md gives."""
     nxt = (
         f"; next finer level {curve[li + 1]['clusters']} clusters at {curve[li + 1]['stability']:.2f}"
@@ -577,20 +671,22 @@ def clustering_line(chosen, rule, curve, li, sensitivity, tau, k, c, cutoffs, di
     return (
         f"- **Clustering:** measure {MEASURE}; level {chosen['clusters']} clusters by rule {rule}, "
         f"stability {chosen['stability']:.2f}{nxt}; τ ± 0.05 would give {lo} | {hi} clusters; "
-        f"grid {[l['clusters'] for l in curve]}; τ={tau}, k={k}, c={c:g}; holdout cutoffs {cuts}; "
+        f"grid {[lv['clusters'] for lv in curve]}; τ={tau}, k={k}, c={c:g}; holdout cutoffs {cuts}; "
         f"diagnostics: {diag}; manual overrides: {override}"
     )
 
 
-def match_lines(prev):
-    """The printout of a match to the previous clustering: each new cluster and where it came from, then every change
+def match_lines(prev: dict[str, Any]) -> list[str]:  # noqa: C901
+    """The printed lines of a match to the previous clustering.
+
+    The printout of a match to the previous clustering: each new cluster and where it came from, then every change
     in one line: splits, merges, absorptions, new and reshuffled clusters, and vanished ones.
     """
 
-    def num(key):
+    def num(key: str) -> tuple[int, str]:
         return (int(key[1:]), key) if key[1:].isdigit() else (1 << 30, key)
 
-    def names(xs):
+    def names(xs: Iterable[str]) -> str:
         return ", ".join(sorted(xs, key=num))
 
     old, new = prev["old"], prev["new"]
@@ -598,6 +694,7 @@ def match_lines(prev):
         f"  {b}: {x['case']}" + (f" from {names(x['from'])}" if x.get("from") else "") + f" ({x['share']:.0%})"
         for b, x in sorted(new.items(), key=lambda kv: num(kv[0]))
     ]
+    changes: list[str]
     changes = []
     for a, x in sorted(old.items(), key=lambda kv: num(kv[0])):
         if x["case"] == "split":
@@ -622,7 +719,8 @@ def match_lines(prev):
     return lines
 
 
-def month_back(d, months):
+def month_back(d: date, months: int) -> str:
+    """The ISO date `months` months before d, on the same day of the month, capped at the 28th."""
     y, m = d.year, d.month - months
     while m <= 0:
         y, m = y - 1, m + 12
@@ -632,7 +730,8 @@ def month_back(d, months):
 # --- main -----------------------------------------------------------------------------------------
 
 
-def main(argv):
+def main(argv: list[str]) -> None:  # noqa: C901
+    """Cluster the topic's pool, print the report and the log line, and write graphs/<topic>/clusters.json."""
     if not argv or argv[0].startswith("-"):
         print(__doc__, file=sys.stderr)
         sys.exit(2)
@@ -683,14 +782,16 @@ def main(argv):
 
     rng = np.random.default_rng(0)  # one stream across the levels, so the resamples match earlier runs of this method
     curve = [level_stats(S, k, L, cutoffs, dates, reps, rng, subset_sim(T, C, recs, c)) for L in levels]
-    print(f"  {MEASURE:9}" + " ".join(f"{l['clusters']:>3}:{l['stability']:.2f}" for l in curve))
+    print(f"  {MEASURE:9}" + " ".join(f"{lv['clusters']:>3}:{lv['stability']:.2f}" for lv in curve))
 
     # The null curve: the same pipeline on structure-free data, for the `no structure` guard only.
+    draws: list[tuple[NDArray[np.float64], Callable[[NDArray[np.intp]], NDArray[np.float64]]]]
     draws = []
     for d in range(n_nulls):
         rng = np.random.default_rng(1000 + d)
         Tn, Cn = null_text(recs, rng), null_refs(recs, rng)
         draws.append((combined_sim(Tn, Cn, recs, c), subset_sim(Tn, Cn, recs, c)))
+    null_curve: list[dict[str, float]]
     null_curve = []
     for L in levels:
         runs = [level_stats(dr, k, L, cutoffs, dates, reps, np.random.default_rng(0), sub) for dr, sub in draws]
@@ -701,7 +802,7 @@ def main(argv):
                 "stability_se": float(np.sqrt(sum(r["stability_se"] ** 2 for r in runs)) / len(runs)),
             }
         )
-    print("  null     " + " ".join(f"{l['clusters']:>5.1f}:{l['stability']:.2f}" for l in null_curve))
+    print("  null     " + " ".join(f"{lv['clusters']:>5.1f}:{lv['stability']:.2f}" for lv in null_curve))
 
     li_tau, tau_reason = choose_level(curve, tau)
     li, rule, level_reason = steer(argv, topic, levels, li_tau, "tau", tau_reason, curve, tau)
@@ -717,6 +818,8 @@ def main(argv):
         [by_s2[x] for i, r in enumerate(recs) for x in set(r["refs"]) if x in by_s2 and by_s2[x] != i], minlength=n
     )
     finer = curve[li + 1] if li + 1 < len(levels) else None
+    clusters: list[dict[str, Any]]
+    sub: list[dict[str, Any]]
     clusters = []
     for old in order:
         members = np.flatnonzero(labels == old)
@@ -750,7 +853,7 @@ def main(argv):
             }
         )
 
-    def by_size(lab):
+    def by_size(lab: ArrayLike) -> list[str]:
         lab = np.asarray(lab)
         order = [int(x) for x in np.argsort(-np.bincount(lab), kind="stable")]
         names = {old: f"c{i + 1}" for i, old in enumerate(order)}
@@ -758,15 +861,15 @@ def main(argv):
 
     slider = [
         {
-            "clusters": l["clusters"],
-            "stability": l["stability"],
+            "clusters": lv["clusters"],
+            "stability": lv["stability"],
             "null_stability": nl["stability"],
-            "labels": by_size(l["labels"]),
+            "labels": by_size(lv["labels"]),
         }
-        for l, nl in zip(curve, null_curve)
+        for lv, nl in zip(curve, null_curve, strict=False)
     ]
     g_knn = knn_graph(S, k)
-    knn = [[ids[e.source], ids[e.target], round(w, 3)] for e, w in zip(g_knn.es, g_knn.es["weight"])]
+    knn = [[ids[e.source], ids[e.target], round(w, 3)] for e, w in zip(g_knn.es, g_knn.es["weight"], strict=False)]
 
     score, mixed, near = fringe_scores(T, C, recs, k, c, COHORT)
     # Percentiles within a cohort of about COHORT papers tie often, so ties are broken by the mixed score itself.
@@ -788,6 +891,7 @@ def main(argv):
     exchange = exchange_rates(S, labels, k, chosen["gamma"], reps, np.random.default_rng(1))
     diagnostics, notes, health = diagnose(curve, null_curve, chosen, clusters, exchange, tau, recs, rename)
 
+    report: dict[str, Any]
     report = {
         "generated": time.strftime("%Y-%m-%d"),
         "pool_fetched": sorted({r.get("fetched") or sidecar.get("fetched") for r in recs} - {None}),
@@ -820,7 +924,7 @@ def main(argv):
         "health": health,
         "cohesion": cohesion(labels, T, C, edges),
         "ami_vs_survey_clusters": float(ami(survey_labels, labels)),
-        "curves": {MEASURE: [{x: l[x] for x in l if x not in ("labels", "clusterwise", "reruns")} for l in curve]},
+        "curves": {MEASURE: [{x: lv[x] for x in lv if x not in ("labels", "clusterwise", "reruns")} for lv in curve]},
         "ids": ids,
         "assignment": assignment,
         "clusters": clusters,
@@ -829,10 +933,11 @@ def main(argv):
     out = topic_dir(topic) / "clusters.json"
     if out.exists() and named_computed(topic):
         # The Clusters table names the clustering its `computed` ids refer to. Match the new clustering to that one, so
-        # that deeper_research/assign.py remap can carry the names over. If the clustering has been rerun since without a remap
-        # (a --level rerun), the named one is the baseline stored by that run. With no names yet, as on a first pass,
-        # there is nothing to carry, and no matching is recorded.
-        from deeper_research.match import match
+        # that deeper_research/assign.py remap can carry the names over. If the clustering has been rerun since without
+        # a remap (a --level rerun), the named one is the baseline stored by that run. With no names yet, as on a first
+        # pass, there is nothing to carry, and no matching is recorded.
+        # local: import cycle with match, which imports this module at its top
+        from deeper_research.match import match  # noqa: PLC0415
 
         prev = json.loads(out.read_text())
         if prev.get("previous") and not prev["previous"].get("remapped"):
@@ -862,10 +967,10 @@ def main(argv):
         f"\nstability diagnostics (excess over random: {health['chosen_null_excess']:.2f} at the chosen level, "
         f"{health['max_null_excess']:.2f} at most; {health['thin_reference_share']:.0%} of papers with few references):"
     )
-    for d in diagnostics or [
+    for dg in diagnostics or [
         {"case": "none", "detail": 'no case of docs/process.md, "When stability fails", applies', "action": "proceed"}
     ]:
-        print(f"  {d['case']}: {d['detail']}\n      -> {d['action']}")
+        print(f"  {dg['case']}: {dg['detail']}\n      -> {dg['action']}")
     if notes:
         print("notes (no action; mention them in the Clustering rationale):")
         for x in notes:
