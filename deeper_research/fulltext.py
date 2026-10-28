@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["pypdf"]
-# ///
 """Fetch the full text of papers into a topic's cache, for verification, and read it by section.
 
 Usage:
@@ -58,9 +54,8 @@ import urllib.error
 from html.parser import HTMLParser
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from check import ARXIV_ONLY, ID, ROOT, row_id, sections, table_rows  # noqa: E402
-from net import get_json, request  # noqa: E402
+from deeper_research.check import ARXIV_ONLY, ID, ROOT, row_id, sections, table_rows  # noqa: E402
+from deeper_research.net import get_json, request  # noqa: E402
 
 HEADERS = {"User-Agent": "deeper-research fulltext tool"}
 PAUSE = 3

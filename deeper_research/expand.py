@@ -52,11 +52,10 @@ import urllib.parse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
-from assign import pool_ids, rejected, survey_path, topic_dir  # noqa: E402
-from check import BARE_ID, ID, arxiv_of, s2_ref, sections  # noqa: E402
-from net import get_json  # noqa: E402
-from screen import ABSTRACT_CHARS, Papers, clean, judge, judged, pool_titles, title_key, verdicts  # noqa: E402
+from deeper_research.assign import pool_ids, rejected, survey_path, topic_dir  # noqa: E402
+from deeper_research.check import BARE_ID, ID, arxiv_of, s2_ref, sections  # noqa: E402
+from deeper_research.net import get_json  # noqa: E402
+from deeper_research.screen import ABSTRACT_CHARS, Papers, clean, judge, judged, pool_titles, title_key, verdicts  # noqa: E402
 
 API = "https://api.semanticscholar.org/graph/v1"
 SEARCH_LIMIT = 50   # results kept per theme search, as Asta's relevance search returns by default
@@ -96,7 +95,7 @@ def orientation_parts(line):
 
 def latest_entry(topic):
     """(date, Orientation line) of the retrieval log's latest pass entry."""
-    from gates import log_entries
+    from deeper_research.gates import log_entries
     entries = log_entries(sections(survey_path(topic).read_text()).get("Retrieval log", ""))
     if not entries:
         sys.exit("the retrieval log has no pass entry; run steps 0 and 1 of docs/process.md first")

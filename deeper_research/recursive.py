@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["numpy==2.5.3", "scikit-learn==1.9.1", "igraph==1.0.0", "leidenalg==0.12.0"]
-# ///
 """Experiment: recursive clustering with a per-cluster stopping rule, against the global levels of tools/cluster.py.
 
 Usage: uv run tools/recursive.py <topic> [--rules tau,strict,partial,confirmed,partial-confirmed] [--min-node 20]
@@ -51,11 +47,10 @@ from sklearn.metrics import adjusted_mutual_info_score as ami
 from sklearn.metrics import adjusted_rand_score as ari
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
-from cluster import (HOLDOUT_MONTHS, LEVELS, MIN_CLUSTER, MIN_HOLDOUT_SHARE, NO_STRUCTURE,  # noqa: E402
+from deeper_research.cluster import (HOLDOUT_MONTHS, LEVELS, MIN_CLUSTER, MIN_HOLDOUT_SHARE, NO_STRUCTURE,  # noqa: E402
                      SUBCLUSTER_SCORE, TAU, best_jaccard, combined_sim, knn_graph, leiden, level_stats, month_back,
                      n_clusters, null_refs, null_text, opt, refs_sim, text_sim, tune)
-from graph import parse, topic_dir  # noqa: E402
+from deeper_research.graph import parse, topic_dir  # noqa: E402
 
 # Set in each worker by setup(): the pool's records, dates and the run's settings.
 RECS, DATES, CFG = None, None, None

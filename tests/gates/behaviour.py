@@ -4,8 +4,6 @@ Usage: python3 tests/gates/behaviour.py (from anywhere). Exit status 1 if any be
 """
 import re, subprocess, sys, json
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 from build import build, clean, autoclean, ROOT, T
 from faults import sub, resub, S, G, O, I, first_row, run, no_declared_dimensions, PROPOSED
 
@@ -17,7 +15,7 @@ def check(name, cond, out=""):
     res.append(cond); print(f"{'ok ' if cond else 'BAD'} {name}" + ("" if cond else "\n" + out[-800:]))
 
 # 1 waiver: drop a fringe row (and its bib entry, for parity), then waive the quota
-import check as chk
+from deeper_research import check as chk
 f = build()
 gone = next(l for l in S.read_text().splitlines()
             if l.startswith("| [") and "| fringe |" in l and chk.row_id(l) != f["changed"])
@@ -79,7 +77,7 @@ code, out = run("--gate", "G0")
 check("H1 with a decision does not satisfy g0.preflight", code == 1 and "g0.preflight" in fails(out), out)
 
 # 6 history via a fake HEAD
-import gates
+from deeper_research import gates
 f = build()
 old = S.read_text()
 old = old.replace("### Pass 2026-10-09", "### Pass 2026-09-01\n\n- **Pool:** 10 papers in scope\n\n### Pass 2026-10-09", 1)
@@ -93,7 +91,7 @@ now = now.replace(first_row("anchor") + "\n", "", 1)
 now = re.sub(r"\| full-text \|$", "| abstract |", now, count=1, flags=re.M)
 S.write_text(now)
 secs = chk.sections(now)
-from inputs import read_input, read_targets
+from deeper_research.inputs import read_input, read_targets
 dims, steer, _ = read_input(T)
 rows, ids, ab = chk.check_coreset(secs["Coreset"], dims, "coreset", [], [])
 st = chk.check_structure(T, secs, rows, ids, [], [])
@@ -175,25 +173,25 @@ check("halted pass without its `Tokens` line is not closed", code == 1 and "not 
 
 # 6h expansion: add-expand refuses while a row is unjudged, then records each `no` and prints the logged line
 def tool(*a, stdin=None):
-    return subprocess.run(["python3", *a], cwd=ROOT, capture_output=True, text=True, input=stdin)
+    return subprocess.run([sys.executable, *a], cwd=ROOT, capture_output=True, text=True, input=stdin)
 f = build(); resub(G / "expand-screen.md", r"\| no \| about image classification \|$", "| maybe | images, perhaps |")
-r = tool("tools/assign.py", "add-expand", T)
+r = tool("-m", "deeper_research.assign", "add-expand", T)
 check("add-expand refuses while a row is `maybe`", r.returncode == 1 and "1 row(s)" in r.stderr, r.stdout + r.stderr)
 f = build(); (G / "rejected.md").unlink()
-r = tool("tools/assign.py", "add-expand", T)
+r = tool("-m", "deeper_research.assign", "add-expand", T)
 line = next((l for l in r.stdout.splitlines() if l.startswith("- **Expansion:**")), "")
 check("add-expand records the `no` in rejected.md and prints the logged line",
       r.returncode == 0 and "2401.00001" in (G / "rejected.md").read_text() and line
       and " ".join(line.split()) in " ".join(S.read_text().split()), r.stdout + r.stderr)
 code, out = run("--gate", "G5")
 check("after add-expand the pass passes G5 again", code == 0, out)
-r = tool("tools/assign.py", "add-expand", T)
+r = tool("-m", "deeper_research.assign", "add-expand", T)
 check("add-expand rerun records nothing twice", r.returncode == 0 and (G / "rejected.md").read_text().count("| [2401.00001]") == 1,
       r.stdout + r.stderr)
 
 # 6h2 a `no` for a paper in the pool is a conflict, listed and not recorded
 f = build(); resub(G / "expand-screen.md", r"\| yes \| studies test-time compute \|$", "| no | about something else |")
-r = tool("tools/assign.py", "add-expand", T)
+r = tool("-m", "deeper_research.assign", "add-expand", T)
 pid = f["expanded"][0]
 check("add-expand lists a `no` for a pool paper as a conflict, and does not record it",
       r.returncode == 0 and "in the pool, so not recorded" in r.stdout and pid not in (G / "rejected.md").read_text(),
@@ -201,17 +199,17 @@ check("add-expand lists a `no` for a pool paper as a conflict, and does not reco
 
 # 6h3 judge refuses a one-word reason, on both sheets, writing nothing (the gate's own two-word test)
 f = build(); before = (G / "expand-screen.md").read_text()
-r = tool("tools/expand.py", "judge", T, stdin=f"{f['s2s'][2]}\tno\timages\n")
+r = tool("-m", "deeper_research.expand", "judge", T, stdin=f"{f['s2s'][2]}\tno\timages\n")
 check("expand judge refuses a one-word reason", r.returncode == 1 and "two words" in r.stderr
       and (G / "expand-screen.md").read_text() == before, r.stdout + r.stderr)
 fr_row = next(l for l in (G / "fringe-screen.md").read_text().splitlines() if l.endswith("| no | out of scope |"))
-r = tool("tools/fringe.py", "judge", T, stdin=f"{fr_row.split('|')[2].strip()}\tno\timages\n")
+r = tool("-m", "deeper_research.fringe", "judge", T, stdin=f"{fr_row.split('|')[2].strip()}\tno\timages\n")
 check("fringe judge refuses a one-word reason", r.returncode == 1 and "two words" in r.stderr, r.stdout + r.stderr)
 
 # 6h4 two judges at once on disjoint rows both land: judge locks the sheet
 f = build(); lost = 0
 for k in range(8):
-    procs = [subprocess.Popen(["python3", "tools/expand.py", "judge", T], cwd=ROOT, stdin=subprocess.PIPE,
+    procs = [subprocess.Popen([sys.executable, "-m", "deeper_research.expand", "judge", T], cwd=ROOT, stdin=subprocess.PIPE,
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True) for _ in range(2)]
     for n, pr in enumerate(procs):
         pr.stdin.write(f"{f['s2s'][n]}\tyes\tround {k} by judge {n}\n"); pr.stdin.close()
@@ -222,7 +220,8 @@ for k in range(8):
 check("parallel judges on disjoint rows lose no verdict", lost == 0, f"{lost} of 8 rounds lost a verdict")
 
 # 6h5 collect, against a fake Graph API: what it leaves out and why, paging, a resumed run, a rerun, a targeted round
-import expand as ex, net, screen, contextlib, io, urllib.error
+from deeper_research import expand as ex, net, screen
+import contextlib, io, urllib.error
 f = build()
 ex_data = json.loads((G / "expand.json").read_text())
 ex_data["rounds"][0].update(kind="targeted", region=f["fr1"], query="earlier", why="a thin cluster")  # a new first round appends
@@ -333,13 +332,14 @@ def unknown_fr2(d):
             x.update(error="not found", ids=[], returned=0)
 jset_ = lambda fn: (G / "expand.json").write_text(json.dumps((lambda d: (fn(d), d)[1])(json.loads((G / "expand.json").read_text()))))
 jset_(unknown_fr2)
-import expand as ex2, importlib
+from deeper_research import expand as ex2
+import importlib
 code, out = run()
 check("an untraversed start paper fails g1.expansion-collected", "g1.expansion-collected" in fails(out), out[-500:])
 
 # 6h7 the fringe routes leave out a second record of a pool paper, by title (M2)
-import fringe
-from screen import verdicts as screen_verdicts
+from deeper_research import fringe
+from deeper_research.screen import verdicts as screen_verdicts
 f = build()
 pool = json.loads((G / "pool.json").read_text())["papers"]
 counts = {}
@@ -368,7 +368,7 @@ check("fringe sheet rows are numbered from 1", fr_lines[0].startswith("| # | s2 
       and set(screen_verdicts((G / "fringe-screen.md").read_text())) == set(got), "\n".join(fr_lines[:3]))
 
 # 6h8 a `yes` with only a CorpusId enters the pool by it; a `yes` titled as a pool paper is not added again
-import assign
+from deeper_research import assign
 f = build()
 X, Y = "f" * 40, "e" * 40
 d = json.loads((G / "expand.json").read_text())
@@ -421,44 +421,44 @@ check("a rejected paper in the pool is noted", "both rejected" in out, out)
 
 # 7 assign.py reject
 f = build()
-r = subprocess.run(["python3", "tools/assign.py", "reject", T, "2402.00001", "about", "vision"], cwd=ROOT, capture_output=True, text=True)
+r = subprocess.run([sys.executable, "-m", "deeper_research.assign", "reject", T, "2402.00001", "about", "vision"], cwd=ROOT, capture_output=True, text=True)
 check("reject records a row", r.returncode == 0 and "2402.00001" in (G / "rejected.md").read_text(), r.stdout + r.stderr)
-r = subprocess.run(["python3", "tools/assign.py", "reject", T, f["rows"][0], "x"], cwd=ROOT, capture_output=True, text=True)
+r = subprocess.run([sys.executable, "-m", "deeper_research.assign", "reject", T, f["rows"][0], "x"], cwd=ROOT, capture_output=True, text=True)
 check("reject refuses a pool paper", r.returncode != 0 and "H12" in r.stderr, r.stdout + r.stderr)
-r = subprocess.run(["python3", "tools/assign.py", "reject", T, "math.GT/0309136", "x"], cwd=ROOT, capture_output=True, text=True)
+r = subprocess.run([sys.executable, "-m", "deeper_research.assign", "reject", T, "math.GT/0309136", "x"], cwd=ROOT, capture_output=True, text=True)
 check("reject refuses a non-canonical ID", r.returncode != 0, r.stdout + r.stderr)
 
 # 8 the legacy survey is unaffected; --gate on a legacy survey is a failure
-r = subprocess.run(["python3", "tools/check.py", "reasoning-legacy"], cwd=ROOT, capture_output=True, text=True)
+r = subprocess.run([sys.executable, "-m", "deeper_research.check", "reasoning-legacy"], cwd=ROOT, capture_output=True, text=True)
 check("reasoning-legacy still passes", r.returncode == 0, r.stdout[-400:])
-r = subprocess.run(["python3", "tools/check.py", "reasoning-legacy", "--gate", "G1"], cwd=ROOT, capture_output=True, text=True)
+r = subprocess.run([sys.executable, "-m", "deeper_research.check", "reasoning-legacy", "--gate", "G1"], cwd=ROOT, capture_output=True, text=True)
 check("--gate on a legacy survey fails clearly", r.returncode == 1 and "coreset layout" in r.stdout, r.stdout[-300:])
-r = subprocess.run(["python3", "tools/check.py", "reasoning-legacy", "--gate", "G9"], cwd=ROOT, capture_output=True, text=True)
+r = subprocess.run([sys.executable, "-m", "deeper_research.check", "reasoning-legacy", "--gate", "G9"], cwd=ROOT, capture_output=True, text=True)
 check("bad gate is a usage error (2)", r.returncode == 2)
 
 # 9 check.py --print: one section, or one cluster's block, with its line span; a wrong name is a usage error
 f = build()
-r = subprocess.run(["python3", "tools/check.py", T, "--print", "Coreset:two"], cwd=ROOT, capture_output=True, text=True)
+r = subprocess.run([sys.executable, "-m", "deeper_research.check", T, "--print", "Coreset:two"], cwd=ROOT, capture_output=True, text=True)
 check("--print prints one cluster's block", r.returncode == 0 and r.stdout.splitlines()[2].startswith("### two")
       and "### three" not in r.stdout and "lines " in r.stdout.splitlines()[0], r.stdout[-400:])
-r = subprocess.run(["python3", "tools/check.py", T, "--print", "open-work"], cwd=ROOT, capture_output=True, text=True)
+r = subprocess.run([sys.executable, "-m", "deeper_research.check", T, "--print", "open-work"], cwd=ROOT, capture_output=True, text=True)
 check("--print finds a section by a loose name", r.returncode == 0 and "## Open work" in r.stdout, r.stdout[-300:])
-r = subprocess.run(["python3", "tools/check.py", T, "--print", "Coreset:nine"], cwd=ROOT, capture_output=True, text=True)
+r = subprocess.run([sys.executable, "-m", "deeper_research.check", T, "--print", "Coreset:nine"], cwd=ROOT, capture_output=True, text=True)
 check("--print of an unknown block is a usage error (2)", r.returncode == 2 and "one, two" in r.stderr, r.stderr)
 
 # 10 a second coverage round through tools/coverage.py: drawn by seed, judged, its line pasted; G5 still holds
 f = build()
-uv = lambda *a, stdin=None: subprocess.run(["uv", "run", "-q", "tools/coverage.py", *a], cwd=ROOT, capture_output=True,
+uv = lambda *a, stdin=None: subprocess.run([sys.executable, "-m", "deeper_research.coverage", *a], cwd=ROOT, capture_output=True,
                                            text=True, input=stdin)
 r = uv("draw", T, "2", "--seed", "7")
 drawn = re.findall(r"arxiv\.org/abs/([0-9.]+)\)", (G / "coverage-2.md").read_text()) if r.returncode == 0 else []
 first = set(re.findall(r"arxiv\.org/abs/([0-9.]+)\)", (G / "coverage-1.md").read_text()))
 check("draw writes ten candidates, none from round 1 or the coreset",
       len(drawn) == 10 and not (set(drawn) & first) and not (set(drawn) & set(f["rows"])), r.stdout + r.stderr)
-again = subprocess.run(["uv", "run", "-q", "tools/coverage.py", "draw", T, "2"], cwd=ROOT, capture_output=True, text=True)
+again = subprocess.run([sys.executable, "-m", "deeper_research.coverage", "draw", T, "2"], cwd=ROOT, capture_output=True, text=True)
 check("draw refuses to redraw a round", again.returncode == 1 and "drawn once" in again.stderr, again.stderr)
 r = uv("judge", T, "2", stdin="".join(f"{p}\tno change\tits nearest row already says it\n" for p in drawn))
-cov = lambda *a, stdin=None: subprocess.run(["python3", "tools/coverage.py", *a], cwd=ROOT, capture_output=True,
+cov = lambda *a, stdin=None: subprocess.run([sys.executable, "-m", "deeper_research.coverage", *a], cwd=ROOT, capture_output=True,
                                             text=True, input=stdin)
 r = cov("line", T, "2")
 check("line refuses until the recency query is recorded", r.returncode == 1 and "recency query" in r.stderr, r.stderr)
@@ -469,7 +469,7 @@ check("line counts the sheet", "round 2: 0 of 10 sampled candidates changed the 
 sub(S, "lacks); new clusters: none\n", "lacks); new clusters: none\n" + line.splitlines()[0] + "\n")
 code, out = run("--gate", "G5")
 check("a round pasted from its sheet passes G5", code == 0, out)
-r = subprocess.run(["python3", "tools/coverage.py", "judge", T, "2"], cwd=ROOT, capture_output=True, text=True,
+r = subprocess.run([sys.executable, "-m", "deeper_research.coverage", "judge", T, "2"], cwd=ROOT, capture_output=True, text=True,
                    input="2401.00001\tchanges Landscape\tnot on the sheet at all\n")
 check("judge refuses a paper not on the sheet, writing nothing", r.returncode == 1 and "nothing written" in r.stderr,
       r.stderr)

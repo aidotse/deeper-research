@@ -2,7 +2,7 @@
 """The preflight checks that need no agent: the Semantic Scholar Graph API, the arXiv API and HTML, `uv`, and the
 Asta key (docs/external_services.md, "Preflight").
 
-Usage: python3 tools/preflight.py
+Usage: uv run python -m deeper_research.preflight
 
 Prints one line per check and the matching part of the retrieval log's `Preflight` line, and exits 1 if any check
 fails, which halts the pass (H1). An unreachable service is tried twice, 90 s each, before it counts as failed. A
@@ -19,8 +19,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import asta_config  # noqa: E402
+from deeper_research import asta_config  # noqa: E402
 
 PAPER = "2106.15928"
 HEADERS = {"User-Agent": "deeper-research preflight"}

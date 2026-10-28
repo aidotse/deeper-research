@@ -8,9 +8,8 @@ graphs/reasoning-legacy/.
 import atexit, contextlib, io, json, os, re, shutil, sys
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "tools"))
-from graph import parse
-from check import link
+from deeper_research.graph import parse
+from deeper_research.check import link
 
 T, DATE = os.environ.get("ZZ_GATE_TOPIC") or f"zz-gate-{os.getpid()}", "2026-10-09"
 # The claims the two dissent rows quote; their full texts contain them, and their evidence quotes them.
@@ -106,7 +105,7 @@ def build():
     changed = rows["c3"][0][0]
     # expansion: one collection from the two frontier candidates and one theme; its sheet has three rows, two `yes`
     # that are pool papers and one `no`, the paper rejected.md records
-    import expand, screen
+    from deeper_research import expand, screen
     s2s, pids_x = [f"{k + 1:040x}" for k in range(3)], [pids[3], pids[10], "2401.00001"]
     cands = {x: {"title": titles.get(p, "A study of image classifiers"), "abstract": "An abstract of the paper.",
                  "arxiv": None if p.startswith("CorpusId") else p, "corpus": p if p.startswith("CorpusId") else None,
@@ -231,7 +230,7 @@ A tension ({cite[2]}).
 1. {cite[3]} — start here.
 """)
     # The coverage sheet of round 1: the paper the line counts, and eleven pool papers outside the coreset.
-    import coverage, audit
+    from deeper_research import coverage, audit
     others = [p for p in sorted(a) if p not in all_rows][:11]
     cov = [dict(paper=f"[{titles[changed]}]({link(changed)})", **{"drawn as": "worst-covered", "distance": "0.300",
                 "nearest row": all_rows[0], "verdict": "changes Gaps", "reason": "it adds a gap the output lacks"})]

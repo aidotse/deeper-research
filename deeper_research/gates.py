@@ -36,8 +36,8 @@ import re
 import subprocess
 import unicodedata
 
-from screen import judged, verdicts
-from check import (ABSTRACT_SHARE, BARE_ID, CORESET_COLUMNS, FRINGE_QUOTA, NEEDED, ROOT, read, row_id, sections,
+from deeper_research.screen import judged, verdicts
+from deeper_research.check import (ABSTRACT_SHARE, BARE_ID, CORESET_COLUMNS, FRINGE_QUOTA, NEEDED, ROOT, read, row_id, sections,
                    table_rows, words)
 
 GATES = [("G0", "ready"), ("G1", "pool complete"), ("G2", "clusters named"), ("G3", "coreset selected"),
@@ -229,7 +229,7 @@ def r_preflight(c):
 def r_orientation(c):
     if (m := need_lines(c, "Orientation", "Recency window")):
         return m
-    from expand import orientation_parts
+    from deeper_research.expand import orientation_parts
     seeds, ids, themes = orientation_parts(c.line("Orientation"))
     problems = []
     if not (seeds or ids):
@@ -254,7 +254,7 @@ def r_expansion_collected(c):
     first = [r for _, r in expand_rounds(c) if r.get("kind") == "first"]
     if not first:
         return f"expansion was not collected this pass ({c.date}): run `python3 tools/expand.py collect {c.topic}`"
-    from expand import orientation_parts
+    from deeper_research.expand import orientation_parts
     seeds, ids, themes = orientation_parts(c.line("Orientation"))
     have = {(x["kind"], x.get("from") or x.get("query")) for x in first[-1]["sources"]}
     missing = ([f"backward from {i}" for i in dict.fromkeys(seeds + ids) if ("backward", i) not in have]
@@ -275,7 +275,7 @@ def r_expansion_collected(c):
 
 def expand_mine(c):
     """{s2: (verdict, reason)} for the sheet rows of this pass's candidates."""
-    from expand import pass_candidates
+    from deeper_research.expand import pass_candidates
     said = verdicts(c.expand_screen)
     return {s: said.get(s) for s in pass_candidates(c.expand, c.date)}
 
@@ -301,7 +301,7 @@ def r_expansion_screened(c):
 def r_expansion_added(c):
     if not (c.expand and c.expand_screen):
         return None  # g1.expansion-collected and g1.expansion-screened report it
-    from expand import canonical
+    from deeper_research.expand import canonical
     cands = c.expand.get("candidates", {})
     pool_titles = {" ".join(words(t)) for t in c.titles.values()}
     rejected = {row_id(l) for h, _, _, l in table_rows(c.rejected or "") if h and h[0] == "paper"}
@@ -337,7 +337,7 @@ def r_expansion_line(c):
         return m
     if not (c.expand and c.expand_screen):
         return None
-    from expand import expansion_line
+    from deeper_research.expand import expansion_line
     want = expansion_line(c.expand, verdicts(c.expand_screen), c.date).split(":** ", 1)[1]
     if " ".join(c.line("Expansion").split()) != " ".join(want.split()):
         return (f"`Expansion` disagrees with expand.json and the sheet; paste the line "
@@ -906,7 +906,7 @@ def r_coverage_sheets(c):
     """Each round's sheet, written by tools/coverage.py, backs its `Coverage test` line: every candidate judged, N its
     rows, the IDs the line counts in K its `changes` rows, a proposed cluster not reported as `none`, and the line as
     `coverage.py line` prints it, up to `new clusters:`."""
-    from coverage import counted, render, sheet
+    from deeper_research.coverage import counted, render, sheet
     texts = c.L.get("Coverage test", [])
     problems = []
     for r in (x for x in rounds(c) if x):
@@ -940,7 +940,7 @@ def r_coverage_sheets(c):
 
 def r_judgement_audit(c):
     """The `Judgement audit` line, as tools/audit.py computes it from the two judged sheets."""
-    from audit import summary
+    from deeper_research.audit import summary
     if (m := need_lines(c, "Judgement audit")):
         return m + " (`python3 tools/audit.py line`)"
     value, missing = summary(c.topic)

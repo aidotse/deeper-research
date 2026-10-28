@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["numpy==2.5.3", "scikit-learn==1.9.1", "igraph==1.0.0", "leidenalg==0.12.0"]
-# ///
 """How well the coreset covers the pool, and the coverage test's sample and sheet (docs/process.md, step 7).
 
 Usage:
@@ -55,8 +51,7 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
-from check import ID, cells_of, link, row_id, sections, table_rows  # noqa: E402
+from deeper_research.check import ID, cells_of, link, row_id, sections, table_rows  # noqa: E402
 
 N_DRAW = 10          # pool papers drawn per round; the recency query adds to these (docs/process.md: 10-15 in all)
 QUARTER = 0.25       # the worst-covered share of the eligible pool papers that the draw is made from
@@ -118,8 +113,8 @@ def distances(topic):
     """(pool ids, coreset ids, D) where D[i][j] is the distance of pool paper i from coreset row j. Papers without an
     embedding are left out, as they are from the clustering."""
     import numpy as np
-    from cluster import C_REFS, combined_sim, refs_sim, text_sim
-    from graph import parse
+    from deeper_research.cluster import C_REFS, combined_sim, refs_sim, text_sim
+    from deeper_research.graph import parse
     survey = ROOT / "surveys" / f"{topic}.md"
     pool_path = ROOT / "graphs" / topic / "pool.json"
     for path, then in ((survey, "steps 0-5 of docs/process.md"), (pool_path, f"`python3 tools/pool.py {topic}`")):
@@ -190,7 +185,7 @@ def write_sheet(path, topic, r, header, rows):
 
 
 def titles(topic):
-    from graph import parse
+    from deeper_research.graph import parse
     return {a: v.get("title") or a for a, v in parse(topic)[4].items()}
 
 
@@ -244,7 +239,7 @@ def read_sheet(topic, r):
 
 
 def judge(topic, r, recency):
-    from inputs import read_targets
+    from deeper_research.inputs import read_targets
     targets = read_targets(topic)[0]
     path, text = read_sheet(topic, r)
     rows = sheet(text)

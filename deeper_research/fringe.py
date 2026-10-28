@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["numpy==2.5.3", "scipy==1.18.1", "scikit-learn==1.9.1", "igraph==1.0.0", "leidenalg==0.12.0"]
-# ///
 """Collect fringe candidates for a topic, and test how they behave under the clustering method.
 
 Usage:
@@ -56,12 +52,11 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
-from assign import rejected  # noqa: E402
-from check import sections  # noqa: E402
-from graph import parse, topic_dir  # noqa: E402
-from net import get_json  # noqa: E402
-from screen import ABSTRACT_CHARS, clean, judge, pool_titles, title_key, verdicts  # noqa: E402
+from deeper_research.assign import rejected  # noqa: E402
+from deeper_research.check import sections  # noqa: E402
+from deeper_research.graph import parse, topic_dir  # noqa: E402
+from deeper_research.net import get_json  # noqa: E402
+from deeper_research.screen import ABSTRACT_CHARS, clean, judge, pool_titles, title_key, verdicts  # noqa: E402
 
 API = "https://api.semanticscholar.org"
 FIELDS = ("title,abstract,externalIds,publicationDate,year,citationCount,referenceCount,references.paperId,"
@@ -111,10 +106,10 @@ def rate(rec, today):
 
 def frontier_candidates(topic):
     """The frontier candidates named in the latest pass's `Orientation` line, in order, without repeats."""
-    from gates import log_entries
+    from deeper_research.gates import log_entries
     log = sections((ROOT / "surveys" / f"{topic}.md").read_text()).get("Retrieval log", "")
     entries = log_entries(log)
-    from expand import orientation_parts
+    from deeper_research.expand import orientation_parts
     return orientation_parts(" ".join(entries[-1]["lines"].get("Orientation", [])) if entries else "")[1]
 
 
@@ -279,7 +274,7 @@ def analyse(topic, level):
     import numpy as np
     from scipy.stats import mannwhitneyu
     from sklearn.metrics import adjusted_rand_score as ari
-    from cluster import combined_sim, knn_graph, leiden, refs_sim, text_sim, tune
+    from deeper_research.cluster import combined_sim, knn_graph, leiden, refs_sim, text_sim, tune
 
     pool = json.loads((d / "pool.json").read_text())["papers"]
     report = json.loads((d / "clusters.json").read_text())

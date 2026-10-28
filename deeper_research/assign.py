@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["numpy==2.5.3", "scikit-learn==1.9.1", "igraph==1.0.0", "leidenalg==0.12.0"]
-# ///
 """Write pool papers and their clusters into the survey's Pool table, by script rather than by hand.
 
 Usage:
@@ -59,8 +55,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
-from check import ID, arxiv_of, cells_of, link, row_id, s2_ref, sections, table_rows  # noqa: E402
+from deeper_research.check import ID, arxiv_of, cells_of, link, row_id, s2_ref, sections, table_rows  # noqa: E402
 
 LATE_SHARE = 0.1  # late papers since the last full clustering, as a share of the pool, above which to recluster
 POOL_HEADER = "| paper | year | cluster | citations | cites |\n| -- | -- | -- | -- | -- |\n"
@@ -185,7 +180,7 @@ def append_pool_rows(topic, titled):
 
 
 def add(topic, ids):
-    from net import get_json
+    from deeper_research.net import get_json
     bad = [a for a in ids if not ID.match(a)]
     if bad or not ids:
         print(f"expected paper IDs such as 2408.03314, hep-th/9901001 or CorpusId:6628106; got {bad or 'none'}",
@@ -220,8 +215,8 @@ def add(topic, ids):
 
 
 def add_expand(topic):
-    from expand import canonical, expansion_line, latest_entry, pass_candidates
-    from screen import judged, pool_titles, title_key, verdicts
+    from deeper_research.expand import canonical, expansion_line, latest_entry, pass_candidates
+    from deeper_research.screen import judged, pool_titles, title_key, verdicts
     d = topic_dir(topic)
     for name in ("expand.json", "expand-screen.md"):
         if not (d / name).exists():
@@ -277,7 +272,7 @@ def add_fringe(topic):
                      "candidates screened")
     data = json.loads((d / "fringe.json").read_text())
     cands = data["candidates"]
-    from screen import judged, verdicts
+    from deeper_research.screen import judged, verdicts
     rows = verdicts((d / "fringe-screen.md").read_text())
     screened = {s: v for s, (v, _) in rows.items()}
     # The gate's own test (G1, fringe-screened): `yes` or `no` with a reason; blank or `maybe` is unjudged.
@@ -295,7 +290,7 @@ def add_fringe(topic):
     # The canonical ID: the arXiv ID where there is one, otherwise the corpus ID (docs/formats.md).
     missing = [s for s in yes if not cands[s].get("arxiv")]
     if missing:
-        from net import get_json
+        from deeper_research.net import get_json
         for s, rec in zip(missing, get_json(S2_TITLES, {"ids": missing})):
             if arxiv_of(rec):
                 cands[s]["arxiv"] = arxiv_of(rec)
@@ -349,8 +344,8 @@ def write_clusters(topic):
 
 def late(topic):
     import numpy as np
-    import pool
-    from cluster import combined_sim, refs_sim, text_sim
+    from deeper_research import pool
+    from deeper_research.cluster import combined_sim, refs_sim, text_sim
 
     pool.main([topic])
     path, report = load_report(topic)

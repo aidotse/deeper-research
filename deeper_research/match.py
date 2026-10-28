@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["numpy==2.5.3", "scikit-learn==1.9.1", "igraph==1.0.0", "leidenalg==0.12.0"]
-# ///
 """Matching clusters across passes: the matching rule, and a simulation of earlier passes on one topic.
 
 Usage: uv run tools/match.py simulate <topic> [--months 3,6,9] [--reps 20] [--workers 12]
@@ -58,11 +54,10 @@ import numpy as np
 from sklearn.metrics import adjusted_rand_score as ari
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
-from cluster import (HOLDOUT_MONTHS, LEVELS, MEASURE, MIN_CLUSTER, MIN_HOLDOUT_SHARE, SMALL, TAU,  # noqa: E402
+from deeper_research.cluster import (HOLDOUT_MONTHS, LEVELS, MEASURE, MIN_CLUSTER, MIN_HOLDOUT_SHARE, SMALL, TAU,  # noqa: E402
                      choose_level, combined_sim, knn_graph, leiden, level_stats, month_back, opt, refs_sim, text_sim,
                      tune)
-from graph import parse, topic_dir  # noqa: E402
+from deeper_research.graph import parse, topic_dir  # noqa: E402
 
 MAJORITY = 0.5  # the share that makes a cluster the main destination or source "by a majority"
 

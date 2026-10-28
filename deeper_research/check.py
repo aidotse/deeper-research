@@ -45,7 +45,6 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
 # A paper's canonical ID (docs/formats.md): its arXiv ID where it has one, otherwise its Semantic Scholar corpus ID,
 # `CorpusId:<n>`. These are the one definition every tool uses.
 #
@@ -590,7 +589,7 @@ def main(argv):
     bib = read(ROOT / "bib" / f"{topic}.bib")
     output = read(ROOT / "outputs" / f"{topic}.md")
 
-    from inputs import read_input, read_targets
+    from deeper_research.inputs import read_input, read_targets
     dims, steering, problems = read_input(topic)
     targets, more = read_targets(topic)
     dims = dims or {}
@@ -601,7 +600,7 @@ def main(argv):
     # Without declared dimensions, the pass proposes them in its `Dimensions` line, which is then read the same way.
     proposed = layout == "coreset" and not dims
     if proposed:
-        import gates
+        from deeper_research import gates
         entries = gates.log_entries(secs.get("Retrieval log", ""))
         dims = gates.proposed_dimensions(" ".join(entries[-1]["lines"].get("Dimensions", []))) if entries else {}
         if dims:
@@ -641,7 +640,7 @@ def main(argv):
         check_output(output, coreset_ids, abstract, layout, targets, failures, notes)
 
     if layout == "coreset":
-        import gates
+        from deeper_research import gates
         ctx = gates.Ctx(topic, secs, structure, rows, coreset_ids, abstract, output, dims, steering, targets, proposed)
         g_fail, g_notes = gates.run(ctx, int(gate[1]) if gate else None, status)
         failures += g_fail

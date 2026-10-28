@@ -17,7 +17,7 @@ import fcntl
 import re
 import sys
 
-from check import ROOT, cells_of, same_title, sections, table_rows, words
+from deeper_research.check import ROOT, cells_of, same_title, sections, table_rows, words
 
 VERDICTS = ("yes", "no", "maybe")
 S2_ID = re.compile(r"[0-9a-f]{40}")

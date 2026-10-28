@@ -43,9 +43,8 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from check import ARXIV_ONLY, BARE_ID, LINK, ROOT, cells_of, link, s2_ref, sections, table_rows  # noqa: E402
-from net import get_json  # noqa: E402
+from deeper_research.check import ARXIV_ONLY, BARE_ID, LINK, ROOT, cells_of, link, s2_ref, sections, table_rows  # noqa: E402
+from deeper_research.net import get_json  # noqa: E402
 
 TOOLS = Path(__file__).resolve().parent
 S2_BATCH = "https://api.semanticscholar.org/graph/v1/paper/batch?fields=title,year,citationCount,references.externalIds"
@@ -87,7 +86,7 @@ def arxiv_month(aid):
 
 
 def parse(topic):
-    from inputs import read_input
+    from deeper_research.inputs import read_input
     dimensions = list(read_input(topic)[0] or {})  # declared in the input; see docs/formats.md
     path = ROOT / "surveys" / f"{topic}.md"
     secs = sections(path.read_text()) if path.exists() else {}

@@ -42,8 +42,7 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
-from check import BARE_ID, LINK, cells_of, link, row_id, sections, table_rows  # noqa: E402
+from deeper_research.check import BARE_ID, LINK, cells_of, link, row_id, sections, table_rows  # noqa: E402
 
 SHARE, LEAST = 0.10, 5      # re-verify this share of the verified rows, and at least this many
 N_TRACE = 15                # output sentences drawn for the faithfulness sample

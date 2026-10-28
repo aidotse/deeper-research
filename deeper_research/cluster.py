@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["numpy==2.5.3", "scikit-learn==1.9.1", "igraph==1.0.0", "leidenalg==0.12.0"]
-# ///
 """Cluster a topic's pool by the method in docs/process.md, "Clustering method".
 
 Usage: uv run tools/cluster.py <topic> [--k 10] [--c 10] [--tau 0.75] [--reps 20] [--nulls 1]
@@ -53,8 +49,7 @@ from sklearn.metrics import adjusted_rand_score as ari
 from sklearn.metrics import silhouette_score
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
-from graph import parse, topic_dir  # noqa: E402
+from deeper_research.graph import parse, topic_dir  # noqa: E402
 
 LEVELS = [3, 4, 5, 6, 8, 10, 12, 15, 18, 22]
 MEASURE = "combined"  # fixed; `text` and `refs` are its inputs, and the fringe score's
@@ -445,7 +440,7 @@ def diagnose(curve, null_curve, chosen, clusters, exchange, tau, recs, rename):
 
 def named_computed(topic):
     """The computed ids the survey's Clusters table names (its `computed` column)."""
-    from check import sections, table_rows
+    from deeper_research.check import sections, table_rows
     secs = sections((ROOT / "surveys" / f"{topic}.md").read_text())
     return {c[h.index("computed")] for h, c, _, _ in table_rows(secs.get("Clusters", ""))
             if h and h[0] == "id" and "computed" in h and c[h.index("computed")]}
@@ -453,7 +448,7 @@ def named_computed(topic):
 
 def steer(argv, topic, levels, li, rule, reason, curve, tau):
     """Apply --level, or else the input's granularity steering, to the level the rule chose."""
-    from inputs import read_input
+    from deeper_research.inputs import read_input
     how = opt(argv, "--level", None, str)
     source = "user override" if how else "granularity steering"
     if how is None:
@@ -681,7 +676,7 @@ def main(argv):
         # that tools/assign.py remap can carry the names over. If the clustering has been rerun since without a remap
         # (a --level rerun), the named one is the baseline stored by that run. With no names yet, as on a first pass,
         # there is nothing to carry, and no matching is recorded.
-        from match import match
+        from deeper_research.match import match
         prev = json.loads(out.read_text())
         if prev.get("previous") and not prev["previous"].get("remapped"):
             base, when = prev["previous"]["assignment"], prev["previous"]["generated"]

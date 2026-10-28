@@ -4,9 +4,8 @@ Usage: python3 tests/gates/faults.py (from anywhere). Exit status 1 if any fault
 """
 import json, re, subprocess, sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build import build, clean, autoclean, ROOT, T, DISSENT
-from check import link
+from deeper_research.check import link
 S, G, O, I = ROOT / f"surveys/{T}.md", ROOT / f"graphs/{T}", ROOT / f"outputs/{T}.md", ROOT / f"inputs/{T}.md"
 
 def sub(path, a, b, count=1):
@@ -138,7 +137,7 @@ F = {
 }
 
 def run(*extra):
-    r = subprocess.run(["python3", "tools/check.py", T, *extra], cwd=ROOT, capture_output=True, text=True)
+    r = subprocess.run([sys.executable, "-m", "deeper_research.check", T, *extra], cwd=ROOT, capture_output=True, text=True)
     return r.returncode, r.stdout + r.stderr
 
 def main():

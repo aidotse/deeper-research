@@ -28,9 +28,9 @@ import json
 import sys
 import time
 
-from check import ARXIV_ONLY, LINK, ROOT, arxiv_of, cells_of, s2_ref, sections
-from graph import parse, topic_dir
-from net import get_json
+from deeper_research.check import ARXIV_ONLY, LINK, ROOT, arxiv_of, cells_of, s2_ref, sections
+from deeper_research.graph import parse, topic_dir
+from deeper_research.net import get_json
 
 FIELDS = "externalIds,openAccessPdf,publicationDate,year,citationCount,referenceCount,references.paperId,embedding.specter_v2"
 S2_BATCH = f"https://api.semanticscholar.org/graph/v1/paper/batch?fields={FIELDS}"

@@ -20,9 +20,8 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from check import ARXIV_ID, ROOT, bib_ids, link, row_id, sections, table_rows  # noqa: E402
-from net import TRANSIENT, get_json, request  # noqa: E402
+from deeper_research.check import ARXIV_ID, ROOT, bib_ids, link, row_id, sections, table_rows  # noqa: E402
+from deeper_research.net import TRANSIENT, get_json, request  # noqa: E402
 
 API = "https://export.arxiv.org/api/query?max_results=100&id_list="
 NS = {"a": "http://www.w3.org/2005/Atom", "x": "http://arxiv.org/schemas/atom"}

@@ -22,9 +22,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
-from check import row_id, sections, table_rows  # noqa: E402
-from graph import parse, topic_dir  # noqa: E402
+from deeper_research.check import row_id, sections, table_rows  # noqa: E402
+from deeper_research.graph import parse, topic_dir  # noqa: E402
 
 TOP, RECENT, RECENT_RATED, SUB_TOP, FRINGE = 8, 3, 5, 3, 25
 
