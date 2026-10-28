@@ -119,8 +119,10 @@ ipython_config.py
 graphs/*/fulltext/
 
 # The viewer is generated from the survey and clusters.json by deeper_research/graph.py,
-# and is large; rebuild it rather than track it.
+# and is large; rebuild it rather than track it. The docs site publishes every topic's
+# viewer (`poe graphs`, docs/maps.md), and docs/graphs/ holds those build-time copies.
 graphs/*/graph.html
+docs/graphs/
 
 # Compact sheets for the naming and fringe agents, written by deeper_research/sheets.py from
 # clusters.json; regenerable.

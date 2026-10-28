@@ -308,6 +308,11 @@ refetch. A paper is placed on the timeline by the month its arXiv ID encodes, or
 publication date from the pool sidecar; its title links to its arXiv page or Semantic Scholar page. The viewer's code is
 `deeper_research/graph_template.html`, and its libraries are vendored in `deeper_research/vendor/`.
 
+The page is not committed. `uv run poe graphs` builds every topic's page and copies it into `docs/graphs/`, and
+`uv run poe docs` runs it first, so the documentation site publishes each topic's map on its "Survey maps" page
+(`docs/maps.md`). The site is deployed when a release is cut. A rebuild from the same data writes the same page, byte
+for byte. When a new topic gets a survey, add its line to `docs/maps.md`.
+
 ## Full text
 
 `uv run python -m deeper_research.fulltext <topic> <id> [<id> ...]` fetches papers' full text from arXiv into

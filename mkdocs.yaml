@@ -19,6 +19,7 @@ plugins:
 # "Generated Project Guide" nav entry (labelled to show it documents a generated project); see docs/developing.md.
 nav:
   - Home: index.md
+  - Survey maps: maps.md
   - Method:
       - Coresets: coresets.md
       - Process: process.md

@@ -62,6 +62,7 @@ not apply.
 | `docs/experiments.md` | human reviewers only | not instructions; skip it |
 | `docs/vs_deep_research.md` | human reviewers only | not instructions; skip it |
 | `docs/user-guide.md` | developers | when changing the repo's tooling (lint, tests, CI, releases); not for a pass |
+| `docs/maps.md` | human reviewers only | not instructions; the docs site's page of survey maps. Add a line when a new topic gets a survey |
 | `docs/reference.md` | human reviewers only | not instructions; the API reference generated from the modules' docstrings |
 
 In particular, `docs/roadmap.md` is the list of open items: decisions still to take, fixes, known gaps, proposals and
@@ -96,7 +97,8 @@ These apply to a pass's commits as much as to changes to the code or docs.
     merge through a PR. The consistency check compares the survey with the last commit on the current branch.
 - Commit messages are Conventional Commits; the `commit-msg` hook rejects any other. Releases and `CHANGELOG.md` are cut
     from them on merge: `feat:` and `fix:` cut a release. For a pass's or an audit's data, use `docs(<topic>):`, which
-    does not.
+    does not. The docs site, with its survey maps (`docs/maps.md`), is deployed only with a release: merge a finished
+    pass as `feat(<topic>):` to publish its map.
 - Every commit runs the hooks: ruff, strict mypy, mdformat, gitleaks and file hygiene. They skip `graphs/`, the dated
     `.audits/20*/` records and `deeper_research/vendor/`; mdformat also skips `inputs/`, `surveys/` and
     `docs/verification.md`. A hook that fixes a file fails the commit: add the file again and commit again.

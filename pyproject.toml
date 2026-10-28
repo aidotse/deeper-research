@@ -260,8 +260,24 @@ help = "Print the current version (from the latest git tag) via commitizen."
 
 # Build the documentation. If using Gitlab, pushing these docs is built directly into the CI pipeline.
 # Note, need the output of `test` to include test report in docs, but not marked here -> enforced in CI
+# Build every topic's citation-graph viewer (graphs/<topic>/graph.html) and copy it into the docs site, for the
+# "Survey maps" page (docs/maps.md). Offline: a coreset survey carries its own citation data, and a legacy survey's
+# references are cached in graphs/<topic>/references.json.
+[tool.poe.tasks.graphs]
+shell = """
+  set -e
+  mkdir -p docs/graphs
+  for survey in surveys/*.md; do
+    topic=$(basename "$survey" .md)
+    python -m deeper_research.graph "$topic"
+    cp "graphs/$topic/graph.html" "docs/graphs/$topic.html"
+  done
+"""
+help = "Build every topic's graph viewer into docs/graphs/, for the docs site."
+
 [tool.poe.tasks.docs]
 shell = """
+  poe graphs
   cp README.md docs/index.md
   cp LICENSE.md docs/
   mkdocs build ${verbose:+ -v}

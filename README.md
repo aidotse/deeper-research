@@ -73,7 +73,9 @@ releases and the changelog are cut. The full developer guide is
 
 ## Documentation
 
-The documentation site is at <https://aidotse.github.io/deeper-research/>.
+The documentation site is at <https://aidotse.github.io/deeper-research/>. Its
+[Survey maps](https://aidotse.github.io/deeper-research/maps/) page has an interactive citation map of each survey, and
+says how to build one locally: `uv run python -m deeper_research.graph <topic>` writes `graphs/<topic>/graph.html`.
 
 ## Authors
 
