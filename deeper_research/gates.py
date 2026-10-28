@@ -416,7 +416,7 @@ def expand_mine(c: Ctx) -> dict[str, tuple[str, str] | None]:
     from deeper_research.expand import pass_candidates  # noqa: PLC0415
 
     said = verdicts(c.expand_screen)
-    return {s: said.get(s) for s in pass_candidates(c.expand, c.date)}
+    return {s: said.get(s) for s in pass_candidates(cast("dict[str, Any]", c.expand), c.date)}
 
 
 def r_expansion_screened(c: Ctx) -> str | None:
@@ -1293,7 +1293,7 @@ def r_coverage_sheets(c: Ctx) -> str | None:
                 f"round {r['r']}'s sheet proposes a new cluster ({', '.join(x['id'] for x in new)}), but "
                 "the line says `new clusters: none`"
             )
-        printed, why, _ = render(read(path), r["r"])
+        printed, why, _ = render(cast("str", read(path)), r["r"])
         pasted = next((x for x in texts if re.match(rf"\s*round {r['r']}:", x)), "")
 
         def head(s: str) -> str:

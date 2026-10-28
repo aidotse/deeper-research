@@ -79,9 +79,9 @@ def test_waiver_and_pending_halts(check: Check) -> None:
         if ln.startswith("| [") and "| fringe |" in ln and chk.row_id(ln) != f["changed"]
     )
     S.write_text(S.read_text().replace(gone + "\n", "", 1))
-    gone_id = chk.row_id(gone)
+    gone_id = cast("str", chk.row_id(gone))
     OUT.write_text(
-        OUT.read_text().replace(gone_id, chk.row_id(first_row("anchor")))
+        OUT.read_text().replace(gone_id, cast("str", chk.row_id(first_row("anchor"))))
     )  # the output cites the dropped row
     bib = ROOT / f"bib/{T}.bib"
     bib.write_text(
@@ -202,7 +202,8 @@ def test_history(check: Check, monkeypatch: pytest.MonkeyPatch) -> None:
     S.write_text(now)
     secs = chk.sections(now)
 
-    dims, steer, _ = read_input(T)
+    dims_read, steer, _ = read_input(T)
+    dims = cast("dict[str, set[str]]", dims_read)  # the fixture declares dimensions
     rows, ids, ab = chk.check_coreset(secs["Coreset"], dims, "coreset", [], [])
     st = chk.check_structure(T, secs, rows, ids, [], [])
     c = gates.Ctx(T, secs, st, rows, ids, ab, OUT.read_text(), dims, steer, read_targets(T)[0])
@@ -217,10 +218,7 @@ def test_history(check: Check, monkeypatch: pytest.MonkeyPatch) -> None:
         secs = chk.sections(text)
         rows, ids, ab = chk.check_coreset(secs["Coreset"], dims, "coreset", [], [])
         st = chk.check_structure(T, secs, rows, ids, [], [])
-        return cast(
-            "list[str]",
-            gates.history(gates.Ctx(T, secs, st, rows, ids, ab, OUT.read_text(), dims, steer, read_targets(T)[0]))[0],
-        )
+        return gates.history(gates.Ctx(T, secs, st, rows, ids, ab, OUT.read_text(), dims, steer, read_targets(T)[0]))[0]
 
     build()
     committed_text = S.read_text()

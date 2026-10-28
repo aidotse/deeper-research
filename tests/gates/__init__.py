@@ -23,7 +23,7 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 from deeper_research import audit, coverage, expand, screen
 from deeper_research.check import link
@@ -418,7 +418,7 @@ A tension ({cite[2]}).
     call(audit.trace, 15, 1)
     n = (dst / "faithfulness.md").read_text().count("| S")
     call(audit.judge, "faithfulness", stdin="".join(f"S{i}\tsupported\tthe row says so\n" for i in range(1, n + 1)))
-    s = (ROOT / f"surveys/{T}.md").read_text().replace("JUDGEMENT_AUDIT", audit.summary(T)[0])
+    s = (ROOT / f"surveys/{T}.md").read_text().replace("JUDGEMENT_AUDIT", cast("str", audit.summary(T)[0]))
     (ROOT / f"surveys/{T}.md").write_text(s)
     return Built(
         verified=verified,

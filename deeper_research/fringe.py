@@ -51,7 +51,7 @@ import sys
 import time
 from datetime import date
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from deeper_research.assign import rejected
 from deeper_research.check import sections
@@ -390,8 +390,8 @@ def analyse(topic: str, level: int | None) -> None:  # noqa: C901
             lab = leiden(knn_graph(S[np.ix_(idx, idx)], k), gamma, r)
             f = full[idx]
             for a, i in enumerate(idx):
-                A = set(np.flatnonzero(f == f[a])) - {a}
-                B = set(np.flatnonzero(lab == lab[a])) - {a}
+                A = cast("set[int]", set(np.flatnonzero(f == f[a]))) - {a}
+                B = cast("set[int]", set(np.flatnonzero(lab == lab[a]))) - {a}
                 cons[i] += len(A & B) / len(A | B) if A | B else 1.0
                 seen[i] += 1
         cons = cons / np.maximum(seen, 1)
