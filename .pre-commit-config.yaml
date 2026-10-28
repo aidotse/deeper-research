@@ -65,7 +65,10 @@ repos:
       - id: mypy
         # pytest ships type hints; installing it here makes @pytest.mark.parametrize a
         # typed decorator under strict mypy (types-requests was unused — no requests dep).
-        additional_dependencies: [pytest]
+        # numpy and pypdf ship type information; installing them here makes this hook check the same types as
+        # `uv run mypy` (keep the versions in step with pyproject.toml). scipy, scikit-learn, igraph and leidenalg are
+        # untyped, so ignore_missing_imports covers them either way.
+        additional_dependencies: [pytest, numpy==2.5.3, pypdf==6.21.3]
         exclude: ^docs/
 
   - repo: https://github.com/commitizen-tools/commitizen
