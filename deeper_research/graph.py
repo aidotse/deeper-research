@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build an interactive citation-graph viewer for one topic's survey.
 
-Usage: python3 tools/graph.py <topic> [--refresh]
+Usage: uv run python -m deeper_research.graph <topic> [--refresh]
 
 Reads surveys/<topic>.md and writes graphs/<topic>/graph.html: a single
 self-contained page (data, libraries and code inlined) that opens straight from
@@ -25,15 +25,15 @@ the survey's hand-drawn clusters can be compared against the structure the
 citations themselves suggest.
 
 It also counts the pool and coreset papers that have an arXiv ID, whose full
-text tools/fulltext.py fetches from arXiv: the paper's own ID, or, for a
+text deeper_research/fulltext.py fetches from arXiv: the paper's own ID, or, for a
 CorpusId paper, the `arxiv` field of its record in graphs/<topic>/pool.json.
 
-If tools/cluster.py has written graphs/<topic>/clusters.json, the page
+If deeper_research/cluster.py has written graphs/<topic>/clusters.json, the page
 also shows how the clusters were computed: the level chosen, the parameters,
 the stability curve against the null draw's, the diagnostics and notes, and
 each computed cluster and sub-cluster.
 
-Vendored libraries, in tools/vendor/, all MIT-licensed: cytoscape 3.30.2,
+Vendored libraries, in deeper_research/vendor/, all MIT-licensed: cytoscape 3.30.2,
 layout-base 2.0.1, cose-base 2.2.0, cytoscape-fcose 2.2.0.
 """
 
@@ -314,7 +314,7 @@ def clustering_rationale(topic):
 
 
 def load_clustering(topic, nodes):
-    """The report from tools/cluster.py, if one exists: how the clusters were computed, and each paper's assignment."""
+    """The report from deeper_research/cluster.py, if one exists: how the clusters were computed, and each paper's assignment."""
     path = topic_dir(topic) / "clusters.json"
     if not path.exists():
         return None
@@ -417,7 +417,7 @@ def build(topic, refresh=False):
         })
 
     clustering = load_clustering(topic, nodes)
-    # How many papers have an arXiv ID, so that tools/fulltext.py can fetch their text from arXiv: the rest depend on
+    # How many papers have an arXiv ID, so that deeper_research/fulltext.py can fetch their text from arXiv: the rest depend on
     # an open-access PDF. A legacy survey has no pool, so its papers are all coreset rows.
     arxiv_share = {s: [sum(1 for n in sel if n["arxiv"]), len(sel)] for s, sel in
                    (("pool", nodes), ("coreset", [n for n in nodes if n["coreset"]]))}

@@ -446,7 +446,7 @@ check("--print finds a section by a loose name", r.returncode == 0 and "## Open 
 r = subprocess.run([sys.executable, "-m", "deeper_research.check", T, "--print", "Coreset:nine"], cwd=ROOT, capture_output=True, text=True)
 check("--print of an unknown block is a usage error (2)", r.returncode == 2 and "one, two" in r.stderr, r.stderr)
 
-# 10 a second coverage round through tools/coverage.py: drawn by seed, judged, its line pasted; G5 still holds
+# 10 a second coverage round through deeper_research/coverage.py: drawn by seed, judged, its line pasted; G5 still holds
 f = build()
 uv = lambda *a, stdin=None: subprocess.run([sys.executable, "-m", "deeper_research.coverage", *a], cwd=ROOT, capture_output=True,
                                            text=True, input=stdin)

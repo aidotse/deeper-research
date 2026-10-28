@@ -1,6 +1,6 @@
-"""Experiment: recursive clustering with a per-cluster stopping rule, against the global levels of tools/cluster.py.
+"""Experiment: recursive clustering with a per-cluster stopping rule, against the global levels of deeper_research/cluster.py.
 
-Usage: uv run tools/recursive.py <topic> [--rules tau,strict,partial,confirmed,partial-confirmed] [--min-node 20]
+Usage: uv run python -m deeper_research.recursive <topic> [--rules tau,strict,partial,confirmed,partial-confirmed] [--min-node 20]
                                           [--max-split 6] [--tau 0.75] [--child 0.6] [--delta 0.15] [--reps 20]
                                           [--reruns 10] [--workers 12]
 

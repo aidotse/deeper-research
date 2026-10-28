@@ -1,8 +1,8 @@
 <!doctype html>
 <!--
-  Template for tools/graph.py. The two placeholders below are replaced at build
+  Template for deeper_research/graph.py. The two placeholders below are replaced at build
   time: the vendored libraries, and the survey's graph data as JSON. Edit this
-  file to change the viewer; regenerate with `python3 tools/graph.py <topic>`.
+  file to change the viewer; regenerate with `uv run python -m deeper_research.graph <topic>`.
 
   Structure: the graph fills the window, and the controls float over it on
   translucent panels. Three layers are stacked in #stage:
@@ -418,7 +418,7 @@ MODES.push({
     sub: `${c.size} papers: ${commMix(c)}`, listSub: true, community: c,
   })),
 });
-// Computed clusters (tools/cluster.py) are named the same way as communities:
+// Computed clusters (deeper_research/cluster.py) are named the same way as communities:
 // after the survey clusters their papers mostly belong to. For a coreset
 // survey the two coincide; for a legacy survey the name shows how the computed
 // grouping relates to the hand-drawn blocks.
@@ -491,7 +491,7 @@ if (DATA.nodes.some(n => n.source)) {
   MODES.push({ id: "source", label: "Verification source", key: n => n.source,
                groups: keys.map(k => ({ key: k, label: k, mapLabel: k })) });
 }
-// Whether tools/fulltext.py can fetch a paper's text from arXiv, or must find an open-access PDF.
+// Whether deeper_research/fulltext.py can fetch a paper's text from arXiv, or must find an open-access PDF.
 {
   const arxivKey = n => n.arxiv ? "arxiv" : "none";
   const groups = [
@@ -695,7 +695,7 @@ function citationLayout() {
   return { pos: citationPos, boxes: [], lanes: [], years: [] };
 }
 
-// Laid out on the neighbour graph tools/cluster.py clustered, not on citations,
+// Laid out on the neighbour graph deeper_research/cluster.py clustered, not on citations,
 // so that distance on screen follows the similarity measure. It runs in a
 // headless instance so the citation map's positions are untouched.
 let similarityPos = null;
@@ -1149,7 +1149,7 @@ function updateStats() {
 const HINTS = {
   community: "A citation community is a group of papers that cite each other far more than they cite the rest, found by the Louvain algorithm from the links alone, without looking at the survey's clusters. It is an independent check on them.",
   cluster: "The survey's own clusters. The percentage is the share of each cluster's citation links that stay inside it.",
-  computed: "Clusters computed by tools/cluster.py from similarity alone, at the finest level that is still stable, and named after the survey clusters they mostly contain. See the overview for how.",
+  computed: "Clusters computed by deeper_research/cluster.py from similarity alone, at the finest level that is still stable, and named after the survey clusters they mostly contain. See the overview for how.",
   sub: "The level below the computed clusters: each computed cluster split further. A cluster with two or more stable sub-clusters counts as internally divided.",
 };
 function renderGroups() {
@@ -1240,7 +1240,7 @@ function renderPanel() {
     }
     const topTies = [...ties.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
     const c = g.cluster, cm = g.community;
-    // A survey cluster computed by tools/cluster.py has a computed twin with
+    // A survey cluster computed by deeper_research/cluster.py has a computed twin with
     // (almost) the same members; its stability belongs to the survey cluster.
     const twin = g.computed || (CL && c ? CL.clusters.find(x => {
       const a = new Set(g.members), b = DATA.nodes.filter(n => n.computed === x.id).map(n => n.id);
@@ -1287,7 +1287,7 @@ function renderPanel() {
     cohesionBars(ranked),
     el("h2", { text: "How many papers have an arXiv ID?" }),
     el("p", { text: (([ca, cn], [pa, pn]) => `${ca} of ${cn} coreset papers` + (legacy ? "" : `, and ${pa} of ${pn} pool papers`) +
-      ". Verification quotes a paper's full text, which tools/fulltext.py fetches from arXiv; a paper without an arXiv ID can be fetched only from an open-access PDF that Semantic Scholar lists for it, if there is one. " +
+      ". Verification quotes a paper's full text, which deeper_research/fulltext.py fetches from arXiv; a paper without an arXiv ID can be fetched only from an open-access PDF that Semantic Scholar lists for it, if there is one. " +
       "Colour by “arXiv ID” to see which.")(DATA.arxiv.coreset, DATA.arxiv.pool) }),
     el("p", { class: "empty", text: "Hover a paper for its title, click it for its survey row. On the citation map, drag a paper: its links stretch like elastic and it springs back. Click a group's name on the map or in the list to focus it. Esc clears." }),
     el("p", { class: "empty", text: `Citation links come from ${DATA.edgesFrom}. Only links between papers in this set are drawn.` +
@@ -1296,12 +1296,12 @@ function renderPanel() {
   );
 }
 
-// How tools/cluster.py produced the computed clusters: the level it chose,
+// How deeper_research/cluster.py produced the computed clusters: the level it chose,
 // why, the parameters, and the stability curve the choice rests on.
 const MEASURE_TEXT = { text: "text: embeddings of title and abstract", refs: "refs: shared references",
                        combined: "combined: text and shared references, weighted by how many references a pair has" };
 // The smallest margin of real over structure-free stability across the computed levels, for the "at every level"
-// wording. It borrows the 0.15 of tools/cluster.py's `no structure` diagnostic, which applies to the largest margin.
+// wording. It borrows the 0.15 of deeper_research/cluster.py's `no structure` diagnostic, which applies to the largest margin.
 function nullGap() {
   const gaps = (CL.slider || []).map(l => l.stability - l.null_stability);
   return gaps.length ? Math.min(...gaps) : 1;
@@ -1337,7 +1337,7 @@ function clusteringSection() {
         `${p.reps} reruns on 80% · ` + (holdout ? `time holdouts at ${p.cutoffs.join(", ")}` : "no time holdouts") }),
       el("dt", { text: "Agreement with the survey's clusters" }), el("dd", { text: `${CL.ami_vs_survey_clusters.toFixed(2)} (adjusted mutual information; 1 is identical, 0 is chance)` }),
     ),
-    el("p", { class: "empty", text: `Computed ${CL.generated} by tools/cluster.py. Colour by "Computed cluster" to see them on the map, or by "Computed sub-cluster" for the level below.` }),
+    el("p", { class: "empty", text: `Computed ${CL.generated} by deeper_research/cluster.py. Colour by "Computed cluster" to see them on the map, or by "Computed sub-cluster" for the level below.` }),
     el("div", { style: "height:14px" }),
   ];
 }

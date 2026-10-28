@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fetch the metadata a topic's clustering needs, straight from the Semantic Scholar API.
 
-Usage: python3 tools/pool.py <topic> [--refresh]
+Usage: uv run python -m deeper_research.pool <topic> [--refresh]
 
 For every paper in surveys/<topic>.md (coreset and pool), by arXiv ID or CorpusId, fetches its publication date, citation count, full
 reference list (as Semantic Scholar paper IDs, not only arXiv IDs within the set) and its SPECTER2 embedding. Writes
@@ -14,7 +14,7 @@ are never filled by hand. `cites` lists the other pool papers each paper cites. 
 is left untouched.
 
 Each record also keeps the paper's arXiv ID where Semantic Scholar knows it, from `externalIds` or an open-access PDF
-on arXiv, which tools/check.py uses to catch a CorpusId row for a paper that has an arXiv ID. A record fetched before
+on arXiv, which deeper_research/check.py uses to catch a CorpusId row for a paper that has an arXiv ID. A record fetched before
 it kept the arXiv ID has no `arxiv` key; each run backfills that key and `corpus` for such records, by one light call
 per 100 papers, and leaves the rest of the record, and its fetch date, as it was. It ends by printing the retrieval
 log's `Pool` line: the papers in scope, how many of them have an arXiv ID, and the fetch dates.
@@ -138,7 +138,7 @@ def main(argv):
     survey = ROOT / "surveys" / f"{topic}.md"
     if not survey.exists():
         sys.exit(f"surveys/{topic}.md does not exist; write it first, with its five section headings (docs/process.md, "
-                 "step 0), and add the pool's papers with `python3 tools/assign.py add`")
+                 "step 0), and add the pool's papers with `uv run python -m deeper_research.assign add`")
     if "Coreset" not in sections(survey.read_text()):
         sys.exit(f"surveys/{topic}.md has no `## Coreset` section; add the five section headings first (docs/formats.md)")
     papers = parse(topic)[4]

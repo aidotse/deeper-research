@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read and check a topic's input file, inputs/<topic>.md.
 
-Usage: python3 tools/inputs.py <topic>
+Usage: uv run python -m deeper_research.inputs <topic>
 
 Prints what the tools take from the input — the declared dimensions with their allowed values, the `Clustering`
 steering, and the coreset's targets — and exits 1 if the input breaks the format in docs/formats.md: an unknown,
@@ -13,8 +13,8 @@ for.
 A bullet is any list item: `-`, `*`, `+` or numbered (`1.`, `1)`). mdformat rewrites `*` and `+` as `-`, so the input
 must read the same before and after it; a numbered item is a list item too, and mdformat keeps it numbered.
 
-`tools/check.py` and `tools/graph.py` import `read_input` for the dimensions, and `tools/cluster.py` for the
-`granularity` steering; `tools/check.py` imports `read_targets` for the output's sections.
+`deeper_research/check.py` and `deeper_research/graph.py` import `read_input` for the dimensions, and `deeper_research/cluster.py` for the
+`granularity` steering; `deeper_research/check.py` imports `read_targets` for the output's sections.
 """
 
 import re

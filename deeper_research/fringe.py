@@ -1,12 +1,12 @@
 """Collect fringe candidates for a topic, and test how they behave under the clustering method.
 
 Usage:
-  uv run tools/fringe.py collect <topic> [--per-route 60]
-  python3 tools/fringe.py judge <topic> < lines        (one `<s2><TAB>yes|no|maybe<TAB><reason>` per line)
-  uv run tools/fringe.py analyse <topic> [--level 6]
+  uv run python -m deeper_research.fringe collect <topic> [--per-route 60]
+  uv run python -m deeper_research.fringe judge <topic> < lines        (one `<s2><TAB>yes|no|maybe<TAB><reason>` per line)
+  uv run python -m deeper_research.fringe analyse <topic> [--level 6]
 
 `collect` gathers candidates outside the pool by the two routes of docs/process.md, "Fringe routes", by script and at
-no model cost. It needs the pool sidecar (tools/pool.py) and the survey's retrieval log, not a clustering. A paper
+no model cost. It needs the pool sidecar (deeper_research/pool.py) and the survey's retrieval log, not a clustering. A paper
 already recorded as out of scope in graphs/<topic>/rejected.md is not collected again, nor one whose title matches
 a pool paper's, which is most likely a second record of it.
 
@@ -32,11 +32,11 @@ sheet, graphs/<topic>/fringe-screen.md: titles and abstracts in shuffled order, 
 year, which would give the route away (`new` finds only recent work), for agents to mark in or out of scope. Its rows
 are numbered, so that they can be handed to screening agents as ranges. A rerun keeps the judgements already on the
 sheet. Each candidate records its arXiv ID or, failing that, its CorpusId;
-tools/assign.py add-fringe then adds the in-scope ones to the pool.
+deeper_research/assign.py add-fringe then adds the in-scope ones to the pool.
 
 `judge` writes screening verdicts into the sheet's `in scope` and `reason` cells, from stdin, so that an agent need not
-edit the rows by hand. It is the shared judge of tools/screen.py, which says what it refuses. A `maybe` is a reminder
-to come back: until it is resolved to yes or no, the row counts as unjudged, for tools/assign.py add-fringe and for
+edit the rows by hand. It is the shared judge of deeper_research/screen.py, which says what it refuses. A `maybe` is a reminder
+to come back: until it is resolved to yes or no, the row counts as unjudged, for deeper_research/assign.py add-fringe and for
 the G1 gate alike.
 
 `analyse` adds the in-scope candidates to the pool and reclusters with the chosen measure. Per route, it reports how
@@ -131,12 +131,12 @@ def new_route_seeds(topic, pool):
 def collect(topic, per_route):
     d = topic_dir(topic)
     need(ROOT / "surveys" / f"{topic}.md", "steps 0 and 1 of docs/process.md")
-    need(d / "pool.json", f"`python3 tools/pool.py {topic}`")
+    need(d / "pool.json", f"`uv run python -m deeper_research.pool {topic}`")
     pool = json.loads((d / "pool.json").read_text())["papers"]
     in_pool = {r["s2"] for r in pool.values()}
     dated = [date.fromisoformat(r["date"]) for r in pool.values() if r.get("date")]
     if not dated:
-        sys.exit(f"no pool paper in pool.json has a publication date; run `python3 tools/pool.py {topic}` first")
+        sys.exit(f"no pool paper in pool.json has a publication date; run `uv run python -m deeper_research.pool {topic}` first")
     latest = max(dated)
     routes = {}
     # A paper screened out earlier is not collected again, so that it cannot get a second, opposite verdict.
@@ -164,7 +164,7 @@ def collect(topic, per_route):
     frontier, cited, missing, indeg = new_route_seeds(topic, pool)
     if missing:
         print(f"WARNING: frontier candidates without a record in pool.json, not used as seeds: {', '.join(missing)}; "
-              f"run `python3 tools/pool.py {topic}` first")
+              f"run `uv run python -m deeper_research.pool {topic}` first")
     if not frontier:
         print("WARNING: the latest pass's `Orientation` line names no frontier candidate in the pool; the `new` route is "
               "seeded from the most-cited pool papers alone")
@@ -218,7 +218,7 @@ def collect(topic, per_route):
     (d / "fringe-screen.md").write_text(
         "# Fringe screening sheet\n\n"
         f"Candidates for `{topic}`, in shuffled order. Mark `in scope` as `yes` or `no`, with a reason "
-        f"of at least two words (`python3 tools/fringe.py judge {topic}`).\n\n"
+        f"of at least two words (`uv run python -m deeper_research.fringe judge {topic}`).\n\n"
         "| # | s2 | title | abstract | in scope | reason |\n| -- | -- | -- | -- | -- | -- |\n" + "\n".join(rows) + "\n")
     if any(excluded.values()):
         print(f"left out as already rejected (graphs/{topic}/rejected.md): "
@@ -247,7 +247,7 @@ def main(argv):
     if argv[0] == "collect":
         collect(argv[1], opts.get("--per-route", 60))
     elif argv[0] == "judge":
-        return judge(topic_dir(argv[1]) / "fringe-screen.md", f"`uv run tools/fringe.py collect {argv[1]}`")
+        return judge(topic_dir(argv[1]) / "fringe-screen.md", f"`uv run python -m deeper_research.fringe collect {argv[1]}`")
     else:
         analyse(argv[1], opts.get("--level"))
     return 0
@@ -266,10 +266,10 @@ def screened(d):
 
 def analyse(topic, level):
     d = topic_dir(topic)
-    need(d / "pool.json", f"`python3 tools/pool.py {topic}`")
-    need(d / "clusters.json", f"`uv run tools/cluster.py {topic}`")
-    need(d / "fringe.json", f"`uv run tools/fringe.py collect {topic}`")
-    need(d / "fringe-screen.md", f"`uv run tools/fringe.py collect {topic}`")
+    need(d / "pool.json", f"`uv run python -m deeper_research.pool {topic}`")
+    need(d / "clusters.json", f"`uv run python -m deeper_research.cluster {topic}`")
+    need(d / "fringe.json", f"`uv run python -m deeper_research.fringe collect {topic}`")
+    need(d / "fringe-screen.md", f"`uv run python -m deeper_research.fringe collect {topic}`")
 
     import numpy as np
     from scipy.stats import mannwhitneyu

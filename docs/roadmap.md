@@ -46,13 +46,13 @@ input for the rerun.
 
 ### Theme searches, and the Semantic Scholar key
 
-`tools/expand.py collect` searches each theme on the Graph API's bulk endpoint, `/paper/search/bulk`: the theme as an
-exact phrase in title or abstract, keeping the 50 most-cited matches. It moved there on 2026-10-13, when the relevance
-search endpoint, `/paper/search`, refused every unauthenticated call for about two hours while the other endpoints
-answered (simulation audit, `pool` iteration 2, `E21`). The two differ: relevance ranking finds papers that word a theme
-differently, while an exact phrase finds only papers that use it, and sorting by citations favours older work. A theme
-that is a description rather than a phrase papers use matches little or nothing: 4 of 9 themes tried on `model-collapse`
-matched none (the auditor's probes, recorded under `E21` in the simulation audit's `segments/pool.md`).
+`deeper_research/expand.py collect` searches each theme on the Graph API's bulk endpoint, `/paper/search/bulk`: the
+theme as an exact phrase in title or abstract, keeping the 50 most-cited matches. It moved there on 2026-10-13, when the
+relevance search endpoint, `/paper/search`, refused every unauthenticated call for about two hours while the other
+endpoints answered (simulation audit, `pool` iteration 2, `E21`). The two differ: relevance ranking finds papers that
+word a theme differently, while an exact phrase finds only papers that use it, and sorting by citations favours older
+work. A theme that is a description rather than a phrase papers use matches little or nothing: 4 of 9 themes tried on
+`model-collapse` matched none (the auditor's probes, recorded under `E21` in the simulation audit's `segments/pool.md`).
 
 - `The key` — the user applied for a Semantic Scholar API key on 2026-10-13; an answer may take two weeks. With it,
   every script gets a rate limit of its own (1 request per second, introductory). Using it changes the spec's statement
@@ -66,24 +66,27 @@ matched none (the auditor's probes, recorded under `E21` in the simulation audit
 
 ### Discovery lag
 
-A paper on arXiv but not yet in Semantic Scholar is invisible to Asta, and `tools/pool.py` cannot fetch its embedding or
-references. A search of arXiv's own listings during orientation would find it; clustering would still need a fallback.
+A paper on arXiv but not yet in Semantic Scholar is invisible to Asta, and `deeper_research/pool.py` cannot fetch its
+embedding or references. A search of arXiv's own listings during orientation would find it; clustering would still need
+a fallback.
 
 ### Matching clusters across passes
 
 So that cluster ids and names persist across passes, and splits, merges and vanished clusters are logged. Partly built
-(2026-10-08): `tools/cluster.py` matches every new clustering to the previous one with `match()`, prints the changes on
-one `changes:` line, and `tools/assign.py remap` carries names over to matched clusters; tested on a swapped-id fixture.
-What remains: the diagnosis for when most clusters fail to match (below; the spec has an interim rule, in
-`docs/process.md`, "Matching clusters across passes"), and the seeded-clustering option. The design so far (2026-10-05):
+(2026-10-08): `deeper_research/cluster.py` matches every new clustering to the previous one with `match()`, prints the
+changes on one `changes:` line, and `deeper_research/assign.py remap` carries names over to matched clusters; tested on
+a swapped-id fixture. What remains: the diagnosis for when most clusters fail to match (below; the spec has an interim
+rule, in `docs/process.md`, "Matching clusters across passes"), and the seeded-clustering option. The design so far
+(2026-10-05):
 
 - `No guarantee` — a later pass can produce a different clustering: the level can change, new papers change the
   similarity scale, the graph and the resolution, and the field can genuinely restructure. Matching is possible because
   a later pass keeps the old papers, so clusters are compared by members on the shared papers, never by name. The time
   holdout already simulates an earlier pass, so per-cluster stability predicts which clusters will match.
 - `Many-to-many and graded` — each old cluster is `matched`, `split`, `merged`, `absorbed` or `vanished`; each new
-  cluster not accounted for is `new` (mostly new papers) or `reshuffled`. Rules in the `tools/match.py` docstring; the
-  majority threshold (0.5) and the 3-paper fragment limit are first guesses. Matched clusters keep id and name.
+  cluster not accounted for is `new` (mostly new papers) or `reshuffled`. Rules in the `deeper_research/match.py`
+  docstring; the majority threshold (0.5) and the 3-paper fragment limit are first guesses. Matched clusters keep id and
+  name.
 - `When most clusters fail to match`, report it, and tell the two causes apart: cluster the old papers alone with the
   new pass's settings. Agreement with the old pass means the new papers changed things (the field moved); the reverse
   means the change came from settings or instability.
@@ -97,8 +100,8 @@ What remains: the diagnosis for when most clusters fail to match (below; the spe
   clusters, and a coarser one split; nothing vanished. Matching across passes then looks like matching across levels of
   one hierarchy, which connects it to the proposal "Recursive clustering with a shakedown" below.
 
-Simulated on `reasoning` (2026-10-05, `uv run tools/match.py simulate reasoning`, seconds), the pool as it stood 3, 6
-and 9 months ago, clustered by the full method (measure, then level) and matched to today's level 6:
+Simulated on `reasoning` (2026-10-05, `uv run python -m deeper_research.match simulate reasoning`, seconds), the pool as
+it stood 3, 6 and 9 months ago, clustered by the full method (measure, then level) and matched to today's level 6:
 
 - `6 months ago` (123 papers): combined, level 5. All 5 clusters matched; the agent-harness cluster is `new` (all its
   papers are newer). ARI with today 0.86.
@@ -139,9 +142,9 @@ does for the coreset as a whole. Estimated 50–100k tokens per pass, under 10% 
 Two pieces are now part of every pass, with their rates in the log's `Judgement audit` line: a blind re-verification of
 10% of the rows, and a check of the output's sentences against the rows they cite (`docs/process.md`, "Auditing the
 judgements"). The rest above is still a proposal. Prerequisite, done: the traces the audits sample (rejections recorded
-by `tools/assign.py reject`, dissent rows quoting their contradiction). Also done: each verified row's evidence, kept in
-`graphs/<topic>/evidence/` (2026-10-09), so that the cheapest audit, whether a quote supports its cell, needs no new
-search.
+by `deeper_research/assign.py reject`, dissent rows quoting their contradiction). Also done: each verified row's
+evidence, kept in `graphs/<topic>/evidence/` (2026-10-09), so that the cheapest audit, whether a quote supports its
+cell, needs no new search.
 
 `G3` comes first, because it is the last point before verification spends more than half the pass, and today nothing
 checks a judgement before then. The plan, decided with the user on 2026-10-12:
@@ -158,9 +161,9 @@ checks a judgement before then. The plan, decided with the user on 2026-10-12:
   The runner never sees the audit, so the pilot measures whether a blind agent judges well, not whether a runner can
   carry out the step from the docs. Record the agreement rates, the planted rows caught, and the cost.
 - `Adopt` — only after the pilot: a step-4 row in `docs/process.md`, a brief in `docs/dispatch.md`, a log line in
-  `docs/formats.md`, a `tools/audit.py` subcommand, and a `G3` requirement that the audit was judged in full. Then
-  `docs/audits.md` follows: the `coreset` segment's `steps` gain the audit, and its spot check re-checks the pass's own
-  verdicts, as `coverage` does with the faithfulness sample. The segment still ends at `--gate G3`.
+  `docs/formats.md`, a `deeper_research/audit.py` subcommand, and a `G3` requirement that the audit was judged in full.
+  Then `docs/audits.md` follows: the `coreset` segment's `steps` gain the audit, and its spot check re-checks the pass's
+  own verdicts, as `coverage` does with the faithfulness sample. The segment still ends at `--gate G3`.
 - `Open: measure or repair` — the step-7 audits measure and never repair. At `G3` the dissent rows are few enough to
   check every one, so the audit could also send a row judged not to contradict its cluster back to Selection, before
   verification is spent on it. Decide with the pilot's disagreement rate in hand.
@@ -216,8 +219,8 @@ acceptance threshold, and whether cheaper screening is safe enough to adopt.
 ### Recursive clustering with a shakedown
 
 Conservative by design; tested on `reasoning`, not adopted. Best taken in a dedicated session: decide the open points,
-build the nameability test, and rerun `tools/recursive.py` on the fresh pool, the real test, before anything moves into
-the spec.
+build the nameability test, and rerun `deeper_research/recursive.py` on the fresh pool, the real test, before anything
+moves into the spec.
 
 Round 1 is the global clustering. In each later round, every leaf is tried as 2–6 parts, and a part becomes a new leaf
 only if it passes three tests, cheapest first:
@@ -266,9 +269,9 @@ split with one robust part and two loose ones fails it, which is the all-or-noth
   clusters across from-scratch reruns, and parts score lower when it is not 6); only the chosen candidate is shaken; and
   the real test is the fresh pool.
 
-Evidence on `reasoning` (2026-10-02/03, `tools/recursive.py`): the global level-6 clustering is round 1; each of its
-clusters is then reclustered on its own (own similarity scale, resolution and stability tests) and split into 2–6 parts
-if a rule accepts it, and so on. Clusters under 20 papers are not split. Rules: `tau` (the split's local stability
+Evidence on `reasoning` (2026-10-02/03, `deeper_research/recursive.py`): the global level-6 clustering is round 1; each
+of its clusters is then reclustered on its own (own similarity scale, resolution and stability tests) and split into 2–6
+parts if a rule accepts it, and so on. Clusters under 20 papers are not split. Rules: `tau` (the split's local stability
 reaches `τ`); `strict` (as `tau`, and every part of 3+ papers comes back end to end at 0.6 or more, with the rounds
 above reclustered at fixed resolutions); `partial` (the parts that come back are kept, the rest merge into one remainder
 leaf; no whole-split `τ` gate); and `confirmed` and `partial-confirmed`, which add a shakedown to `strict` and `partial`
@@ -294,10 +297,11 @@ leaf; no whole-split `τ` gate); and `confirmed` and `partial-confirmed`, which 
   a stricter rule than the original, which halved the scores of the parts.
 - `Post hoc, not a rule`: a part threshold of 0.75 (equal to `τ`) instead of 0.6 in the shakedown would have kept
   exactly latent reasoning and agents, with chain-of-thought prompting as the remainder: 7 clusters.
-- `Reproduce` — `uv run tools/recursive.py reasoning-legacy --rules strict,partial,confirmed,partial-confirmed`, about
-  five minutes on 16 cores; `graphs/reasoning-legacy/recursive.json` holds this run. The script's docstring defines
-  every rule. Disturbed data throughout: 3 time-holdout cutoffs × 3 seeds, plus 20 resamples of 80% (29 reruns). Two
-  diagnostics were run ad hoc and not kept; rebuild them if needed: (1) for each from-scratch rerun, which clusters
+- `Reproduce` —
+  `uv run python -m deeper_research.recursive reasoning-legacy --rules strict,partial,confirmed,partial-confirmed`,
+  about five minutes on 16 cores; `graphs/reasoning-legacy/recursive.json` holds this run. The script's docstring
+  defines every rule. Disturbed data throughout: 3 time-holdout cutoffs × 3 seeds, plus 20 resamples of 80% (29 reruns).
+  Two diagnostics were run ad hoc and not kept; rebuild them if needed: (1) for each from-scratch rerun, which clusters
   split and how much of the parent stays together (showed the parent intact, the split rarely made); (2) each part's
   from-scratch score, separated by whether round 1 came back at 6 clusters (ruled out round-1 count as the main cause,
   and found the unscaled-minimum artefact).
@@ -316,13 +320,13 @@ leaf; no whole-split `τ` gate); and `confirmed` and `partial-confirmed`, which 
 
 The first guesses: `τ` = 0.75; `k` = 10; `c` = 10; the fringe score's age cohort of 30 papers; the diagnostic thresholds
 (0.15 excess over random, 0.9 for "broad", 0.6 for "unstable", 10 papers for "thin", 20% for "trading"); the fringe
-quota; in `tools/cluster.py`, 0.6 for a stable sub-cluster (`SUBCLUSTER_SCORE`), 10 references for the thin-reference
-share (`THIN_REFS`) and 30% for the smallest time holdout (`MIN_HOLDOUT_SHARE`); 20% `abstract`-sourced rows for halt
-`H10`; and 10% late additions before a recluster (`docs/process.md`, "Late papers"); orientation's stopping rule (two
-queries without a new frontier candidate, `docs/process.md`, "Screening for scope"); a targeted expansion's 5 papers
-most cited within the pool, and the 2 thinnest regions on `no stable level` (`docs/process.md`, step 3); the 50 results
-kept per theme search (`SEARCH_LIMIT` in `tools/expand.py`); at least 6 words per quoted part (`QUOTE_WORDS` in
-`tools/gates.py`); and at least 10 candidates per coverage-test round.
+quota; in `deeper_research/cluster.py`, 0.6 for a stable sub-cluster (`SUBCLUSTER_SCORE`), 10 references for the
+thin-reference share (`THIN_REFS`) and 30% for the smallest time holdout (`MIN_HOLDOUT_SHARE`); 20% `abstract`-sourced
+rows for halt `H10`; and 10% late additions before a recluster (`docs/process.md`, "Late papers"); orientation's
+stopping rule (two queries without a new frontier candidate, `docs/process.md`, "Screening for scope"); a targeted
+expansion's 5 papers most cited within the pool, and the 2 thinnest regions on `no stable level` (`docs/process.md`,
+step 3); the 50 results kept per theme search (`SEARCH_LIMIT` in `deeper_research/expand.py`); at least 6 words per
+quoted part (`QUOTE_WORDS` in `deeper_research/gates.py`); and at least 10 candidates per coverage-test round.
 
 Their basis so far is one curated corpus, `reasoning`, not a real pool: `combined` wins clearly (grid-mean stability
 0.722 ± 0.004, against `refs` 0.671 and `text` 0.646). Level: 6 clusters at 0.79; 8 clusters drops to 0.67. `τ` 0.70

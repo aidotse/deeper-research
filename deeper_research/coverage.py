@@ -1,14 +1,14 @@
 """How well the coreset covers the pool, and the coverage test's sample and sheet (docs/process.md, step 7).
 
 Usage:
-  uv run tools/coverage.py radius <topic> [--loo]
-  uv run tools/coverage.py draw <topic> <R> [--n 10] [--seed <R>]
-  python3 tools/coverage.py judge <topic> <R> [--recency] < lines   (one `<id><TAB><verdict><TAB><reason>` per line)
-  python3 tools/coverage.py query <topic> <R> "<the query>" "<the window>" <number of results>
-  python3 tools/coverage.py line <topic> <R>
+  uv run python -m deeper_research.coverage radius <topic> [--loo]
+  uv run python -m deeper_research.coverage draw <topic> <R> [--n 10] [--seed <R>]
+  uv run python -m deeper_research.coverage judge <topic> <R> [--recency] < lines   (one `<id><TAB><verdict><TAB><reason>` per line)
+  uv run python -m deeper_research.coverage query <topic> <R> "<the query>" "<the window>" <number of results>
+  uv run python -m deeper_research.coverage line <topic> <R>
 
 A pool paper's distance from the coreset is 1 minus its similarity to the nearest coreset row, under the clustering's
-`combined` measure (tools/cluster.py). That measure is built from neighbour ranks, so the distance reads as a share of
+`combined` measure (deeper_research/cluster.py). That measure is built from neighbour ranks, so the distance reads as a share of
 the pool: 0.05 means the nearest coreset row is, on average over the two directions, among the paper's nearest 5% of
 pool papers. The coreset's radius is the largest such distance over the pool papers outside the coreset.
 
@@ -23,7 +23,7 @@ gives the paper, how it was drawn, its distance, its nearest coreset row, and em
 header records the date, the seed, the eligible set and the radius. It refuses to overwrite an existing sheet.
 
 `judge` writes verdicts into the sheet from stdin. A verdict is `no change`, `changes <target>` (a target of the input's
-`Coreset Spec`, as tools/inputs.py reads them), or `new cluster`; the reason is one sentence, stating the claim it
+`Coreset Spec`, as deeper_research/inputs.py reads them), or `new cluster`; the reason is one sentence, stating the claim it
 changes. A verdict given again replaces the earlier one, and says so. With --recency, each line instead adds a candidate
 from the fresh recency query, as a row drawn as `recency query`, and carries the paper's title as a fourth field; its ID
 must be a paper ID (docs/formats.md, "Paper IDs"). It refuses the whole batch on any bad line.
@@ -33,13 +33,13 @@ run, its window, and how many results it returned. Run it again to replace it.
 
 `line` prints the round's `Coverage test` line from the sheet, to paste as printed: K and N counted by script, each
 counted candidate with its target and reason. It refuses while a row has no verdict, or the recency query is not
-recorded. tools/gates.py (`g5.coverage-sheets`) compares the pasted line with what `line` prints, up to `new clusters:`. When a row is judged `new cluster`, the
+recorded. deeper_research/gates.py (`g5.coverage-sheets`) compares the pasted line with what `line` prints, up to `new clusters:`. When a row is judged `new cluster`, the
 line ends with a placeholder for the proposed cluster's name, which the main session replaces once the recluster has
 shown whether it formed (docs/process.md, "Returning to step 3"). It also prints the round's one-sided 95% upper bound
 (Clopper-Pearson) on the share of the worst-covered quarter that would change the output, from the drawn rows alone.
 
 `radius` and `draw` need numpy and the clustering's packages (uv); `judge` and `line` are standard library only, and
-tools/gates.py reads the sheets with this module's `sheet` function. Usage errors exit with status 2.
+deeper_research/gates.py reads the sheets with this module's `sheet` function. Usage errors exit with status 2.
 """
 
 import json
@@ -117,7 +117,7 @@ def distances(topic):
     from deeper_research.graph import parse
     survey = ROOT / "surveys" / f"{topic}.md"
     pool_path = ROOT / "graphs" / topic / "pool.json"
-    for path, then in ((survey, "steps 0-5 of docs/process.md"), (pool_path, f"`python3 tools/pool.py {topic}`")):
+    for path, then in ((survey, "steps 0-5 of docs/process.md"), (pool_path, f"`uv run python -m deeper_research.pool {topic}`")):
         if not path.exists():
             sys.exit(f"no {path.relative_to(ROOT)}; run {then} first")
     secs = sections(survey.read_text())
@@ -198,7 +198,7 @@ def draw(topic, r, n, seed):
     path = sheet_path(topic, r)
     if path.exists():
         sys.exit(f"{path.relative_to(ROOT)} exists; a round's sample is drawn once. Judge it with "
-                 f"`python3 tools/coverage.py judge {topic} {r}`, or draw round {r + 1}")
+                 f"`uv run python -m deeper_research.coverage judge {topic} {r}`, or draw round {r + 1}")
     ids, core, D, in_core = distances(topic)
     seen = earlier(topic, r)
     near, arg = D.min(axis=1), D.argmin(axis=1)
@@ -212,11 +212,11 @@ def draw(topic, r, n, seed):
     names = titles(topic)
     out_near = near[[i for i in range(len(ids)) if not in_core[i]]]
     mx, p90, mean = summary(out_near)
-    header = (f"Drawn {date.today().isoformat()} by `tools/coverage.py draw`, seed {seed}: {n} pool papers at random "
+    header = (f"Drawn {date.today().isoformat()} by `deeper_research/coverage.py draw`, seed {seed}: {n} pool papers at random "
               f"from the {m} worst-covered of the {len(eligible)} pool papers outside the coreset and not sampled in an "
               f"earlier round (distance at least {near[worst[-1]]:.3f}). Coverage of the pool by the coreset's "
               f"{len(core)} rows: max {mx:.3f}, p90 {p90:.3f}, mean {mean:.3f}. Judge each row with "
-              f"`python3 tools/coverage.py judge {topic} {r}`; add the recency query's candidates with `--recency`.")
+              f"`uv run python -m deeper_research.coverage judge {topic} {r}`; add the recency query's candidates with `--recency`.")
     rows = [{"paper": f"[{cell(names.get(ids[i], ids[i]))}]({link(ids[i])})", "drawn as": "worst-covered",
              "distance": f"{near[i]:.3f}", "nearest row": core[arg[i]]} for i in picked]
     write_sheet(path, topic, r, header, rows)
@@ -234,7 +234,7 @@ def draw(topic, r, n, seed):
 def read_sheet(topic, r):
     path = sheet_path(topic, r)
     if not path.exists():
-        sys.exit(f"no {path.relative_to(ROOT)}; run `uv run tools/coverage.py draw {topic} {r}` first")
+        sys.exit(f"no {path.relative_to(ROOT)}; run `uv run python -m deeper_research.coverage draw {topic} {r}` first")
     return path, path.read_text()
 
 
@@ -299,7 +299,7 @@ def judge(topic, r, recency):
           + f"; {len(rows)} row(s), {len(left)} still unjudged" + (f": {', '.join(left)}" if left else ""))
     if replaced:
         print(f"replaced an earlier verdict: {', '.join(replaced)}; paste the round's line again from "
-              f"`python3 tools/coverage.py line {topic} {r}`")
+              f"`uv run python -m deeper_research.coverage line {topic} {r}`")
     return 0
 
 
@@ -323,7 +323,7 @@ def render(text, r):
     if left:
         return None, f"{len(left)} row(s) without a verdict: {', '.join(left)}", None
     if not RECENCY.search(text.split("\n| paper |")[0]):
-        return None, "the recency query is not recorded; run `python3 tools/coverage.py query` first", None
+        return None, "the recency query is not recorded; run `uv run python -m deeper_research.coverage query` first", None
     changed, new = counted(rows)
     parts = ", ".join(f"{row['id']}: {row['verdict'][8:]}: {row['reason'].replace(';', ',').rstrip('. ')}"
                       for row in changed)

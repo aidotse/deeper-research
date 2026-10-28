@@ -8,15 +8,15 @@ __pycache__/
 .claude/worktrees/
 .serena/project.local.yml
 
-# Full texts fetched from arXiv by tools/fulltext.py. Third-party text, and
-# regenerable with `uv run tools/fulltext.py <topic> <id>`.
+# Full texts fetched from arXiv by deeper_research/fulltext.py. Third-party text, and
+# regenerable with `uv run python -m deeper_research.fulltext <topic> <id>`.
 graphs/*/fulltext/
 
-# The viewer is generated from the survey and clusters.json by tools/graph.py,
+# The viewer is generated from the survey and clusters.json by deeper_research/graph.py,
 # and is large; rebuild it rather than track it.
 graphs/*/graph.html
 
-# Compact sheets for the naming and fringe agents, written by tools/sheets.py from
+# Compact sheets for the naming and fringe agents, written by deeper_research/sheets.py from
 # clusters.json; regenerable.
 graphs/*/naming-sheet.md
 graphs/*/fringe-sheet.md

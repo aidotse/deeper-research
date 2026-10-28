@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Consistency check for one topic's pipeline artifacts, and the gates of a pass.
 
-Usage: python3 tools/check.py <topic> [--gate G<n>] [--status]
-       python3 tools/check.py <topic> --print <section>[:<cluster id>]
+Usage: uv run python -m deeper_research.check <topic> [--gate G<n>] [--status]
+       uv run python -m deeper_research.check <topic> --print <section>[:<cluster id>]
 
 Two kinds of check, both failing with exit status 1:
 
@@ -16,7 +16,7 @@ Two kinds of check, both failing with exit status 1:
              output exists, every cited paper ID in the coreset, every citation of an `abstract`-sourced paper marked
              [abstract-only] with a legend before the first section, no marker after the legend that follows no
              citation, and a section per target plus Questions and Reading.
-  gates      what each step must have left behind, G0 to G5 (tools/gates.py, docs/gates.md). The gates the pass has
+  gates      what each step must have left behind, G0 to G5 (deeper_research/gates.py, docs/gates.md). The gates the pass has
              reached are worked out from the files; `--gate G<n>` also requires every gate up to G<n>, which is how the
              main session checks a gate before starting the next step. `--status` prints every gate's open
              requirements: what the run has done, and what remains.
@@ -357,7 +357,7 @@ def check_computed(topic, pool, pool_cluster, clusters, computed, failures, note
     if not clusters:
         if unclustered:
             notes.append(f"{len(unclustered)} pool paper(s) have no cluster yet: name the computed clusters (step 3), "
-                         f"then run `python3 tools/assign.py clusters {topic}`")
+                         f"then run `uv run python -m deeper_research.assign clusters {topic}`")
         return report
     if not computed:
         failures.append("the Clusters table has no `computed` column, so pool clusters cannot be checked against "
@@ -365,7 +365,7 @@ def check_computed(topic, pool, pool_cluster, clusters, computed, failures, note
         return report
     if report.get("previous") and not report["previous"].get("remapped"):
         failures.append(f"clusters.json is a new clustering whose names have not been carried over; run "
-                        f"`python3 tools/assign.py remap {topic}`, then `python3 tools/assign.py clusters {topic}`")
+                        f"`uv run python -m deeper_research.assign remap {topic}`, then `uv run python -m deeper_research.assign clusters {topic}`")
         return report
     known = set(report.get("assignment", {}).values())
     orphans = [cid for cid in clusters if cid not in computed.values()]
@@ -382,11 +382,11 @@ def check_computed(topic, pool, pool_cluster, clusters, computed, failures, note
     if wrong:
         failures.append(f"pool cluster differs from the computed assignment for {wrong[:10]}"
                         + (f" and {len(wrong) - 10} more" if len(wrong) > 10 else "")
-                        + f"; run `python3 tools/assign.py clusters {topic}`, never edit by hand")
+                        + f"; run `uv run python -m deeper_research.assign clusters {topic}`, never edit by hand")
     blank = sorted(p for p in pool if p in assigned and not pool_cluster.get(p))
     if blank:
         notes.append(f"{len(blank)} pool paper(s) are assigned in clusters.json but their Pool cell is empty; run "
-                     f"`python3 tools/assign.py clusters {topic}`")
+                     f"`uv run python -m deeper_research.assign clusters {topic}`")
     sidecar = read(ROOT / "graphs" / topic / "pool.json")
     records = json.loads(sidecar)["papers"] if sidecar else {}
     unclusterable = sorted(p for p in pool if p in records and not records[p].get("embedding"))
@@ -395,7 +395,7 @@ def check_computed(topic, pool, pool_cluster, clusters, computed, failures, note
                      "record them in Open work (docs/formats.md, \"Paper IDs\")")
     late = sorted(p for p in pool if p not in assigned and p not in unclusterable)
     if late:
-        notes.append(f"late papers awaiting assignment ({len(late)}): {late}; run `uv run tools/assign.py late {topic}` "
+        notes.append(f"late papers awaiting assignment ({len(late)}): {late}; run `uv run python -m deeper_research.assign late {topic}` "
                      "(docs/process.md, \"Late papers\")")
     return report
 
@@ -420,7 +420,7 @@ def check_structure(topic, secs, rows, coreset_ids, failures, notes):
     unfetched = sorted(pool - set(json.loads(sidecar)["papers"] if sidecar else ()))
     if unfetched:
         notes.append(f"{len(unfetched)} pool paper(s) are not in graphs/{topic}/pool.json; run "
-                     f"`python3 tools/pool.py {topic}`")
+                     f"`uv run python -m deeper_research.pool {topic}`")
 
     indeg = {p: 0 for p in pool}
     for p, cs in cites.items():
@@ -627,7 +627,7 @@ def main(argv):
 
     if rows:
         if bib is None:
-            failures.append(f"bib/{topic}.bib does not exist; run `python3 tools/bib.py {topic}`")
+            failures.append(f"bib/{topic}.bib does not exist; run `uv run python -m deeper_research.bib {topic}`")
         else:
             in_bib = set(bib_ids(bib))
             print(f"bib:     {len(in_bib)} entries")

@@ -3,9 +3,9 @@
 ## `inputs/<topic>.md`
 
 The user writes the input, and only the user edits it. It is a markdown file of `##` sections, each at most once, in any
-order. Only `Topic` is required. `python3 tools/inputs.py <topic>` prints what the tools read from it, and fails on
-anything it cannot read (see "Rules the parser applies" below); `tools/check.py` runs the same check. Never edit an
-input for the user: if it fails, the user corrects it before the pass starts.
+order. Only `Topic` is required. `uv run python -m deeper_research.inputs <topic>` prints what the tools read from it,
+and fails on anything it cannot read (see "Rules the parser applies" below); `deeper_research/check.py` runs the same
+check. Never edit an input for the user: if it fails, the user corrects it before the pass starts.
 
 ### A skeleton input
 
@@ -64,10 +64,10 @@ If the section is omitted, the targets are `Landscape`, `Assumptions` and `Gaps`
 specific research questions, one top-level bullet per added target, in the form
 `` - **`<Name>`** — <what the output must say about it> ``. The defaults still apply unless dropped with a bullet
 `` - `drop`: `<Name>`  ``. Other prose is allowed as paragraphs, or as bullets nested under a target; a top-level bullet
-in neither form fails, since it is more likely a mistyped target. `tools/inputs.py` prints the targets it reads. Each
-target gets its own section in the output. Research questions placed in `Context` steer the search but are not targets,
-so the coverage test does not check them. `Questions` and `Reading` are derived from the targets, so they are never
-targets themselves. The default targets:
+in neither form fails, since it is more likely a mistyped target. `deeper_research/inputs.py` prints the targets it
+reads. Each target gets its own section in the output. Research questions placed in `Context` steer the search but are
+not targets, so the coverage test does not check them. `Questions` and `Reading` are derived from the targets, so they
+are never targets themselves. The default targets:
 
 - `Landscape` — the general clusters, the axes that actually separate them, and where the bridges and tensions are.
 
@@ -88,13 +88,14 @@ targets themselves. The default targets:
 Optional. Cross-cutting attributes to extract for every coreset paper; see "Analytic dimensions" below. Declare each as
 a top-level bullet that opens with its name, lowercase, and its allowed values, in this form, so that the tools can read
 it; any explanation may follow, in the bullet or in prose or nested bullets under it. Every top-level bullet in the
-section is read as a dimension, and `tools/inputs.py` fails on one not in this form:
+section is read as a dimension, and `deeper_research/inputs.py` fails on one not in this form:
 
 ```text
 - **`evidence`** — values: `proven`, `derived`, `empirical`, `fitted`, or `position`. What kind of claim ...
 ```
 
-`tools/check.py` checks every coreset row's values against these, and the viewer offers a colour mode per dimension.
+`deeper_research/check.py` checks every coreset row's values against these, and the viewer offers a colour mode per
+dimension.
 
 If the input declares none, the main session proposes a set at step 0, in the Plan row, from the input: a name and at
 least two values per dimension, with `n/a` among them if some papers will have no value, and after the values, in
@@ -102,9 +103,9 @@ brackets, one clause on what the dimension separates and how to tell its values 
 it, which the check reads as the line's structure). It writes them in the log's `Dimensions` line, in the form given
 there ("1. Retrieval log"), and says so when it reports the plan to the user. The pass does not wait for an answer: the
 user can stop it there, or change the dimensions in the input. Proposed dimensions are then treated exactly like
-declared ones: `tools/check.py` reads them from that line, checks the rows' values and columns against them, and `G4`
-requires evidence for them. Declaring dimensions in the input is still better: the user chooses them, and one added
-after verification must be re-derived for every row.
+declared ones: `deeper_research/check.py` reads them from that line, checks the rows' values and columns against them,
+and `G4` requires evidence for them. Declaring dimensions in the input is still better: the user chooses them, and one
+added after verification must be re-derived for every row.
 
 ### `Clustering`
 
@@ -112,9 +113,9 @@ Optional. Steering for the clustering (step 3) and for screening (step 2), so th
 One top-level bullet per field, in the form `` - `field`: value ``. Any of:
 
 - `granularity` — `coarser` or `finer` than the stability rule chooses, or a number of clusters above 0: a level's
-  target in the grid, or the number it reached. `tools/inputs.py` checks only that it is a number; `tools/cluster.py`
-  stops with the levels it can offer if it is not one of them. It applies the steering by moving along the computed
-  levels, before naming; a level below `τ` is flagged in the report.
+  target in the grid, or the number it reached. `deeper_research/inputs.py` checks only that it is a number;
+  `deeper_research/cluster.py` stops with the levels it can offer if it is not one of them. It applies the steering by
+  moving along the computed levels, before naming; a level below `τ` is flagged in the report.
 - `expect` — themes the user expects to see as clusters. A missing one triggers a targeted expansion of that region, and
   halts the pass (`H7`) if it is still missing.
 - `exclude` — themes to treat as out of scope. Applied at screening, in step 2.
@@ -127,7 +128,7 @@ See `docs/process.md`, step 3 and "Changing the clusters after a pass".
 
 ### Rules the parser applies
 
-`tools/inputs.py` fails, so that a typo cannot silently drop a request, on:
+`deeper_research/inputs.py` fails, so that a typo cannot silently drop a request, on:
 
 - a section that is not one of the five above, a section given twice, or a known section at another heading level than
   `##` (`# Topic`, `### Topic`);
@@ -146,10 +147,10 @@ or not. A list of values may end in "or" or "and", with or without a comma befor
 
 The factual cache for a topic, and the only input to its output `outputs/<topic>.md`. It contains five sections, in this
 order, and nothing else: under a `# ` title, the input's own if it has one, the `##` headings `Retrieval log`,
-`Clusters`, `Coreset`, `Pool` and `Open work`. On a first pass the main session writes them empty; `tools/assign.py add`
-writes the Pool table's header with its first row. This section describes only the *formatting*. What the pool and
-coreset are for is in `docs/coresets.md`; how each section is produced, including roles and sizing, is in
-`docs/process.md`.
+`Clusters`, `Coreset`, `Pool` and `Open work`. On a first pass the main session writes them empty;
+`deeper_research/assign.py add` writes the Pool table's header with its first row. This section describes only the
+*formatting*. What the pool and coreset are for is in `docs/coresets.md`; how each section is produced, including roles
+and sizing, is in `docs/process.md`.
 
 It is descriptive about the papers: no judgements of quality or importance. Selection is the exception. Choosing a
 coreset is a judgement, so each coreset row records why it was chosen (`Coreset` section), and the `Clusters` section
@@ -171,10 +172,10 @@ which redirects to the paper's page. The tools read the ID from that link, so no
 
 A Semantic Scholar record without an arXiv ID may still have one. A preprint and its venue version are often two
 records, and only one of them carries the arXiv ID; the other's open-access PDF may be on arXiv. The tools look in both
-places. `tools/check.py` fails on a `CorpusId` row whose paper has an arXiv ID, on one paper listed under two IDs, and
-on two pool rows with the same title, and notes near-identical titles. Keep the arXiv record, and merge the other into
-it: its venue goes into `venue+year`. Log the merge under `Corrections to existing rows`. A merge is not a deletion, so
-it needs no permission.
+places. `deeper_research/check.py` fails on a `CorpusId` row whose paper has an arXiv ID, on one paper listed under two
+IDs, and on two pool rows with the same title, and notes near-identical titles. Keep the arXiv record, and merge the
+other into it: its venue goes into `venue+year`. Log the merge under `Corrections to existing rows`. A merge is not a
+deletion, so it needs no permission.
 
 A paper that is not in Semantic Scholar at all cannot yet enter the pool: nothing can fetch its references or embedding.
 Nor can one without a SPECTER2 embedding, which clustering needs. Record either in Open work.
@@ -218,7 +219,7 @@ One entry per pass, in date order. An entry's lines keep the order below, so a l
 - **Demotions:** none | <id> — <role> in <cluster id>, replaced by <id>, and why
 - **Late papers:** none | YYYY-MM-DD: N assigned to their nearest cluster (<id> -> <cluster id>, ...); late since the
   last full clustering: M of P (X%) | YYYY-MM-DD: reclustered (<why>); remap: <the `changes:` line of
-  `tools/cluster.py`'s printout>
+  `deeper_research/cluster.py`'s printout>
 - **Coverage test:** round R: K of N sampled candidates changed the output (<id>: <what it changed>, ...); new
   clusters: none | none (proposed <which>, not formed) | <which>
 - **Judgement audit:** re-verification: A of C cells agree, P partly, D differ, over N rows (seed S); faithfulness: F of
@@ -237,11 +238,12 @@ operations, column `writes` (`docs/process.md`): that column is the only authori
 with others never writes the log; it returns its lines under `Log:`, and the main session writes them.
 
 Eight lines, or parts of them, are printed by scripts, ready to paste: the script half of `Preflight` by
-`tools/preflight.py`, which the Preflight agent completes; `Pool` by `tools/pool.py`, which `tools/assign.py late` also
-runs; `Expansion`, `Fringe` and `Late papers` by `tools/assign.py`; `Clustering` by `tools/cluster.py`; `Coverage test`
-by `tools/coverage.py line`; and `Judgement audit` by `tools/audit.py line`. Replace the computed cluster ids (`c1`,
-`c2`, …) with the Clusters table's ids, and each `<action taken>` with what was done. Every other number in the log
-comes from a script's printout or a tool's result, never from counting by hand.
+`deeper_research/preflight.py`, which the Preflight agent completes; `Pool` by `deeper_research/pool.py`, which
+`deeper_research/assign.py late` also runs; `Expansion`, `Fringe` and `Late papers` by `deeper_research/assign.py`;
+`Clustering` by `deeper_research/cluster.py`; `Coverage test` by `deeper_research/coverage.py line`; and
+`Judgement audit` by `deeper_research/audit.py line`. Replace the computed cluster ids (`c1`, `c2`, …) with the Clusters
+table's ids, and each `<action taken>` with what was done. Every other number in the log comes from a script's printout
+or a tool's result, never from counting by hand.
 
 What some lines need, beyond their form:
 
@@ -249,16 +251,16 @@ What some lines need, beyond their form:
   topic: step 2 searches each one as an exact phrase, so each is written as papers write it. The seeds are the papers
   the input names. A frontier candidate is listed only once it is in the pool; one that cannot enter goes to Open work's
   `Papers that could not enter the pool` instead.
-- `Expansion` — printed by `tools/assign.py add-expand` from `expand.json` and the screening sheet, and pasted as
-  printed, replacing any earlier `Expansion` line of the pass: `tools/check.py` recomputes it. Each part is one
-  collection. A traversal names the paper it started from and, in brackets, how many papers it returned, with
+- `Expansion` — printed by `deeper_research/assign.py add-expand` from `expand.json` and the screening sheet, and pasted
+  as printed, replacing any earlier `Expansion` line of the pass: `deeper_research/check.py` recomputes it. Each part is
+  one collection. A traversal names the paper it started from and, in brackets, how many papers it returned, with
   `not found` for a paper Semantic Scholar does not know, and `capped` for a reference or citer list longer than the
   endpoint pages to; each query is the theme, quoted, with how many papers it kept and how many matched. Then: how many
   unique papers the collection returned, how many it left out and why, how many list entries had no paper ID, and how
   many of its candidates were screened, and with what verdict. A targeted expansion adds a part that opens `targeted,`,
   naming the region by its first paper, or by its theme when the region had no papers, and why it was expanded.
-- `Late papers` — `tools/assign.py late` prints the first form. After a recluster nothing prints it: the main session
-  writes the second form, from `tools/cluster.py`'s `changes:` line.
+- `Late papers` — `deeper_research/assign.py late` prints the first form. After a recluster nothing prints it: the main
+  session writes the second form, from `deeper_research/cluster.py`'s `changes:` line.
 - `Fringe` — `left out` counts the in-scope candidates that have neither an arXiv ID nor a `CorpusId`, so could not be
   added; they belong in Open work.
 - `Errored queries` — `none` until a query errors; the first entry replaces the `none`.
@@ -266,13 +268,13 @@ What some lines need, beyond their form:
   searched", and the arrow is `->`, not `→`; an entry the check cannot read counts as missing. Every ID after `found:`
   must be a `dissent` row of that cluster, or be named in `Demotions`. A `dissent` row a coverage round added has no
   entry here; its trace is the `Coverage test` line.
-- `Coverage test` — one line per round, printed from the round's sheet and pasted as printed: `tools/check.py` compares
-  it with the sheet, up to `new clusters:`. "What it changed" names the target and the claim, such as "Gaps:
+- `Coverage test` — one line per round, printed from the round's sheet and pasted as printed: `deeper_research/check.py`
+  compares it with the sheet, up to `new clusters:`. "What it changed" names the target and the claim, such as "Gaps:
   <the new gap>" or "Assumptions: <which one>, revised". Only the IDs that open an entry are counted, and there must be
   K of them: the sheet's `changes` rows. A proposed cluster that the recluster did not form is recorded as
   `none (proposed <which>, not formed)`.
 - `Judgement audit` — printed from the three audit sheets (`docs/process.md`, "Auditing the judgements"), and pasted as
-  printed: `tools/check.py` recomputes it.
+  printed: `deeper_research/check.py` recomputes it.
 - `Tokens` — one entry per dispatch, appended when it returns, from the token count the harness returns with the agent's
   result (in Claude Code, the Agent tool's `subagent_tokens`), since an agent cannot see its own: the brief's name, and
   its scope if it ran on part of the work, such as `Selection c1+c2`, without commas or colons, then the tokens, without
@@ -297,11 +299,11 @@ One table:
 | `computed` | the id the clustering gave this cluster in `graphs/<topic>/clusters.json`: `c1`, `c2`, … |
 
 The `computed` column ties each name to a computed cluster. Every computed cluster has exactly one row, and
-`tools/assign.py` writes pool memberships through it. After a recluster, `tools/assign.py remap` updates it (see
-`docs/process.md`, "Late papers").
+`deeper_research/assign.py` writes pool memberships through it. After a recluster, `deeper_research/assign.py remap`
+updates it (see `docs/process.md`, "Late papers").
 
-Do not write coreset or pool counts into this table. `tools/check.py` computes them from the file, and hand-maintained
-counts drift.
+Do not write coreset or pool counts into this table. `deeper_research/check.py` computes them from the file, and
+hand-maintained counts drift.
 
 ### 3. Coreset
 
@@ -336,8 +338,8 @@ One table, listing every in-scope screened paper, coreset papers included:
 
 The `cites` column is the pool's citation graph. In-degree within the pool, which is what anchors are chosen from, is
 computed from it, and so is any visualisation of the topic. Nothing in this table is written by hand. Rows are added by
-`tools/assign.py add` and `add-fringe`; `year`, `citations` and `cites` are filled by `tools/pool.py`; and `cluster` is
-written by `tools/assign.py clusters` and `late`.
+`deeper_research/assign.py add` and `add-fringe`; `year`, `citations` and `cites` are filled by
+`deeper_research/pool.py`; and `cluster` is written by `deeper_research/assign.py clusters` and `late`.
 
 The data that clustering needs — full reference lists, including references outside the pool, and (e.g. SPECTER2)
 embeddings — is too large for a markdown table. It lives in the pool sidecar, `graphs/<topic>/pool.json`, with the
@@ -399,11 +401,11 @@ the selection, not the field. If a share is wanted, it has to be measured on a r
 
 ## `bib/<topic>.bib`
 
-BibTeX for every coreset row; the pool has no bib entries. Regenerate it with `python3 tools/bib.py <topic>` rather than
-assembling it by hand, so that the survey and the bibliography cannot drift apart. The script keeps existing entries
-verbatim, so citation keys stay stable. It fetches only missing IDs, from the arXiv API, or from Semantic Scholar for a
-paper without an arXiv ID, and drops entries whose papers have left the coreset. An entry carries `eprint` for an arXiv
-paper and `corpusid` for any other.
+BibTeX for every coreset row; the pool has no bib entries. Regenerate it with
+`uv run python -m deeper_research.bib <topic>` rather than assembling it by hand, so that the survey and the
+bibliography cannot drift apart. The script keeps existing entries verbatim, so citation keys stay stable. It fetches
+only missing IDs, from the arXiv API, or from Semantic Scholar for a paper without an arXiv ID, and drops entries whose
+papers have left the coreset. An entry carries `eprint` for an arXiv paper and `corpusid` for any other.
 
 ## `outputs/<topic>.md`
 
@@ -430,35 +432,35 @@ Outputs must carry their provenance. Every coreset row should be verified, so th
 cites has been checked against body text. Where a row could not be — its `source` is `abstract` — every claim resting on
 it is marked `[abstract-only]`, right after the paper's ID. A marker that follows no cited ID fails the check, since it
 qualifies nothing. Every output opens with a short legend explaining the marker, and saying what was missing if the pass
-continued past a halt (`docs/process.md`, "When a pass ends"). Run `python3 tools/check.py <topic>` before treating an
-output as finished: it lists every `abstract`-sourced paper the output cites.
+continued past a halt (`docs/process.md`, "When a pass ends"). Run `uv run python -m deeper_research.check <topic>`
+before treating an output as finished: it lists every `abstract`-sourced paper the output cites.
 
 ## `graphs/<topic>/`
 
 The working files of a pass: everything the scripts compute that is too large, or too numeric, for the survey. Scripts
 write them, never agents, with these exceptions: the screening agents fill two columns of `expand-screen.md` and of
-`fringe-screen.md`, through `tools/expand.py judge` and `tools/fringe.py judge`; the coverage-test agent fills the
-verdicts of `coverage-<R>.md`, through `tools/coverage.py judge`; the audit agents fill the audit sheets, through
-`tools/audit.py`; and the verifying agents write `evidence/` (`docs/verification.md`, "Recording the evidence"). Sizes
-are from `reasoning-legacy` (about 200 pool papers).
+`fringe-screen.md`, through `deeper_research/expand.py judge` and `deeper_research/fringe.py judge`; the coverage-test
+agent fills the verdicts of `coverage-<R>.md`, through `deeper_research/coverage.py judge`; the audit agents fill the
+audit sheets, through `deeper_research/audit.py`; and the verifying agents write `evidence/` (`docs/verification.md`,
+"Recording the evidence"). Sizes are from `reasoning-legacy` (about 200 pool papers).
 
 | file | what it holds | written by | read by | in git |
 | -- | -- | -- | -- | -- |
-| `pool.json` (1.6 MB) | per pool paper: date, citation count, full reference list, SPECTER2 embedding, fetch date | `tools/pool.py` (step 2, and inside `tools/assign.py late`) | every script that clusters, scores or draws the pool | yes |
-| `clusters.json` (140 KB) | the clustering report: levels, stability, the null curve, assignment, sub-clusters, fringe scores, diagnostics and notes, the match to the previous clustering, and late assignments | `tools/cluster.py` (step 3, and any recluster); `tools/assign.py late` and `remap` add to it | `tools/sheets.py`, `assign.py`, `check.py`, `graph.py` | yes |
-| `fringe.json` (1.3 MB) | the fringe candidates: route, metadata, references, embedding; the seeds of the `new` route | `tools/fringe.py collect` (step 2) | `tools/assign.py add-fringe` | yes |
-| `expand.json` | expansion's collections, one per round (the first, then each targeted expansion): every traversal's and search's full result, what was left out and why, and each candidate's title, abstract and IDs; while a collection is unfinished, its progress, so that a rerun resumes | `tools/expand.py collect` (step 2, and each targeted expansion) | `tools/assign.py add-expand`; `tools/check.py` (`G1`) | yes |
-| `expand-screen.md` (about 200 tokens a row) | expansion's screening sheet: one numbered row per candidate, with title and abstract, or `(no abstract)`, and the agent's `in scope` (`yes` or `no`; `maybe` while undecided) and `reason`. It only grows: a row keeps its number and verdict across collections | `tools/expand.py collect` appends the rows; the screening agents fill `in scope` and `reason` with `tools/expand.py judge` | `tools/assign.py add-expand`; `tools/check.py` (`G1`) | yes: the judgements are part of the pass's record |
-| `rejected.md` | the candidates judged out of scope in orientation and expansion: paper, date, reason | `tools/assign.py reject` (step 1, and any rejection outside the sheets); `tools/assign.py add-expand`, for each `no` on `expand-screen.md` | reviewers; `tools/expand.py` and `tools/fringe.py`, which do not collect a rejected paper again; `tools/check.py` (`G1`) | yes: the judgements are part of the pass's record |
-| `fringe-screen.md` (120 KB, about 30k tokens) | the blind screening sheet: one numbered row per candidate, shuffled, without its route or year, with the agent's `in scope` (`yes` or `no`; `maybe` while undecided) and `reason` | `tools/fringe.py collect` writes the rows, keeping earlier judgements on a rerun; the screening agents fill `in scope` and `reason` with `tools/fringe.py judge` (step 2) | `tools/assign.py add-fringe`; `tools/check.py` (`G1`) | yes: the judgements are part of the pass's record |
-| `naming-sheet.md` (about 3k tokens) | per computed cluster: size, stability, diagnostics and notes, most-cited papers, most recent papers with their citations per month, sub-clusters | `tools/sheets.py` (step 3) | the naming agent (step 3) and the selection agents (step 4) | no: regenerable |
-| `fringe-sheet.md` (about 1k tokens) | the highest fringe scores, with year, cluster, reference count, and whether the paper is a coreset row | `tools/sheets.py` (step 3) | the fringe-selection agent (step 4) | no: regenerable |
-| `coverage-<R>.md` | coverage-test round R: one row per sampled candidate, with how it was drawn, its verdict and the reason; the seed and the coreset's radius (see below) | `tools/coverage.py draw` (step 7); the verdicts and the recency-query rows by the coverage-test agent, with `tools/coverage.py judge` | the coverage-test agent; `tools/check.py` (`G5`); reviewers, auditors | yes: the judgements are part of the pass's record |
-| `reverify.md`, `reverify-compare.md`, `faithfulness.md` | the judgement audits (`docs/process.md`, "Auditing the judgements"): the re-verified sample, each of its cells beside the survey's with a verdict, and the sampled output sentences beside their rows and evidence with a verdict | `tools/audit.py` (step 7); the cells and verdicts by the audit agents, with `tools/audit.py fill` and `judge` | the audit agents; `tools/check.py` (`G5`); reviewers | yes: the judgements are part of the pass's record |
-| `graph.html` (1.3 MB) | the viewer | `tools/graph.py` (step 3) | the user, in a browser | no: regenerable |
-| `evidence/<id>.md` | per verified coreset row: the verbatim quotes each claim rests on, and where they are in the paper | the verifying agent (step 5), one file per row, so parallel agents never share one | reviewers, auditors; `tools/check.py` (`G4`), which finds every full-text quote in the full text | yes: it is the record behind `source` |
-| `fulltext/<id>.txt` (10–70k tokens each) | a paper's full text, flattened, without its bibliography | `tools/fulltext.py`: the main session's batch fetch before verification (step 5) | the verifying agent, through `tools/fulltext.py show` and Grep | no: third-party text, regenerable |
-| `references.json` | reference lists for a survey without a pool | `tools/graph.py` | `tools/graph.py` | yes |
+| `pool.json` (1.6 MB) | per pool paper: date, citation count, full reference list, SPECTER2 embedding, fetch date | `deeper_research/pool.py` (step 2, and inside `deeper_research/assign.py late`) | every script that clusters, scores or draws the pool | yes |
+| `clusters.json` (140 KB) | the clustering report: levels, stability, the null curve, assignment, sub-clusters, fringe scores, diagnostics and notes, the match to the previous clustering, and late assignments | `deeper_research/cluster.py` (step 3, and any recluster); `deeper_research/assign.py late` and `remap` add to it | `deeper_research/sheets.py`, `assign.py`, `check.py`, `graph.py` | yes |
+| `fringe.json` (1.3 MB) | the fringe candidates: route, metadata, references, embedding; the seeds of the `new` route | `deeper_research/fringe.py collect` (step 2) | `deeper_research/assign.py add-fringe` | yes |
+| `expand.json` | expansion's collections, one per round (the first, then each targeted expansion): every traversal's and search's full result, what was left out and why, and each candidate's title, abstract and IDs; while a collection is unfinished, its progress, so that a rerun resumes | `deeper_research/expand.py collect` (step 2, and each targeted expansion) | `deeper_research/assign.py add-expand`; `deeper_research/check.py` (`G1`) | yes |
+| `expand-screen.md` (about 200 tokens a row) | expansion's screening sheet: one numbered row per candidate, with title and abstract, or `(no abstract)`, and the agent's `in scope` (`yes` or `no`; `maybe` while undecided) and `reason`. It only grows: a row keeps its number and verdict across collections | `deeper_research/expand.py collect` appends the rows; the screening agents fill `in scope` and `reason` with `deeper_research/expand.py judge` | `deeper_research/assign.py add-expand`; `deeper_research/check.py` (`G1`) | yes: the judgements are part of the pass's record |
+| `rejected.md` | the candidates judged out of scope in orientation and expansion: paper, date, reason | `deeper_research/assign.py reject` (step 1, and any rejection outside the sheets); `deeper_research/assign.py add-expand`, for each `no` on `expand-screen.md` | reviewers; `deeper_research/expand.py` and `deeper_research/fringe.py`, which do not collect a rejected paper again; `deeper_research/check.py` (`G1`) | yes: the judgements are part of the pass's record |
+| `fringe-screen.md` (120 KB, about 30k tokens) | the blind screening sheet: one numbered row per candidate, shuffled, without its route or year, with the agent's `in scope` (`yes` or `no`; `maybe` while undecided) and `reason` | `deeper_research/fringe.py collect` writes the rows, keeping earlier judgements on a rerun; the screening agents fill `in scope` and `reason` with `deeper_research/fringe.py judge` (step 2) | `deeper_research/assign.py add-fringe`; `deeper_research/check.py` (`G1`) | yes: the judgements are part of the pass's record |
+| `naming-sheet.md` (about 3k tokens) | per computed cluster: size, stability, diagnostics and notes, most-cited papers, most recent papers with their citations per month, sub-clusters | `deeper_research/sheets.py` (step 3) | the naming agent (step 3) and the selection agents (step 4) | no: regenerable |
+| `fringe-sheet.md` (about 1k tokens) | the highest fringe scores, with year, cluster, reference count, and whether the paper is a coreset row | `deeper_research/sheets.py` (step 3) | the fringe-selection agent (step 4) | no: regenerable |
+| `coverage-<R>.md` | coverage-test round R: one row per sampled candidate, with how it was drawn, its verdict and the reason; the seed and the coreset's radius (see below) | `deeper_research/coverage.py draw` (step 7); the verdicts and the recency-query rows by the coverage-test agent, with `deeper_research/coverage.py judge` | the coverage-test agent; `deeper_research/check.py` (`G5`); reviewers, auditors | yes: the judgements are part of the pass's record |
+| `reverify.md`, `reverify-compare.md`, `faithfulness.md` | the judgement audits (`docs/process.md`, "Auditing the judgements"): the re-verified sample, each of its cells beside the survey's with a verdict, and the sampled output sentences beside their rows and evidence with a verdict | `deeper_research/audit.py` (step 7); the cells and verdicts by the audit agents, with `deeper_research/audit.py fill` and `judge` | the audit agents; `deeper_research/check.py` (`G5`); reviewers | yes: the judgements are part of the pass's record |
+| `graph.html` (1.3 MB) | the viewer | `deeper_research/graph.py` (step 3) | the user, in a browser | no: regenerable |
+| `evidence/<id>.md` | per verified coreset row: the verbatim quotes each claim rests on, and where they are in the paper | the verifying agent (step 5), one file per row, so parallel agents never share one | reviewers, auditors; `deeper_research/check.py` (`G4`), which finds every full-text quote in the full text | yes: it is the record behind `source` |
+| `fulltext/<id>.txt` (10–70k tokens each) | a paper's full text, flattened, without its bibliography | `deeper_research/fulltext.py`: the main session's batch fetch before verification (step 5) | the verifying agent, through `deeper_research/fulltext.py show` and Grep | no: third-party text, regenerable |
+| `references.json` | reference lists for a survey without a pool | `deeper_research/graph.py` | `deeper_research/graph.py` | yes |
 | `history.json`, `match-simulation.json`, `recursive.json`, `fringe-analysis.json` | reports of experiments that are not part of a pass (`docs/experiments.md`) | the experiment scripts | people | yes |
 
 `pool.json` and `clusters.json` are what make the clustering reproducible offline, `fringe.json` with `fringe-screen.md`
@@ -477,16 +479,16 @@ about 400k tokens. What an agent needs from them reaches it in three ways:
 - `jq`, for one field, never a whole record, which carries the embedding, for example
   `jq '.papers["2504.13837"] | {date, citations, reference_count}' graphs/<topic>/pool.json`.
 
-A full text is read through `tools/fulltext.py show` and Grep, at the sections a claim turns on, never whole
+A full text is read through `deeper_research/fulltext.py show` and Grep, at the sections a claim turns on, never whole
 (`docs/verification.md`).
 
 ### The coverage sheet
 
 One file per coverage-test round, `graphs/<topic>/coverage-<R>.md`, with one row per sampled candidate, the ones that
-changed nothing included. `tools/coverage.py draw` writes it, with a header giving the date, the seed, the set drawn
-from and the coreset's radius; the agent fills `verdict` and `reason`, and adds the recency query's candidates, with
-`tools/coverage.py judge`, and records the recency query in the header with `tools/coverage.py query`, never by editing
-the file:
+changed nothing included. `deeper_research/coverage.py draw` writes it, with a header giving the date, the seed, the set
+drawn from and the coreset's radius; the agent fills `verdict` and `reason`, and adds the recency query's candidates,
+with `deeper_research/coverage.py judge`, and records the recency query in the header with
+`deeper_research/coverage.py query`, never by editing the file:
 
 | column | contents |
 | -- | -- |

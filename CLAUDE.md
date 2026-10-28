@@ -55,7 +55,7 @@ not apply.
 | `docs/formats.md` | all; `survey-pass`, the sections its brief lists | before writing to any `inputs/`, `surveys/`, `outputs/` or `bib/` file |
 | `docs/verification.md` | `survey-pass`, the sections its brief lists | before verifying a row or running a probe |
 | `docs/gates.md` | main session, human reviewers | before planning a pass, and when reviewing one |
-| `docs/tooling.md` | all; `survey-pass`, the sections its brief lists | before running anything in `tools/` |
+| `docs/tooling.md` | all; `survey-pass`, the sections its brief lists | before running anything in `deeper_research/` |
 | `docs/external_services.md` | all; `survey-pass`, the sections its brief lists | before the first call to Asta, WebSearch or any outside service, and at the preflight check |
 | `docs/audits.md` | main session | only when the user asks for an audit, or for the remediation of one |
 | `docs/responses.md` | all | never separately: it is imported below |

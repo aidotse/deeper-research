@@ -13,7 +13,7 @@ You make mechanical, checkable edits to an existing survey, following CLAUDE.md,
 `docs/tooling.md`. You are given a specific list of rows or blocks and a specific transformation. You do not decide what
 belongs in the survey.
 
-Use this agent only when the caller can verify your work afterwards — `tools/check.py` catches a malformed row, a
+Use this agent only when the caller can verify your work afterwards — `deeper_research/check.py` catches a malformed row, a
 column-count mismatch, a broken survey/bib parity, a dimension value outside its declared set, an unknown cluster id or
 role, or a coreset paper missing from the pool. Judgement work whose errors leave no trace — deciding scope, drawing
 clusters, selecting roles, verifying claims, running probes — belongs to `survey-pass`, not here.
@@ -28,7 +28,7 @@ clusters, selecting roles, verifying claims, running probes — belongs to `surv
   membership is never changed by hand.
 - Write each row as you finish it rather than batching to the end.
 - After editing a block, re-read it and confirm no row was duplicated, dropped or mangled.
-- Run `python3 tools/check.py <topic>` before finishing. Fix anything it reports and re-run until it exits 0. If it
+- Run `uv run python -m deeper_research.check <topic>` before finishing. Fix anything it reports and re-run until it exits 0. If it
   still fails and you cannot see why, make the first line of your report `STOP: H9 — <the failure>` rather than
   describing the work as complete.
 - Do not compute tallies by hand in your report — `check.py` recomputes them from the file, and hand arithmetic in a

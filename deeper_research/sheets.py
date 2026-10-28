@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write the compact sheets that the naming and fringe-selection agents read, instead of the large JSON files.
 
-Usage: python3 tools/sheets.py <topic>
+Usage: uv run python -m deeper_research.sheets <topic>
 
 Reads graphs/<topic>/clusters.json and pool.json and the survey, and writes two files alongside them:
 
@@ -35,8 +35,8 @@ def main(argv):
     topic = argv[0]
     d = topic_dir(topic)
     for path, then in ((ROOT / "surveys" / f"{topic}.md", "steps 0-2 of docs/process.md"),
-                       (d / "pool.json", f"`python3 tools/pool.py {topic}`"),
-                       (d / "clusters.json", f"`uv run tools/cluster.py {topic}`")):
+                       (d / "pool.json", f"`uv run python -m deeper_research.pool {topic}`"),
+                       (d / "clusters.json", f"`uv run python -m deeper_research.cluster {topic}`")):
         if not path.exists():
             sys.exit(f"no {path.relative_to(ROOT)}; run {then} first")
     report = json.loads((d / "clusters.json").read_text())

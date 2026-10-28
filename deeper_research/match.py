@@ -1,7 +1,7 @@
 """Matching clusters across passes: the matching rule, and a simulation of earlier passes on one topic.
 
-Usage: uv run tools/match.py simulate <topic> [--months 3,6,9] [--reps 20] [--workers 12]
-       uv run tools/match.py history <topic> [--segments 4] [--seeds 5] [--reps 20] [--workers 12]
+Usage: uv run python -m deeper_research.match simulate <topic> [--months 3,6,9] [--reps 20] [--workers 12]
+       uv run python -m deeper_research.match history <topic> [--segments 4] [--seeds 5] [--reps 20] [--workers 12]
 
 Clusters are matched by their members, on the papers both passes contain. For each old cluster, its main destination
 is the new cluster holding most of its papers; for each new cluster, its main source is the old cluster contributing
@@ -20,7 +20,7 @@ most of its old papers. Then:
 Clusters smaller than 3 papers on either side are fragments: they are counted, not matched, and their papers are left
 out of the shares.
 
-`simulate` treats the pool as it stood --months ago as an earlier pass: the method of tools/cluster.py (the `combined`
+`simulate` treats the pool as it stood --months ago as an earlier pass: the method of deeper_research/cluster.py (the `combined`
 measure, the finest level reaching tau) on the papers dated before each cutoff. It matches each to today's clustering
 from graphs/<topic>/clusters.json, and separates the two causes of change by also clustering the old papers with
 today's settings (today's number of clusters):
@@ -39,8 +39,8 @@ still relevant today, so the history is optimistic: a real earlier pass would ha
 
 Writes graphs/<topic>/match-simulation.json (simulate) or graphs/<topic>/history.json (history). These two commands are
 experiments, not part of a pass; `history` is deferred from the pass, and nothing in a pass reads history.json. The
-`match` function is part of a pass: tools/cluster.py calls it after a reclustering, to match the new clustering to the
-named one (for tools/assign.py remap). Deterministic: every random choice is seeded.
+`match` function is part of a pass: deeper_research/cluster.py calls it after a reclustering, to match the new clustering to the
+named one (for deeper_research/assign.py remap). Deterministic: every random choice is seeded.
 """
 
 import json
@@ -150,7 +150,7 @@ def cutoffs_for(dates):
 
 
 def curve(job):
-    """The stability curve on the papers idx, as tools/cluster.py computes it."""
+    """The stability curve on the papers idx, as deeper_research/cluster.py computes it."""
     idx, measure, k, c, reps = job
     S, d = sim(idx, measure, c), DATES[idx]
     rng = np.random.default_rng(0)

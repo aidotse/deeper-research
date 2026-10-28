@@ -1,9 +1,9 @@
 """Cluster a topic's pool by the method in docs/process.md, "Clustering method".
 
-Usage: uv run tools/cluster.py <topic> [--k 10] [--c 10] [--tau 0.75] [--reps 20] [--nulls 1]
+Usage: uv run python -m deeper_research.cluster <topic> [--k 10] [--c 10] [--tau 0.75] [--reps 20] [--nulls 1]
                                         [--levels 3,4,5,6,8,10,12,15,18,22] [--level coarser|finer|N]
 
-Reads the pool sidecar graphs/<topic>/pool.json (from tools/pool.py). The similarity measure is fixed: `combined`, the
+Reads the pool sidecar graphs/<topic>/pool.json (from deeper_research/pool.py). The similarity measure is fixed: `combined`, the
 text similarity (SPECTER2 embeddings) and the reference similarity (bibliographic coupling), each converted to
 per-paper neighbour ranks and mixed per pair with weight w = n / (n + c) on references, n being the shorter of the two
 reference lists. For each level of a grid of cluster counts, it clusters the pool with Leiden and measures stability by
@@ -24,8 +24,8 @@ nearest to it by publication date. The score is a percentile within that cohort.
 The input's `granularity` steering (docs/formats.md) moves the chosen level one step coarser or finer, or to the
 level of N clusters; --level does the same as a user override and takes precedence. A level below tau is flagged.
 
-If a previous clusters.json exists, the new clustering is matched to it by shared papers (tools/match.py, `match`), so
-that `tools/assign.py remap` can carry cluster names over.
+If a previous clusters.json exists, the new clustering is matched to it by shared papers (deeper_research/match.py, `match`), so
+that `deeper_research/assign.py remap` can carry cluster names over.
 
 Writes graphs/<topic>/clusters.json and prints the retrieval log's `Clustering` line. Deterministic: every random
 choice is seeded, and `params` records the seeds, the defaults used and the installed package versions. Usage errors
@@ -673,7 +673,7 @@ def main(argv):
     out = topic_dir(topic) / "clusters.json"
     if out.exists() and named_computed(topic):
         # The Clusters table names the clustering its `computed` ids refer to. Match the new clustering to that one, so
-        # that tools/assign.py remap can carry the names over. If the clustering has been rerun since without a remap
+        # that deeper_research/assign.py remap can carry the names over. If the clustering has been rerun since without a remap
         # (a --level rerun), the named one is the baseline stored by that run. With no names yet, as on a first pass,
         # there is nothing to carry, and no matching is recorded.
         from deeper_research.match import match
@@ -711,9 +711,9 @@ def main(argv):
     override = f"level {opt(argv, '--level', None, str)} (--level)" if "--level" in argv else "none"
     print(clustering_line(chosen, rule, curve, li, sensitivity, tau, k, c, cutoffs, diagnostics, override))
     if "previous" in report:
-        print(f"\nmatched to the previous clustering ({report['previous']['generated']}; tools/match.py):")
+        print(f"\nmatched to the previous clustering ({report['previous']['generated']}; deeper_research/match.py):")
         print("\n".join(match_lines(report["previous"])))
-        print(f"  carry the names over with `python3 tools/assign.py remap {topic}`")
+        print(f"  carry the names over with `uv run python -m deeper_research.assign remap {topic}`")
     print(f"\nwrote {out.relative_to(ROOT)}")
 
 

@@ -2,8 +2,8 @@
 
 No command line of its own. Two scripts write a sheet and judge it through this module:
 
-  tools/expand.py   graphs/<topic>/expand-screen.md   expansion's candidates (docs/process.md, "Step 2: expand")
-  tools/fringe.py   graphs/<topic>/fringe-screen.md   the fringe routes' candidates ("Fringe routes")
+  deeper_research/expand.py   graphs/<topic>/expand-screen.md   expansion's candidates (docs/process.md, "Step 2: expand")
+  deeper_research/fringe.py   graphs/<topic>/fringe-screen.md   the fringe routes' candidates ("Fringe routes")
 
 A sheet is a markdown table with, among its columns, `s2` (the Semantic Scholar paper ID), `title`, `abstract`,
 `in scope` and `reason`. `judge` writes verdicts into it from stdin, one `<s2><TAB>yes|no|maybe<TAB><reason>` per
@@ -99,7 +99,7 @@ def verdicts(text):
 
 def judged(verdict, reason):
     """Whether a screening row is judged: `yes` or `no` (not `maybe`), with a reason of at least two words. The add
-    steps (tools/assign.py) and the G1 gate use the same test."""
+    steps (deeper_research/assign.py) and the G1 gate use the same test."""
     return (verdict.startswith("yes") or verdict.startswith("no")) and len(words(reason)) >= 2
 
 

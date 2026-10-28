@@ -1,9 +1,9 @@
 """Collect expansion's candidates by script, onto a screening sheet for agents to judge (docs/process.md, "Step 2").
 
 Usage:
-  python3 tools/expand.py collect <topic>
-  python3 tools/expand.py collect <topic> [--targeted <id>[,<id> ...]] --query "<theme>" --why "<why>"
-  python3 tools/expand.py judge <topic> < lines        (one `<s2><TAB>yes|no|maybe<TAB><reason>` per line)
+  uv run python -m deeper_research.expand collect <topic>
+  uv run python -m deeper_research.expand collect <topic> [--targeted <id>[,<id> ...]] --query "<theme>" --why "<why>"
+  uv run python -m deeper_research.expand judge <topic> < lines        (one `<s2><TAB>yes|no|maybe<TAB><reason>` per line)
 
 `collect`, on a pass's first expansion, reads the seeds, the frontier candidates and the themes from the latest pass's
 `Orientation` line, and calls the Semantic Scholar Graph API:
@@ -33,9 +33,9 @@ what is new, and any candidate of expand.json that has lost its row gets it back
 Progress is saved in expand.json after every batch and every search. If the Graph API stays busy past its retries, `collect` stops and
 says so, and the same command run again resumes where it stopped.
 
-`judge` writes screening verdicts into the sheet. It is the shared judge of tools/screen.py, which says what it refuses,
+`judge` writes screening verdicts into the sheet. It is the shared judge of deeper_research/screen.py, which says what it refuses,
 and it locks the sheet while it writes, so that agents judging disjoint rows may run at once; `collect` takes the same
-lock to append. Then `python3 tools/assign.py add-expand <topic>` adds each `yes` to the pool, records each `no` in
+lock to append. Then `uv run python -m deeper_research.assign add-expand <topic>` adds each `yes` to the pool, records each `no` in
 rejected.md, and prints the log's `Expansion` line.
 
 Calls are unauthenticated; no key or user identifier is sent.
@@ -66,8 +66,8 @@ META = "title,abstract,externalIds,openAccessPdf"
 LEFT_OUT = ("in the pool", "rejected earlier", "on the sheet already", "another record", "not found")
 SHEET = """# Expansion screening sheet
 
-Candidates for `{topic}` from expansion, one numbered row each (`python3 tools/expand.py collect`). Mark `in scope` as
-`yes` or `no`, with a reason of at least two words tied to the topic (`python3 tools/expand.py judge {topic}`).
+Candidates for `{topic}` from expansion, one numbered row each (`uv run python -m deeper_research.expand collect`). Mark `in scope` as
+`yes` or `no`, with a reason of at least two words tied to the topic (`uv run python -m deeper_research.expand judge {topic}`).
 
 | # | s2 | title | abstract | in scope | reason |
 | -- | -- | -- | -- | -- | -- |
@@ -329,7 +329,7 @@ def collect(topic, targeted=None, query=None, why=None):
           f"graphs/{topic}/expand-screen.md" + (f", numbered {first} to {first + added - 1}" if added else ""))
     print(f"unjudged on the sheet: {sum(1 for a, r in v.values() if not judged(a, r))} of {len(v)}; next, have them "
           f"screened in blocks of at most 100 rows (docs/dispatch.md, \"Screening\"), then run "
-          f"`python3 tools/assign.py add-expand {topic}`")
+          f"`uv run python -m deeper_research.assign add-expand {topic}`")
     return 0
 
 
@@ -377,7 +377,7 @@ def main(argv):
         if len(argv) != 2 or sys.stdin.isatty():
             print(__doc__.strip())
             return 2
-        return judge(topic_dir(topic) / "expand-screen.md", f"`python3 tools/expand.py collect {topic}`")
+        return judge(topic_dir(topic) / "expand-screen.md", f"`uv run python -m deeper_research.expand collect {topic}`")
     try:
         opts = {argv[i]: argv[i + 1] for i in range(2, len(argv), 2)}
     except IndexError:

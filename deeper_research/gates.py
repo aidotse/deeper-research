@@ -1,6 +1,6 @@
-"""The gates of a pass: what each step must have left behind in the files, checked by tools/check.py (docs/gates.md).
+"""The gates of a pass: what each step must have left behind in the files, checked by deeper_research/check.py (docs/gates.md).
 
-No command line of its own: `python3 tools/check.py <topic> [--gate G<n>] [--status]` runs it.
+No command line of its own: `uv run python -m deeper_research.check <topic> [--gate G<n>] [--status]` runs it.
 
 A gate is a point in the order of operations (docs/process.md) after which a set of requirements must hold:
 
@@ -130,7 +130,7 @@ def mentions(text, *parts):
 
 
 class Ctx:
-    """Everything the requirements read, gathered once by tools/check.py."""
+    """Everything the requirements read, gathered once by deeper_research/check.py."""
 
     def __init__(self, topic, secs, structure, rows, coreset_ids, abstract, output, dims, steering, targets,
                  proposed=False):
@@ -239,7 +239,7 @@ def r_orientation(c):
         problems.append("`Orientation` names no themes (`themes: \"<phrase>\", ...`), so expansion has nothing to search")
     out = sorted(set(ids) - c.pool)
     if out:
-        problems.append(f"frontier candidates not in the pool: {out}; add them with `tools/assign.py add`")
+        problems.append(f"frontier candidates not in the pool: {out}; add them with `deeper_research/assign.py add`")
     return "; ".join(problems) or None
 
 
@@ -250,10 +250,10 @@ def expand_rounds(c):
 
 def r_expansion_collected(c):
     if not c.expand:
-        return f"graphs/{c.topic}/expand.json does not exist: run `python3 tools/expand.py collect {c.topic}`"
+        return f"graphs/{c.topic}/expand.json does not exist: run `uv run python -m deeper_research.expand collect {c.topic}`"
     first = [r for _, r in expand_rounds(c) if r.get("kind") == "first"]
     if not first:
-        return f"expansion was not collected this pass ({c.date}): run `python3 tools/expand.py collect {c.topic}`"
+        return f"expansion was not collected this pass ({c.date}): run `uv run python -m deeper_research.expand collect {c.topic}`"
     from deeper_research.expand import orientation_parts
     seeds, ids, themes = orientation_parts(c.line("Orientation"))
     have = {(x["kind"], x.get("from") or x.get("query")) for x in first[-1]["sources"]}
@@ -266,7 +266,7 @@ def r_expansion_collected(c):
     problems = []
     if missing:
         problems.append(f"this pass's expansion did not collect these, which `Orientation` names: {missing[:6]}; rerun "
-                        f"`python3 tools/expand.py collect {c.topic}`")
+                        f"`uv run python -m deeper_research.expand collect {c.topic}`")
     if unknown:
         problems.append(f"Semantic Scholar did not find these, so they were not traversed: {unknown}; record them in "
                         "Open work's `Papers that could not enter the pool`")
@@ -292,7 +292,7 @@ def r_expansion_screened(c):
     problems = []
     if absent:
         problems.append(f"{len(absent)} candidate(s) in expand.json have no row in expand-screen.md: {absent[:4]}; rerun "
-                        f"`python3 tools/expand.py collect {c.topic}`, which restores them")
+                        f"`uv run python -m deeper_research.expand collect {c.topic}`, which restores them")
     if bad:
         problems.append(f"{len(bad)} row(s) of expand-screen.md without a `yes` or `no` and a reason of a few words")
     return "; ".join(problems) or None
@@ -322,13 +322,13 @@ def r_expansion_added(c):
     problems = []
     if missing:
         problems.append(f"{len(missing)} in-scope candidate(s) of expand-screen.md neither in the pool nor in Open work: "
-                        f"{missing[:6]}; run `python3 tools/assign.py add-expand {c.topic}`")
+                        f"{missing[:6]}; run `uv run python -m deeper_research.assign add-expand {c.topic}`")
     if unrecorded:
         problems.append(f"{len(unrecorded)} rejected candidate(s) of expand-screen.md not in rejected.md: "
-                        f"{unrecorded[:6]}; run `python3 tools/assign.py add-expand {c.topic}`")
+                        f"{unrecorded[:6]}; run `uv run python -m deeper_research.assign add-expand {c.topic}`")
     if conflict:
         problems.append(f"judged `no` on expand-screen.md but in the pool: {conflict[:6]}; re-judge the row with "
-                        f"`python3 tools/expand.py judge {c.topic}`, or ask the user to take the paper out (H12)")
+                        f"`uv run python -m deeper_research.expand judge {c.topic}`, or ask the user to take the paper out (H12)")
     return "; ".join(problems) or None
 
 
@@ -341,7 +341,7 @@ def r_expansion_line(c):
     want = expansion_line(c.expand, verdicts(c.expand_screen), c.date).split(":** ", 1)[1]
     if " ".join(c.line("Expansion").split()) != " ".join(want.split()):
         return (f"`Expansion` disagrees with expand.json and the sheet; paste the line "
-                f"`python3 tools/assign.py add-expand {c.topic}` prints")
+                f"`uv run python -m deeper_research.assign add-expand {c.topic}` prints")
     return None
 
 
@@ -365,8 +365,8 @@ def pool_step(c):
     """What fetches papers added to the pool and prints the `Pool` line: `pool.py` before this pass's clustering, and
     `assign.py late` after it, which also places them in their nearest cluster."""
     if c.report and c.report.get("generated", "") >= c.date:
-        return f"`uv run tools/assign.py late {c.topic}`"
-    return f"`python3 tools/pool.py {c.topic}`"
+        return f"`uv run python -m deeper_research.assign late {c.topic}`"
+    return f"`uv run python -m deeper_research.pool {c.topic}`"
 
 
 def r_fetched(c):
@@ -382,7 +382,7 @@ def screened(c):
 
 def r_fringe_collected(c):
     if not c.fringe:
-        return f"graphs/{c.topic}/fringe.json does not exist: run `uv run tools/fringe.py collect {c.topic}`"
+        return f"graphs/{c.topic}/fringe.json does not exist: run `uv run python -m deeper_research.fringe collect {c.topic}`"
     if c.fringe.get("collected", "") < c.date:
         return f"the fringe routes were last collected on {c.fringe.get('collected')}, before this pass ({c.date})"
     return None
@@ -419,7 +419,7 @@ def r_fringe_added(c):
             continue
         missing.append(pid or s)
     return (f"{len(missing)} in-scope fringe candidate(s) neither in the pool nor in Open work: {missing[:6]}; run "
-            f"`python3 tools/assign.py add-fringe {c.topic}`") if missing else None
+            f"`uv run python -m deeper_research.assign add-fringe {c.topic}`") if missing else None
 
 
 def r_fringe_line(c):
@@ -441,7 +441,7 @@ def r_fringe_line(c):
 
 
 def fetched_range(c):
-    """The fetch dates of the pool's records, as tools/pool.py prints them: one date, or `<first> to <last>`."""
+    """The fetch dates of the pool's records, as deeper_research/pool.py prints them: one date, or `<first> to <last>`."""
     dates = sorted({(c.records.get(p) or {}).get("fetched") for p in c.pool | c.coreset_ids} - {None})
     return "unknown" if not dates else dates[0] if len(dates) == 1 else f"{dates[0]} to {dates[-1]}"
 
@@ -463,7 +463,7 @@ def r_clustered(c):
     if not c.report:
         return f"graphs/{c.topic}/clusters.json does not exist"
     if c.report.get("generated", "") < c.date:
-        return f"clusters.json is from {c.report.get('generated')}, before this pass: run `uv run tools/cluster.py {c.topic}`"
+        return f"clusters.json is from {c.report.get('generated')}, before this pass: run `uv run python -m deeper_research.cluster {c.topic}`"
     return None
 
 
@@ -486,7 +486,7 @@ def r_central_claim(c):
 def r_written(c):
     a = c.assigned()
     blank = sorted(p for p in c.pool if p in a and not c.pool_cluster.get(p))
-    return f"{len(blank)} pool paper(s) have no cluster written: run `python3 tools/assign.py clusters {c.topic}`" if blank else None
+    return f"{len(blank)} pool paper(s) have no cluster written: run `uv run python -m deeper_research.assign clusters {c.topic}`" if blank else None
 
 
 def r_cluster_lines(c):
@@ -508,7 +508,7 @@ def r_clustering_matches(c):
     n = re.search(r"level (\d+) clusters", text)
     if not n or int(n.group(1)) != len(c.report.get("clusters", [])):
         problems.append(f"level is not {len(c.report.get('clusters', []))} clusters")
-    # The rule, with any granularity steering or --level override that moved the level, as tools/cluster.py recorded it.
+    # The rule, with any granularity steering or --level override that moved the level, as deeper_research/cluster.py recorded it.
     rule = c.report.get("rule", "")
     r = re.search(r"clusters by rule (.+?), stability", text)
     if not r or r.group(1).strip() != rule:
@@ -903,7 +903,7 @@ def r_coverage(c):
 
 
 def r_coverage_sheets(c):
-    """Each round's sheet, written by tools/coverage.py, backs its `Coverage test` line: every candidate judged, N its
+    """Each round's sheet, written by deeper_research/coverage.py, backs its `Coverage test` line: every candidate judged, N its
     rows, the IDs the line counts in K its `changes` rows, a proposed cluster not reported as `none`, and the line as
     `coverage.py line` prints it, up to `new clusters:`."""
     from deeper_research.coverage import counted, render, sheet
@@ -913,7 +913,7 @@ def r_coverage_sheets(c):
         path = ROOT / "graphs" / c.topic / f"coverage-{r['r']}.md"
         rows = sheet(read(path))
         if not rows:
-            problems.append(f"round {r['r']} has no sheet {path.relative_to(ROOT)} (`uv run tools/coverage.py draw`)")
+            problems.append(f"round {r['r']} has no sheet {path.relative_to(ROOT)} (`uv run python -m deeper_research.coverage draw`)")
             continue
         left = [x["id"] for x in rows if not x.get("verdict")]
         changed, new = counted(rows)
@@ -934,20 +934,20 @@ def r_coverage_sheets(c):
             problems.append(f"round {r['r']}'s sheet: {why}")
         elif head(pasted) != head(printed):
             problems.append(f"round {r['r']}'s `Coverage test` line differs from its sheet; paste it again from "
-                            f"`python3 tools/coverage.py line {c.topic} {r['r']}`")
+                            f"`uv run python -m deeper_research.coverage line {c.topic} {r['r']}`")
     return "; ".join(problems) or None
 
 
 def r_judgement_audit(c):
-    """The `Judgement audit` line, as tools/audit.py computes it from the two judged sheets."""
+    """The `Judgement audit` line, as deeper_research/audit.py computes it from the two judged sheets."""
     from deeper_research.audit import summary
     if (m := need_lines(c, "Judgement audit")):
-        return m + " (`python3 tools/audit.py line`)"
+        return m + " (`uv run python -m deeper_research.audit line`)"
     value, missing = summary(c.topic)
     if missing:
         return f"the judgement audits are not done: {missing}"
     if " ".join(c.line("Judgement audit").split()) != value:
-        return f"`Judgement audit` does not match its sheets; `python3 tools/audit.py line {c.topic}` prints: {value}"
+        return f"`Judgement audit` does not match its sheets; `uv run python -m deeper_research.audit line {c.topic}` prints: {value}"
     return None
 
 
@@ -989,7 +989,7 @@ def r_counted_rows(c):
 def r_late_empty(c):
     a = c.assigned()
     out = sorted(p for p in c.pool if p not in a and (c.records.get(p) or {}).get("embedding"))
-    return f"late papers still awaiting assignment: {out[:8]}; run `uv run tools/assign.py late {c.topic}`" if out else None
+    return f"late papers still awaiting assignment: {out[:8]}; run `uv run python -m deeper_research.assign late {c.topic}`" if out else None
 
 
 def r_end_lines(c):
@@ -1123,7 +1123,7 @@ def r_closed(c):
 
 
 def run(c, target=None, status=False):
-    """Print the gate report; return (failures, notes) for tools/check.py, which says whether `--gate` passed."""
+    """Print the gate report; return (failures, notes) for deeper_research/check.py, which says whether `--gate` passed."""
     failures, notes = [], []
     if c.cur is None and not c.rows and not c.clusters and target is None and not status:
         return failures, notes  # a survey with no pass yet
@@ -1170,7 +1170,7 @@ def run(c, target=None, status=False):
         notes.append(f"{b}: run the Bridges row before Fringe selection")
     if getattr(c, "unchecked", None):
         missing = (f"full-text quotes not checked verbatim, since the full text is not fetched here: {c.unchecked[:8]}; "
-                   f"`uv run tools/fulltext.py {c.topic} <id>` fetches it")
+                   f"`uv run python -m deeper_research.fulltext {c.topic} <id>` fetches it")
         if target is not None and target >= 4 and "g4.evidence" not in c.waived:
             failures.append(f"G4 g4.evidence: {missing}")   # a gate is never passed on quotes nobody checked
         else:

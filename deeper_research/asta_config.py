@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Report whether Claude Code's Asta MCP server is configured with an API key, without printing the key.
 
-Usage: python3 tools/asta_config.py [--quiet]
+Usage: uv run python -m deeper_research.asta_config [--quiet]
 
 `claude mcp add ... --header "x-api-key: $ASTA_API_KEY"` expands the variable when the server is added, so the key
 lives in the stored MCP config, not in the environment of later sessions. This reads that config, in Claude Code's

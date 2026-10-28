@@ -10,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/tools/asta_config.py\" --quiet || true"
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && uv run --quiet python -m deeper_research.asta_config --quiet || true"
           }
         ]
       }

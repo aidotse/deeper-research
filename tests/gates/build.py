@@ -100,7 +100,7 @@ def build():
                           for p in sorted(a))
     fetched = sorted({pool["papers"][p].get("fetched") for p in a} - {None})
     when = ("unknown" if not fetched else fetched[0] if len(fetched) == 1
-            else f"{fetched[0]} to {fetched[-1]}")   # as tools/pool.py prints it
+            else f"{fetched[0]} to {fetched[-1]}")   # as deeper_research/pool.py prints it
     fr1, fr2 = rows["c1"][-4][0], rows["c2"][-4][0]   # two anchors as frontier candidates
     changed = rows["c3"][0][0]
     # expansion: one collection from the two frontier candidates and one theme; its sheet has three rows, two `yes`
@@ -237,9 +237,9 @@ A tension ({cite[2]}).
     cov += [dict(paper=f"[{titles[p].replace('|', '/')}]({link(p)})", **{"drawn as": "worst-covered", "distance": "0.200",
                  "nearest row": all_rows[0], "verdict": "no change", "reason": "its nearest row already makes the claim"})
             for p in others]
-    coverage.write_sheet(dst / "coverage-1.md", T, 1, f"Drawn {DATE} by `tools/coverage.py draw`, seed 1.\n\n"
+    coverage.write_sheet(dst / "coverage-1.md", T, 1, f"Drawn {DATE} by `deeper_research/coverage.py draw`, seed 1.\n\n"
                          f'Recency query: "reasoning models" ({DATE}): 0 result(s).', cov)
-    # The judgement audits, run through tools/audit.py as the order of operations runs them.
+    # The judgement audits, run through deeper_research/audit.py as the order of operations runs them.
     def call(fn, *args, stdin=""):
         with contextlib.redirect_stdout(io.StringIO()):
             old, sys.stdin = sys.stdin, io.StringIO(stdin)

@@ -1,14 +1,14 @@
 """Write pool papers and their clusters into the survey's Pool table, by script rather than by hand.
 
 Usage:
-  python3 tools/assign.py add <topic> <paper-id> [<paper-id> ...]
-  python3 tools/assign.py add-expand <topic>
-  python3 tools/assign.py add-fringe <topic>
-  python3 tools/assign.py clusters <topic>
-  uv run tools/assign.py late <topic>
-  python3 tools/assign.py remap <topic>
-  python3 tools/assign.py reject <topic> <paper-id> <reason ...>
-  python3 tools/assign.py reject <topic> < lines          (one `<paper-id><TAB><reason>` per line)
+  uv run python -m deeper_research.assign add <topic> <paper-id> [<paper-id> ...]
+  uv run python -m deeper_research.assign add-expand <topic>
+  uv run python -m deeper_research.assign add-fringe <topic>
+  uv run python -m deeper_research.assign clusters <topic>
+  uv run python -m deeper_research.assign late <topic>
+  uv run python -m deeper_research.assign remap <topic>
+  uv run python -m deeper_research.assign reject <topic> <paper-id> <reason ...>
+  uv run python -m deeper_research.assign reject <topic> < lines          (one `<paper-id><TAB><reason>` per line)
 
 add         Adds papers to the Pool table by canonical ID (docs/formats.md, "Paper IDs"): an arXiv ID, or CorpusId:<n>
             for a paper without one. Each row is a title linked by its ID, with the other cells empty. Titles come
@@ -16,7 +16,7 @@ add         Adds papers to the Pool table by canonical ID (docs/formats.md, "Pap
             needs, cannot enter the pool yet, and is listed for Open work. A
             CorpusId whose paper has an arXiv ID is refused, with the arXiv ID to use instead. A paper already in
             graphs/<topic>/rejected.md is added, with a warning that names the rejection. Afterwards the main session
-            runs tools/pool.py (before step 3) or `assign.py late` (after it), for `year`, `citations` and `cites`,
+            runs deeper_research/pool.py (before step 3) or `assign.py late` (after it), for `year`, `citations` and `cites`,
             and pastes the `Pool` line it prints.
 add-expand  Adds the candidates marked `yes` in graphs/<topic>/expand-screen.md (step 2, and each targeted expansion),
             each by its arXiv ID or, failing that, its CorpusId, and records each `no` in rejected.md with the
@@ -30,12 +30,12 @@ clusters    Writes each pool paper's computed cluster (graphs/<topic>/clusters.j
             under the name the Clusters table's `computed` column gives it. Run after naming (step 3), and after any
             recluster and remap. Membership is never written by hand.
 late        Processes the late papers as one batch (docs/process.md, "Late papers"): pool papers added after the last
-            full clustering. Fetches their data (tools/pool.py), assigns each to the cluster its k nearest clustered
+            full clustering. Fetches their data (deeper_research/pool.py), assigns each to the cluster its k nearest clustered
             papers favour under the `combined` measure, each voting with its similarity (by text, for a paper with no
             positive similarity under that measure), records the assignment in clusters.json, writes the Pool column,
             and prints the log's `Late papers` line. Each paper is assigned against the clustering as it
             stood, never against other late papers, so the result does not depend on order. If late papers would
-            exceed 10% of the pool, it assigns nothing and exits 3: rerun tools/cluster.py instead.
+            exceed 10% of the pool, it assigns nothing and exits 3: rerun deeper_research/cluster.py instead.
 remap       After a recluster, moves each named cluster's `computed` id to the new cluster it matched (clusters.json,
             `previous`), clears the ids of clusters that did not match, and lists new clusters still to be named.
             Until it has run, `clusters` refuses, so that old names cannot land on new clusters.
@@ -127,7 +127,7 @@ def name_map(topic):
 def load_report(topic):
     path = topic_dir(topic) / "clusters.json"
     if not path.exists():
-        sys.exit(f"no {path.relative_to(ROOT)}; run `uv run tools/cluster.py {topic}` first")
+        sys.exit(f"no {path.relative_to(ROOT)}; run `uv run python -m deeper_research.cluster {topic}` first")
     return path, json.loads(path.read_text())
 
 
@@ -151,8 +151,8 @@ def warn_rejected(topic, added):
 
 
 def next_step(topic):
-    return (f"next, for the main session: `python3 tools/pool.py {topic}` before clustering (step 3), or "
-            f"`uv run tools/assign.py late {topic}` after it; paste the `Pool` line it prints into the log")
+    return (f"next, for the main session: `uv run python -m deeper_research.pool {topic}` before clustering (step 3), or "
+            f"`uv run python -m deeper_research.assign late {topic}` after it; paste the `Pool` line it prints into the log")
 
 
 # --- add ------------------------------------------------------------------------------------------
@@ -220,7 +220,7 @@ def add_expand(topic):
     d = topic_dir(topic)
     for name in ("expand.json", "expand-screen.md"):
         if not (d / name).exists():
-            sys.exit(f"no graphs/{topic}/{name}; run `python3 tools/expand.py collect {topic}` first, then have the "
+            sys.exit(f"no graphs/{topic}/{name}; run `uv run python -m deeper_research.expand collect {topic}` first, then have the "
                      "candidates screened")
     data = json.loads((d / "expand.json").read_text())
     since = latest_entry(topic)[0]
@@ -234,7 +234,7 @@ def add_expand(topic):
     absent = [s for s in mine if s not in said]
     if absent:
         sys.exit(f"{len(absent)} candidate(s) in expand.json have no row in expand-screen.md: {absent[:3]}; rerun "
-                 f"`python3 tools/expand.py collect {topic}` with the same arguments, which restores missing rows")
+                 f"`uv run python -m deeper_research.expand collect {topic}` with the same arguments, which restores missing rows")
     blank = [s for s in mine if not judged(*said[s])]
     if blank:
         sys.exit(f"{len(blank)} row(s) of expand-screen.md have no `yes` or `no` judgement with a reason of at least two "
@@ -257,7 +257,7 @@ def add_expand(topic):
     print(f"recorded {len(recorded)} rejection(s) in graphs/{topic}/rejected.md")
     if conflict:
         print(f"judged `no` on the sheet but in the pool, so not recorded as rejected: {conflict}; one verdict is wrong: "
-              f"re-judge the row with `python3 tools/expand.py judge {topic}`, or ask the user to take the paper out of "
+              f"re-judge the row with `uv run python -m deeper_research.expand judge {topic}`, or ask the user to take the paper out of "
               "the pool (H12)")
     print("\nlog line, in place of any earlier `Expansion` line of this pass:")
     print(expansion_line(data, said, since))
@@ -268,7 +268,7 @@ def add_fringe(topic):
     d = topic_dir(topic)
     for name in ("fringe.json", "fringe-screen.md"):
         if not (d / name).exists():
-            sys.exit(f"no graphs/{topic}/{name}; run `uv run tools/fringe.py collect {topic}` first, then have the "
+            sys.exit(f"no graphs/{topic}/{name}; run `uv run python -m deeper_research.fringe collect {topic}` first, then have the "
                      "candidates screened")
     data = json.loads((d / "fringe.json").read_text())
     cands = data["candidates"]
@@ -285,7 +285,7 @@ def add_fringe(topic):
     unknown = [s for s in screened if s not in cands]
     if unknown:
         sys.exit(f"{len(unknown)} row(s) of fringe-screen.md are not in fringe.json: {unknown[:3]}; rerun "
-                 f"`uv run tools/fringe.py collect {topic}`, which keeps the judgements already on the sheet")
+                 f"`uv run python -m deeper_research.fringe collect {topic}`, which keeps the judgements already on the sheet")
     yes = [s for s, v in screened.items() if v.startswith("yes")]
     # The canonical ID: the arXiv ID where there is one, otherwise the corpus ID (docs/formats.md).
     missing = [s for s in yes if not cands[s].get("arxiv")]
@@ -296,7 +296,7 @@ def add_fringe(topic):
                 cands[s]["arxiv"] = arxiv_of(rec)
             elif rec and (rec.get("externalIds") or {}).get("CorpusId"):
                 cands[s]["corpus"] = f"CorpusId:{rec['externalIds']['CorpusId']}"
-        # Keep the resolved IDs, so that tools/check.py can find every in-scope candidate in the pool.
+        # Keep the resolved IDs, so that deeper_research/check.py can find every in-scope candidate in the pool.
         (d / "fringe.json").write_text(json.dumps(data, separators=(",", ":")))
     titled = {cands[s].get("arxiv") or cands[s].get("corpus"): cands[s]["title"] for s in yes
               if cands[s].get("arxiv") or cands[s].get("corpus")}
@@ -323,7 +323,7 @@ def write_clusters(topic):
     _, report = load_report(topic)
     if report.get("previous") and not report["previous"].get("remapped") and name_map(topic):
         print(f"FAIL  clusters.json is a new clustering whose names have not been carried over; run "
-              f"`python3 tools/assign.py remap {topic}` first, or the old names would land on the new clusters")
+              f"`uv run python -m deeper_research.assign remap {topic}` first, or the old names would land on the new clusters")
         return 1
     names = name_map(topic)
     assigned = dict(report["assignment"])
@@ -338,7 +338,7 @@ def write_clusters(topic):
     waiting = sorted(set(pool_ids(topic)) - set(assigned))
     print(f"Pool table: {changed} `cluster` cell(s) written")
     if waiting:
-        print(f"late papers awaiting assignment ({len(waiting)}): {waiting}; run `uv run tools/assign.py late {topic}`")
+        print(f"late papers awaiting assignment ({len(waiting)}): {waiting}; run `uv run python -m deeper_research.assign late {topic}`")
     return 0
 
 
@@ -364,8 +364,8 @@ def late(topic):
     if n_late / len(members) > LATE_SHARE:
         # One decimal: in whole percents, 10.3% would read "10% of the pool, above 10%".
         print(f"RECLUSTER: late papers since the last full clustering would be {n_late} of {len(members)} "
-              f"({n_late / len(members):.1%}), above {LATE_SHARE:.0%} of the pool: rerun `uv run tools/cluster.py "
-              f"{topic}` instead, then `python3 tools/assign.py remap {topic}`")
+              f"({n_late / len(members):.1%}), above {LATE_SHARE:.0%} of the pool: rerun `uv run python -m deeper_research.cluster "
+              f"{topic}` instead, then `uv run python -m deeper_research.assign remap {topic}`")
         return 3
 
     base = report["ids"]
@@ -426,14 +426,14 @@ def remap(topic):
     if unnamed:
         print("new clusters to name (add a Clusters row with their `computed` id): "
               + ", ".join(f"{b} ({prev['new'][b]['case']})" for b in unnamed))
-    print(f"then: `python3 tools/assign.py clusters {topic}`")
+    print(f"then: `uv run python -m deeper_research.assign clusters {topic}`")
     return 0
 
 
 REJECTED_HEADER = """# Rejected candidates: {topic}
 
-Candidates screened out of scope, one row per judgement: in orientation, by `tools/assign.py reject`; in expansion and
-targeted expansions, copied from `expand-screen.md` by `tools/assign.py add-expand`. The fringe routes' judgements are in
+Candidates screened out of scope, one row per judgement: in orientation, by `deeper_research/assign.py reject`; in expansion and
+targeted expansions, copied from `expand-screen.md` by `deeper_research/assign.py add-expand`. The fringe routes' judgements are in
 `fringe-screen.md`. See docs/gates.md.
 
 | paper | date | reason |

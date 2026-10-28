@@ -15,7 +15,7 @@ the rule that a persistent error halts the pass, exist to turn those silent fail
 | -- | -- | -- | -- |
 | Asta MCP | agents | resolving IDs, selection and dissent searches, characterisation, verification, probes | MCP server, API key |
 | Semantic Scholar Graph API | scripts only | expansion's traversals and searches, embeddings, full reference lists, citation counts, recommendations | HTTP, unauthenticated |
-| arXiv | `tools/bib.py`, `tools/fulltext.py` | bibliography entries; full text for verification | HTTP, unauthenticated |
+| arXiv | `deeper_research/bib.py`, `deeper_research/fulltext.py` | bibliography entries; full text for verification | HTTP, unauthenticated |
 | WebSearch and WebFetch | agents | orientation, the frontier, work that never reached arXiv, probes | built into Claude Code |
 
 Agents reach the Semantic Scholar corpus through Asta (see below for how sure that is), and scripts reach it through the
@@ -29,8 +29,8 @@ Asta is the Allen Institute for AI's MCP server for scientific literature, at `h
 tools appear to agents as `mcp__asta__<tool>`. It accepts Semantic Scholar paper IDs, so the IDs an agent sees and the
 IDs the scripts fetch agree. That Asta's paper tools run on the Semantic Scholar corpus itself is likely but not
 established. One check supports it: `get_paper` for `ARXIV:2408.03314` returned the Semantic Scholar `paperId`
-`8292083dd8f6ae898ea0ee54a6b97997d1a51c9d`, the same one the Graph API gave `tools/pool.py` (audit of 2026-10-09). One
-paper does not prove it for the whole corpus.
+`8292083dd8f6ae898ea0ee54a6b97997d1a51c9d`, the same one the Graph API gave `deeper_research/pool.py` (audit of
+2026-10-09). One paper does not prove it for the whole corpus.
 
 ### Configuration
 
@@ -44,10 +44,11 @@ claude mcp add --transport http asta https://asta-tools.allen.ai/mcp/v1 --header
 The shell expands `$ASTA_API_KEY` when the server is added, so the key is stored in that config, not read from the
 environment in later sessions. To change the key, remove the server (`claude mcp remove asta`) and add it again.
 
-`python3 tools/asta_config.py` reports whether the Asta server is configured with a key, without printing the key.
-`.claude/settings.json` runs it at session start, and warns if there is no server or no key; the warning says that
-without a key Asta answers at lower anonymous rate limits, which has not been tested. A pass does not run without a key
-(see "Preflight"). `.claude/settings.json` also pre-approves `mcp__asta__*`. `survey-pass` has Asta in its tool list.
+`uv run python -m deeper_research.asta_config` reports whether the Asta server is configured with a key, without
+printing the key. `.claude/settings.json` runs it at session start, and warns if there is no server or no key; the
+warning says that without a key Asta answers at lower anonymous rate limits, which has not been tested. A pass does not
+run without a key (see "Preflight"). `.claude/settings.json` also pre-approves `mcp__asta__*`. `survey-pass` has Asta in
+its tool list.
 
 ### Tools, and when to use each
 
@@ -68,11 +69,11 @@ Rules for calling them:
   `docs/formats.md` ("Paper IDs").
 - `Fields` — `fields` trims what a paper tool returns: a field not asked for is mostly left out, though some tools add
   `authors` and `openAccessPdf` unasked. `snippet_search` has no `fields` parameter: it returns passages. Ask for what
-  the decision needs and no more. To add or reject a paper with `tools/assign.py`, ask for `externalIds`, which holds
-  its arXiv ID and corpus ID: by default a tool identifies a paper only by Semantic Scholar's own `paperId`, which
-  `tools/assign.py` does not take. `abstract` is what screening reads; `references` and `citations` return whole lists
-  and are long; `tldr` is a cheap one-line summary. Every returned field enters the agent's context, so this is the main
-  lever on an agent's cost.
+  the decision needs and no more. To add or reject a paper with `deeper_research/assign.py`, ask for `externalIds`,
+  which holds its arXiv ID and corpus ID: by default a tool identifies a paper only by Semantic Scholar's own `paperId`,
+  which `deeper_research/assign.py` does not take. `abstract` is what screening reads; `references` and `citations`
+  return whole lists and are long; `tldr` is a cheap one-line summary. Every returned field enters the agent's context,
+  so this is the main lever on an agent's cost.
 - `Dates` — `publication_date_range` restricts by publication date, for example `2025-06:` for June 2025 onward.
   `snippet_search` has no publication filter. Its `inserted_before` restricts by the date a paper entered the index,
   which is not the same thing.
@@ -105,17 +106,18 @@ not answered in five minutes as errored.
 Only scripts call it, at `https://api.semanticscholar.org/graph/v1`. Agents do not call it directly, by WebFetch or
 otherwise: what it returns in bulk would flood a model's context, and the scripts exist so that it does not.
 
-- `tools/pool.py` and `tools/graph.py` use the batch endpoint, `/paper/batch`, for metadata, reference lists and
-  SPECTER2 embeddings.
-- `tools/assign.py` (`add`, `add-fringe`, and `late` through `tools/pool.py`), `tools/bib.py` and `tools/fulltext.py`
-  use it for papers without an arXiv ID, and `tools/preflight.py` for its check.
-- `tools/expand.py` uses the batch endpoint for the reference and citer lists of the papers expansion starts from, and
-  for its candidates' titles, abstracts and IDs; each paper's references and citations endpoints, to page a list the
-  batch cut short; and the bulk search endpoint, `/paper/search/bulk`, for its theme searches. The relevance search
-  endpoint, `/paper/search`, refused every unauthenticated call for hours on 2026-10-13, while the others answered, so
-  no script uses it.
-- `tools/fringe.py` uses the batch endpoint and the recommendations endpoint. Recommendations return only papers from
-  about the last two months; see `docs/process.md` ("Fringe routes").
+- `deeper_research/pool.py` and `deeper_research/graph.py` use the batch endpoint, `/paper/batch`, for metadata,
+  reference lists and SPECTER2 embeddings.
+- `deeper_research/assign.py` (`add`, `add-fringe`, and `late` through `deeper_research/pool.py`),
+  `deeper_research/bib.py` and `deeper_research/fulltext.py` use it for papers without an arXiv ID, and
+  `deeper_research/preflight.py` for its check.
+- `deeper_research/expand.py` uses the batch endpoint for the reference and citer lists of the papers expansion starts
+  from, and for its candidates' titles, abstracts and IDs; each paper's references and citations endpoints, to page a
+  list the batch cut short; and the bulk search endpoint, `/paper/search/bulk`, for its theme searches. The relevance
+  search endpoint, `/paper/search`, refused every unauthenticated call for hours on 2026-10-13, while the others
+  answered, so no script uses it.
+- `deeper_research/fringe.py` uses the batch endpoint and the recommendations endpoint. Recommendations return only
+  papers from about the last two months; see `docs/process.md` ("Fringe routes").
 
 Why the fringe routes use the Graph API and not Asta. Both reach the Semantic Scholar corpus, as far as is known (see
 "Asta"), so the choice is not about which finds better papers. It is about what each route needs:
@@ -138,27 +140,27 @@ sheet. And Asta's `get_citations` cannot page, so a paper's citers past the firs
 Calls are unauthenticated. The unauthenticated endpoint shares one rate limit across all its users, so it answers 429
 often, even to a single request. The scripts retry a 429, a 500, 502, 503 or 504, a dropped connection or a timeout with
 a growing wait, up to eight attempts, so a 429 means busy, not down. A script that fails after all its retries halts the
-pass (`H3`). `tools/pool.py` and `tools/graph.py` save after every batch, so a rerun fetches only what is still missing.
-`tools/expand.py collect` asks for many papers per call, waits a second between calls, and saves after every batch and
-every search, so a busy spell costs a rerun, which resumes where it stopped, rather than the run.
-`tools/fringe.py collect` keeps no cache: a failed run is rerun whole, which takes a few minutes.
+pass (`H3`). `deeper_research/pool.py` and `deeper_research/graph.py` save after every batch, so a rerun fetches only
+what is still missing. `deeper_research/expand.py collect` asks for many papers per call, waits a second between calls,
+and saves after every batch and every search, so a busy spell costs a rerun, which resumes where it stopped, rather than
+the run. `deeper_research/fringe.py collect` keeps no cache: a failed run is rerun whole, which takes a few minutes.
 
 ## arXiv
 
 Agents reach arXiv papers through Asta: Semantic Scholar indexes arXiv, and `snippet_search` returns passages from arXiv
 papers' body text. Two scripts go to arXiv directly, for what Asta lacks:
 
-- `tools/bib.py` fetches bibliography metadata from the API, `https://export.arxiv.org/api/query`. The API returns
-  metadata only: title, authors, abstract, dates.
-- `tools/fulltext.py` fetches a paper's full text from its HTML rendering, `https://arxiv.org/html/<id>`, falling back
-  to the PDF. It is the source every verified row quotes. See `docs/verification.md`.
+- `deeper_research/bib.py` fetches bibliography metadata from the API, `https://export.arxiv.org/api/query`. The API
+  returns metadata only: title, authors, abstract, dates.
+- `deeper_research/fulltext.py` fetches a paper's full text from its HTML rendering, `https://arxiv.org/html/<id>`,
+  falling back to the PDF. It is the source every verified row quotes. See `docs/verification.md`.
 
 Both space their requests three seconds apart, following arXiv's etiquette, and retry transient failures: a 429, a 500,
 502, 503 or 504, a dropped connection or a timeout (and for the API, a 406).
 
 Do not use WebFetch to read a paper for verification. WebFetch does not return a page verbatim: it passes the page
 through a model with a prompt and returns that model's answer. A paraphrase cannot support a claim that has to be
-checked against the paper's own words. `tools/fulltext.py` involves no model, so its text is the paper's.
+checked against the paper's own words. `deeper_research/fulltext.py` involves no model, so its text is the paper's.
 
 Full text closes the gap between a paper appearing on arXiv and its body text being indexed for snippets. It does not
 (yet) close the other lag: a paper not yet in Semantic Scholar at all is invisible to Asta's search and traversal, and
@@ -202,13 +204,13 @@ reachable.
 | `get_paper` answers | one known `ARXIV:` ID |
 | `get_citations` answers | the same ID, with `limit` 1 |
 | WebSearch answers | one query |
-| Graph API reachable | `python3 tools/preflight.py`; 200 or 429 both pass |
-| arXiv reachable | `python3 tools/preflight.py`: the API and the HTML pages |
-| `uv` installed | `python3 tools/preflight.py`; needed from step 2: by `tools/cluster.py` and `tools/fringe.py`, then `tools/fulltext.py` and `tools/assign.py late` |
-| Asta key set | `python3 tools/preflight.py`, which runs `tools/asta_config.py` |
+| Graph API reachable | `uv run python -m deeper_research.preflight`; 200 or 429 both pass |
+| arXiv reachable | `uv run python -m deeper_research.preflight`: the API and the HTML pages |
+| `uv` installed | `uv run python -m deeper_research.preflight`; every script runs through `uv run` (`docs/tooling.md`) |
+| Asta key set | `uv run python -m deeper_research.preflight`, which runs `deeper_research/asta_config.py` |
 
-The main session runs `tools/preflight.py` before dispatching the preflight agent, and passes its printout on: it is the
-second half of the log's `Preflight` line. The agent makes the five tool calls, and writes the whole line.
+The main session runs `deeper_research/preflight.py` before dispatching the preflight agent, and passes its printout on:
+it is the second half of the log's `Preflight` line. The agent makes the five tool calls, and writes the whole line.
 
 Why every failure halts:
 
@@ -221,9 +223,9 @@ Why every failure halts:
   loses its dissent searches. A pass that carried on would fall back to WebSearch alone, which produces a pool top-heavy
   with preprints and missing the methods they all cite; it has happened in this repo.
 - `WebSearch` — without it orientation cannot see the current frontier.
-- `The rest` — the Graph API runs expansion itself, from step 2, and every fetch after it; `uv` is needed later in the
-  pass; and a missing key changes Asta's limits. No failure may lead to a silent fallback that compromises the quality
-  or repeatability of a pass, and halting here is cheaper than discovering the failure at step 5.
+- `The rest` — the Graph API runs expansion itself, from step 2, and every fetch after it; `uv` runs every script; and a
+  missing key changes Asta's limits. No failure may lead to a silent fallback that compromises the quality or
+  repeatability of a pass, and halting here is cheaper than discovering the failure at step 5.
 
 The user decides whether to proceed. If they do, the log's `Halts` line records it, and the output's legend says what
 was missing.

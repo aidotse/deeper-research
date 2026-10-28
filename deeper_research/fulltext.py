@@ -1,9 +1,9 @@
 """Fetch the full text of papers into a topic's cache, for verification, and read it by section.
 
 Usage:
-  uv run tools/fulltext.py <topic> <paper-id> [<paper-id> ...] [--refresh]
-  uv run tools/fulltext.py <topic> --abstract [--refresh]
-  uv run tools/fulltext.py show <topic> <paper-id> [<pattern>] [--section <name>]... [--max <tokens>]
+  uv run python -m deeper_research.fulltext <topic> <paper-id> [<paper-id> ...] [--refresh]
+  uv run python -m deeper_research.fulltext <topic> --abstract [--refresh]
+  uv run python -m deeper_research.fulltext show <topic> <paper-id> [<pattern>] [--section <name>]... [--max <tokens>]
 
 Writes graphs/<topic>/fulltext/<id>.txt: the paper's text, verbatim, with a
 two-line provenance header. `--abstract` fetches every coreset row whose
@@ -355,7 +355,7 @@ def show(topic, pid, pattern, names, cap):
     path = file_of(topic, pid)
     if not path.exists():
         print(f"error: no full text for {pid} in graphs/{topic}/fulltext; fetch it first with "
-              f"`uv run tools/fulltext.py {topic} {pid}`")
+              f"`uv run python -m deeper_research.fulltext {topic} {pid}`")
         return 1
     try:
         rx = re.compile(pattern, re.I) if pattern else None
@@ -398,7 +398,7 @@ def show(topic, pid, pattern, names, cap):
             score = [answers(h[2], name) for h in heads]
             best = max(score, default=0)
             if not best:
-                print(f"error: no heading starts with {name!r}; run `uv run tools/fulltext.py show {topic} {pid}` "
+                print(f"error: no heading starts with {name!r}; run `uv run python -m deeper_research.fulltext show {topic} {pid}` "
                       f"for the outline")
                 return 1
             spans += [(heads[k][0], ends[k]) for k, s in enumerate(score) if s == best]
@@ -454,7 +454,7 @@ def show_main(argv):
         else:
             pos.append(a)
     if len(pos) not in (2, 3) or not all(n.strip() for n in names) or not cap.isdigit() or int(cap) < 1:
-        print("usage: uv run tools/fulltext.py show <topic> <paper-id> [<pattern>] [--section <name>]... "
+        print("usage: uv run python -m deeper_research.fulltext show <topic> <paper-id> [<pattern>] [--section <name>]... "
               "[--max <tokens>]")
         return 2
     if not ID.match(pos[1]):

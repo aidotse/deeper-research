@@ -115,18 +115,19 @@ papers with one change is consistent, at 95% confidence, with up to 39% of that 
 (`docs/process.md`, step 7). The rest of the pool is closer to a row, so its share is probably lower; that is reasoned,
 not measured.
 
-The covering itself is measured, as the k-center view above suggests: `tools/coverage.py` computes the coreset's radius
-over the pool, the distance from the worst-covered pool paper to its nearest row (`docs/tooling.md`, "Coverage"). It is
-a number to report beside the coverage verdict, not a stopping rule. Distances are taken under the clustering's measure,
-so they say how near a row is in the pool's own terms, not whether the row says what the paper says.
+The covering itself is measured, as the k-center view above suggests: `deeper_research/coverage.py` computes the
+coreset's radius over the pool, the distance from the worst-covered pool paper to its nearest row (`docs/tooling.md`,
+"Coverage"). It is a number to report beside the coverage verdict, not a stopping rule. Distances are taken under the
+clustering's measure, so they say how near a row is in the pool's own terms, not whether the row says what the paper
+says.
 
 `Minimality is not tested directly.` No step removes a row and checks whether the output changes. A proxy exists:
-`tools/coverage.py radius --loo` prints how much the radius grows when each row alone is removed, so a row whose removal
-changes nothing covers no pool paper on its own. That is a fact about the pool's geometry, not about the output, and a
-`dissent` or `fringe` row is there for what it says, not for where it sits. Otherwise, minimality is approximated by the
-role structure, which gives each row a distinct job, and by the sizing rules: about two to four rows per cluster, and
-past about 80 rows, a check that no role is filled twice. Size alone is not an error: a topic with many `high` clusters
-can legitimately need more. A direct removal test is an open item.
+`deeper_research/coverage.py radius --loo` prints how much the radius grows when each row alone is removed, so a row
+whose removal changes nothing covers no pool paper on its own. That is a fact about the pool's geometry, not about the
+output, and a `dissent` or `fringe` row is there for what it says, not for where it sits. Otherwise, minimality is
+approximated by the role structure, which gives each row a distinct job, and by the sizing rules: about two to four rows
+per cluster, and past about 80 rows, a check that no role is filled twice. Size alone is not an error: a topic with many
+`high` clusters can legitimately need more. A direct removal test is an open item.
 
 Two different stabilities are in play, and they are easy to confuse:
 

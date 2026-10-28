@@ -3,12 +3,12 @@
 (docs/process.md, "Auditing the judgements").
 
 Usage:
-  python3 tools/audit.py reverify <topic> [--seed 1]
-  python3 tools/audit.py fill <topic> < lines           (one `<id><TAB><column><TAB><text>` per line)
-  python3 tools/audit.py compare <topic>
-  python3 tools/audit.py trace <topic> [--n 15] [--seed 1]
-  python3 tools/audit.py judge <topic> reverify|faithfulness < lines
-  python3 tools/audit.py line <topic>
+  uv run python -m deeper_research.audit reverify <topic> [--seed 1]
+  uv run python -m deeper_research.audit fill <topic> < lines           (one `<id><TAB><column><TAB><text>` per line)
+  uv run python -m deeper_research.audit compare <topic>
+  uv run python -m deeper_research.audit trace <topic> [--n 15] [--seed 1]
+  uv run python -m deeper_research.audit judge <topic> reverify|faithfulness < lines
+  uv run python -m deeper_research.audit line <topic>
 
 Re-verification measures verification. `reverify` draws a random 10% of the coreset rows verified from the full text
 (source `full-text`), at least five, or all of them if there are fewer, and writes graphs/<topic>/reverify.md: one row
@@ -29,7 +29,7 @@ evidence quotes, once per paper.
   faithfulness  `S<n><TAB>supported|partly|unsupported<TAB><reason>`
 
 `line` prints the log's `Judgement audit` line from the two judged sheets, ready to paste. It refuses while either is
-missing or has a row without a verdict. tools/gates.py (`g5.judgement-audit`) recomputes the line the same way.
+missing or has a row without a verdict. deeper_research/gates.py (`g5.judgement-audit`) recomputes the line the same way.
 
 Standard library only; nothing is fetched. Usage errors exit with status 2.
 """
@@ -131,9 +131,9 @@ def reverify(topic, seed):
         sys.exit(f"surveys/{topic}.md has no row verified from the full text yet")
     n = min(len(verified), max(LEAST, math.ceil(SHARE * len(rows))))
     picked = sorted(random.Random(seed).sample(verified, n))
-    header = (f"Drawn {date.today().isoformat()} by `tools/audit.py reverify`, seed {seed}: {n} of the {len(verified)} "
+    header = (f"Drawn {date.today().isoformat()} by `deeper_research/audit.py reverify`, seed {seed}: {n} of the {len(verified)} "
               f"coreset rows verified from the full text, at random. Fill every cell from the paper's full text alone, "
-              f"with `python3 tools/audit.py fill {topic}`, without reading the survey's rows or their evidence; write "
+              f"with `uv run python -m deeper_research.audit fill {topic}`, without reading the survey's rows or their evidence; write "
               f"`n/a` where the column's definition allows it.")
     write(path, f"Blind re-verification: {topic}", header, ["paper"] + cols,
           [{"paper": f"[{p}]({link(p)})"} for p in picked])
@@ -145,7 +145,7 @@ def reverify(topic, seed):
 def fill(topic):
     path = paths(topic)[0]
     if not path.exists():
-        sys.exit(f"no {path.relative_to(ROOT)}; run `python3 tools/audit.py reverify {topic}` first")
+        sys.exit(f"no {path.relative_to(ROOT)}; run `uv run python -m deeper_research.audit reverify {topic}` first")
     text = path.read_text()
     rows = table(text, "paper")
     cols = [c for c in cells_of(next(l for l in text.splitlines() if l.startswith("| paper")))][1:]
@@ -180,7 +180,7 @@ def fill(topic):
 def compare(topic):
     src, path, _ = paths(topic)
     if not src.exists():
-        sys.exit(f"no {src.relative_to(ROOT)}; run `python3 tools/audit.py reverify {topic}` first")
+        sys.exit(f"no {src.relative_to(ROOT)}; run `uv run python -m deeper_research.audit reverify {topic}` first")
     text = src.read_text()
     cols = cells_of(next(l for l in text.splitlines() if l.startswith("| paper")))[1:]
     rows = table(text, "paper")
@@ -194,7 +194,7 @@ def compare(topic):
             "re-verified": r[c]} for r in rows for c in cols]
     header = (f"From {src.name} (seed {seed_of(text)}): {len(rows)} rows, {len(out)} cells. For each cell, judge whether "
               f"the two say the same thing (docs/process.md, \"Auditing the judgements\"), with "
-              f"`python3 tools/audit.py judge {topic} reverify`.")
+              f"`uv run python -m deeper_research.audit judge {topic} reverify`.")
     write(path, f"Re-verification compared: {topic}", header,
           ["paper", "cell", "in the survey", "re-verified", "agrees", "reason"], out)
     print(f"wrote {path.relative_to(ROOT)}: {len(out)} cells of {len(rows)} rows to judge")
@@ -268,10 +268,10 @@ def trace(topic, n, seed):
         tail += [f"### {p}", "", f"- role: {r.get('role', '')}; source: {r.get('source', '')}"]
         tail += [f"- {c}: {r.get(c, '')}" for c in cols]
         tail += ["", "Evidence:", "", evidence(topic, p), ""]
-    header = (f"Drawn {date.today().isoformat()} by `tools/audit.py trace`, seed {seed}: {k} of the {len(cand)} "
+    header = (f"Drawn {date.today().isoformat()} by `deeper_research/audit.py trace`, seed {seed}: {k} of the {len(cand)} "
               f"sentences of outputs/{topic}.md that cite a coreset paper, at random. Judge each against the rows and "
               f"evidence below alone (docs/process.md, \"Auditing the judgements\"), with "
-              f"`python3 tools/audit.py judge {topic} faithfulness`.")
+              f"`uv run python -m deeper_research.audit judge {topic} faithfulness`.")
     write(path, f"Faithfulness sample: {topic}", header, ["sentence", "section", "line", "cites", "verdict", "reason"],
           table_rows_, "\n".join(tail))
     print(f"wrote {path.relative_to(ROOT)}: {k} of {len(cand)} citing sentences, seed {seed}; {len(papers)} rows")
@@ -286,7 +286,7 @@ def judge(topic, which):
     path = cmp_path if which == "reverify" else faith_path
     if not path.exists():
         then = "compare" if which == "reverify" else "trace"
-        sys.exit(f"no {path.relative_to(ROOT)}; run `python3 tools/audit.py {then} {topic}` first")
+        sys.exit(f"no {path.relative_to(ROOT)}; run `uv run python -m deeper_research.audit {then} {topic}` first")
     text = path.read_text()
     head, _, tail = text.partition("\n## Rows and evidence")
     if which == "reverify":
@@ -339,7 +339,7 @@ def summary(topic):
     src, cmp_path, faith_path = paths(topic)
     for p, then in ((src, "reverify"), (cmp_path, "compare"), (faith_path, "trace")):
         if not p.exists():
-            return None, f"no {p.relative_to(ROOT)} (`python3 tools/audit.py {then} {topic}`)"
+            return None, f"no {p.relative_to(ROOT)} (`uv run python -m deeper_research.audit {then} {topic}`)"
     cmp_rows = table(cmp_path.read_text(), "paper")
     faith_text = faith_path.read_text().partition("\n## Rows and evidence")[0]
     faith_rows = table(faith_text, "sentence")
