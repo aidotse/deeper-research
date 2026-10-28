@@ -2,7 +2,8 @@
 
 No command line of its own. Two scripts write a sheet and judge it through this module:
 
-  deeper_research/expand.py   graphs/<topic>/expand-screen.md   expansion's candidates (docs/process.md, "Step 2: expand")
+  deeper_research/expand.py   graphs/<topic>/expand-screen.md   expansion's candidates (docs/process.md,
+                                                                "Step 2: expand")
   deeper_research/fringe.py   graphs/<topic>/fringe-screen.md   the fringe routes' candidates ("Fringe routes")
 
 A sheet is a markdown table with, among its columns, `s2` (the Semantic Scholar paper ID), `title`, `abstract`,
@@ -16,6 +17,8 @@ counts as unjudged, for the add step and for the G1 gate alike, until it becomes
 import fcntl
 import re
 import sys
+from collections.abc import Iterable
+from pathlib import Path
 
 from deeper_research.check import ROOT, cells_of, same_title, sections, table_rows, words
 
@@ -24,22 +27,29 @@ S2_ID = re.compile(r"[0-9a-f]{40}")
 ABSTRACT_CHARS = 700  # the most of an abstract a sheet shows; the opening states what the paper is about
 
 
-def title_key(title):
+def title_key(title: str) -> str:
     """A title reduced to its lower-case words, for matching two records of one paper."""
     return " ".join(words(title))
 
 
 class Papers:
-    """Records of papers, to tell whether another record is one of them: it shares an arXiv or corpus ID with one, or
+    """An index of papers, by their IDs and titles.
+
+    Records of papers, to tell whether another record is one of them: it shares an arXiv or corpus ID with one, or
     its title is the same by `check.same_title`. Semantic Scholar can keep a preprint and its venue version as two
     records, under titles a word apart.
     """
 
-    def __init__(self, ids=(), titles=()):
+    ids: dict[str, str | None]
+    flat: dict[str, str | None]
+    by_first: dict[str, list[tuple[list[str], str | None]]]
+
+    def __init__(self, ids: Iterable[str | None] = (), titles: Iterable[str | None] = ()) -> None:
+        """Index papers by `ids` and `titles`, all under the label None."""
         self.ids, self.flat, self.by_first = {}, {}, {}
         self.add(None, ids, *titles)
 
-    def add(self, label, ids, *titles):
+    def add(self, label: str | None, ids: Iterable[str | None], *titles: str | None) -> None:
         """Index a paper under `label` (returned by `find`), by its IDs and any number of titles."""
         for x in ids:
             if x:
@@ -50,7 +60,7 @@ class Papers:
                 self.flat.setdefault("".join(w), label)
                 self.by_first.setdefault(w[0], []).append((w, label))
 
-    def find(self, ids, title):
+    def find(self, ids: Iterable[str | None], title: str | None) -> tuple[bool, str | None]:
         """(True, label) for the first indexed paper this record matches, else (False, None)."""
         for x in ids:
             if x and x in self.ids:
@@ -66,20 +76,25 @@ class Papers:
         return False, None
 
 
-def pool_titles(topic):
-    """The pool's titles, as title keys, from the survey's Pool table. A collector leaves out a candidate whose title
+def pool_titles(topic: str) -> set[str]:
+    """The pool's titles, as title keys, from the survey's Pool table.
+
+    A collector leaves out a candidate whose title
     matches one: it is most likely a second Semantic Scholar record of a pool paper, such as its venue version.
     """
     text = (ROOT / "surveys" / f"{topic}.md").read_text()
     return {title_key(c[0]) for h, c, _, _ in table_rows(sections(text).get("Pool", "")) if h and h[0] == "paper"}
 
 
-def clean(s):
+def clean(s: str | None) -> str:
+    """Text as one line for a sheet's cell: whitespace runs as one space, `|` as `/`, None as empty."""
     return re.sub(r"\s+", " ", s or "").replace("|", "/").strip()
 
 
-def sheet_rows(text):
+def sheet_rows(text: str) -> list[tuple[int, list[str], list[str]]]:
     """(line index, header, cells) for each candidate row of a screening sheet, its columns located by name."""
+    header: list[str] | None
+    out: list[tuple[int, list[str], list[str]]]
     header, out = None, []
     for i, line in enumerate(text.splitlines()):
         if not line.startswith("|"):
@@ -93,7 +108,7 @@ def sheet_rows(text):
     return out
 
 
-def verdicts(text):
+def verdicts(text: str | None) -> dict[str, tuple[str, str]]:
     """{s2: (verdict, reason)} for every candidate row of a sheet, the verdict lower-cased."""
     return {
         cells[h.index("s2")]: (cells[h.index("in scope")].strip().lower(), cells[h.index("reason")].strip())
@@ -101,17 +116,21 @@ def verdicts(text):
     }
 
 
-def judged(verdict, reason):
-    """Whether a screening row is judged: `yes` or `no` (not `maybe`), with a reason of at least two words. The add
+def judged(verdict: str, reason: str) -> bool:
+    """Whether a screening row is judged: `yes` or `no` (not `maybe`), with a reason of at least two words.
+
+    The add
     steps (deeper_research/assign.py) and the G1 gate use the same test.
     """
-    return (verdict.startswith("yes") or verdict.startswith("no")) and len(words(reason)) >= 2
+    return verdict.startswith(("yes", "no")) and len(words(reason)) >= 2
 
 
-def judge(path, hint):
+def judge(path: Path, hint: str) -> int:  # noqa: C901
     """Write the verdicts on stdin into the sheet at `path`. `hint` names the command that writes the sheet."""
     if not path.exists():
         sys.exit(f"no {path.relative_to(ROOT)}; run {hint} first")
+    given: dict[str, tuple[str, str]]
+    problems: list[str]
     given, problems = {}, []
     lines_in = list(sys.stdin)
     with open(path, "r+") as f:

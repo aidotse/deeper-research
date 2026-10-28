@@ -40,17 +40,20 @@ import json
 import re
 import sys
 import time
+from collections.abc import Callable, Hashable, Iterable, Mapping
 from pathlib import Path
+from typing import Any
 
-from deeper_research.check import ARXIV_ONLY, BARE_ID, LINK, ROOT, link, s2_ref, sections, table_rows  # noqa: E402
-from deeper_research.net import get_json  # noqa: E402
+from deeper_research.check import ARXIV_ONLY, BARE_ID, LINK, ROOT, link, s2_ref, sections, table_rows
+from deeper_research.inputs import read_input
+from deeper_research.net import get_json
 
 TOOLS = Path(__file__).resolve().parent
 S2_BATCH = "https://api.semanticscholar.org/graph/v1/paper/batch?fields=title,year,citationCount,references.externalIds"
 VENDOR = ["cytoscape.min.js", "layout-base.js", "cose-base.js", "cytoscape-fcose.js"]
 
 
-def topic_dir(topic):
+def topic_dir(topic: str) -> Path:
     """Everything derived from a topic's survey: the viewer page and the data behind it."""
     return ROOT / "graphs" / topic
 
@@ -58,15 +61,17 @@ def topic_dir(topic):
 # --- survey parsing -------------------------------------------------------------------------------
 
 
-def plain(text):
+def plain(text: str) -> str:
     """Strip the markdown a table cell may carry, for display as plain text."""
     text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
     text = text.replace("**", "").replace("`", "").replace("\\|", "|").replace("\\*", "*")
     return text.replace("\0", "|").strip()
 
 
-def submitted(aid, record, year):
-    """When a paper appeared, as a fractional year: from its arXiv ID where it has one, which encodes the submission
+def submitted(aid: str, record: dict[str, Any] | None, year: int | None) -> float | None:
+    """A paper's appearance date as a fractional year, or None if nothing dates it.
+
+    When a paper appeared, as a fractional year: from its arXiv ID where it has one, which encodes the submission
     month; otherwise from Semantic Scholar's publication date, or the middle of its year.
     """
     if ARXIV_ONLY.match(aid):
@@ -78,16 +83,22 @@ def submitted(aid, record, year):
     return year + 0.5 if year else None
 
 
-def arxiv_month(aid):
+def arxiv_month(aid: str) -> float:
     """An arXiv ID encodes its submission month: 2504.13837 is April 2025, hep-th/9901001 January 1999."""
     yymm = aid.rpartition("/")[2][:4]
     yy = int(yymm[:2])
     return (1900 if "/" in aid and yy >= 91 else 2000) + yy + (int(yymm[2:]) - 1) / 12
 
 
-def parse(topic):
-    from deeper_research.inputs import read_input
+def parse(  # noqa: C901
+    topic: str,
+) -> tuple[str, bool, dict[str, dict[str, str]], list[str], dict[str, dict[str, Any]], dict[str, set[str]]]:
+    """Read a topic's survey for the viewer: (title, coreset layout?, clusters, cluster order, papers, citations).
 
+    `clusters` maps a cluster ID to its row; `papers` maps a paper ID to its record, for the coreset's papers and, in
+    the coreset layout, the pool's; `cites` maps a pool paper to the IDs its `cites` cell names (empty for a legacy
+    survey). Exits if the survey or its `## Coreset` section is missing.
+    """
     dimensions = list(read_input(topic)[0] or {})  # declared in the input; see docs/formats.md
     path = ROOT / "surveys" / f"{topic}.md"
     secs = sections(path.read_text()) if path.exists() else {}
@@ -97,14 +108,16 @@ def parse(topic):
             + ("has no `## Coreset` section" if path.exists() else "does not exist")
         )
     text = path.read_text()
-    title = next((l[2:].strip() for l in text.splitlines() if l.startswith("# ")), topic)
+    title = next((ln[2:].strip() for ln in text.splitlines() if ln.startswith("# ")), topic)
     coreset_layout = "Clusters" in secs and "Pool" in secs
 
+    clusters: dict[str, dict[str, str]]
+    order: list[str]
     clusters, order = {}, []
     if coreset_layout:
         for h, c, _, _ in table_rows(secs["Clusters"]):
             if h and h[0] == "id":
-                row = dict(zip(h, c))
+                row = dict(zip(h, c, strict=False))
                 clusters[row["id"]] = {
                     "id": row["id"],
                     "name": plain(row.get("name", row["id"])),
@@ -114,7 +127,7 @@ def parse(topic):
                 }
                 order.append(row["id"])
 
-    papers = {}
+    papers: dict[str, dict[str, Any]] = {}
     for h, c, block, line in table_rows(secs["Coreset"]):
         if not h or h[0] != "paper":
             continue
@@ -122,16 +135,16 @@ def parse(topic):
         if not m:
             continue
         aid = m.group(1)
-        block = block or "(no block)"
+        blk = block or "(no block)"
         if coreset_layout:
-            cid = block.split(" — ")[0].strip()
+            cid = blk.split(" — ")[0].strip()
         else:
             # Legacy blocks are headed "A. Name"; the letter is the id.
-            cid, _, name = block.partition(". ")
+            cid, _, name = blk.partition(". ")
             if cid not in clusters:
                 clusters[cid] = {"id": cid, "name": name.strip() or cid, "definition": "", "alignment": ""}
                 order.append(cid)
-        row = dict(zip(h, c))
+        row = dict(zip(h, c, strict=False))
         papers[aid] = {
             "id": aid,
             "title": plain(row["paper"]),
@@ -144,7 +157,7 @@ def parse(topic):
             "source": c[-1],
         }
 
-    cites = {}
+    cites: dict[str, set[str]] = {}
     if coreset_layout:
         for h, c, _, line in table_rows(secs["Pool"]):
             if not h or h[0] != "paper":
@@ -152,7 +165,7 @@ def parse(topic):
             m = LINK.search(line)
             if not m:
                 continue
-            aid, row = m.group(1), dict(zip(h, c))
+            aid, row = m.group(1), dict(zip(h, c, strict=False))
             p = papers.setdefault(
                 aid,
                 {
@@ -176,14 +189,14 @@ def parse(topic):
 # --- citation data for legacy surveys -------------------------------------------------------------
 
 
-def fetch_s2(ids, save):
+def fetch_s2(ids: list[str], save: Callable[[dict[str, dict[str, Any]]], None]) -> None:
     """Fetch title, year, citation count and references for arXiv IDs, in batches of 500, saving after each."""
     for i in range(0, len(ids), 500):
         batch = ids[i : i + 500]
         # The unauthenticated endpoint shares one rate limit across all users and answers 429 freely; net retries.
         data = get_json(S2_BATCH, {"ids": [s2_ref(a) for a in batch]})
-        out = {}
-        for aid, rec in zip(batch, data):
+        out: dict[str, dict[str, Any]] = {}
+        for aid, rec in zip(batch, data, strict=False):
             if rec is None:
                 continue
             refs = [(x.get("externalIds") or {}).get("ArXiv") for x in rec.get("references") or []]
@@ -195,15 +208,22 @@ def fetch_s2(ids, save):
         save(out)
 
 
-def legacy_cites(topic, papers, refresh):
+def legacy_cites(
+    topic: str, papers: dict[str, dict[str, Any]], refresh: bool
+) -> tuple[dict[str, set[str]], str | None, list[str]]:
+    """Citation edges for a legacy survey, from Semantic Scholar through the references.json cache.
+
+    Fetches the papers the cache lacks (all of them with `refresh`), and sets each paper's `citations` and `year`.
+    Returns ({paper: the arXiv IDs it references}, the cache's fetch date, the papers Semantic Scholar did not return).
+    """
     cache_path = topic_dir(topic) / "references.json"
-    cache = {} if refresh or not cache_path.exists() else json.loads(cache_path.read_text())
+    cache: dict[str, Any] = {} if refresh or not cache_path.exists() else json.loads(cache_path.read_text())
     records = cache.get("papers", {})
     missing = [a for a in papers if a not in records]
     if missing:
         print(f"fetching {len(missing)} paper(s) from Semantic Scholar...")
 
-        def save(batch):
+        def save(batch: dict[str, dict[str, Any]]) -> None:
             nonlocal cache
             records.update(batch)
             cache = {"fetched": time.strftime("%Y-%m-%d"), "papers": records}
@@ -222,8 +242,9 @@ def legacy_cites(topic, papers, refresh):
 # --- graph metrics --------------------------------------------------------------------------------
 
 
-def undirected(nodes, edges):
-    adj = {n: {} for n in nodes}
+def undirected(nodes: Iterable[str], edges: Iterable[tuple[str, str]]) -> dict[str, dict[str, int]]:
+    """The undirected, weighted adjacency of a citation graph: {node: {neighbour: links}}, self-citations left out."""
+    adj: dict[str, dict[str, int]] = {n: {} for n in nodes}
     for a, b in edges:
         if a != b:
             adj[a][b] = adj[a].get(b, 0) + 1
@@ -231,10 +252,13 @@ def undirected(nodes, edges):
     return adj
 
 
-def modularity(adj, part):
+def modularity(adj: dict[str, dict[str, int]], part: Mapping[str, Hashable]) -> float:
+    """The modularity of the partition `part` ({node: community}) of the graph `adj`; 0.0 for a graph without edges."""
     m2 = sum(sum(nb.values()) for nb in adj.values())
     if not m2:
         return 0.0
+    inner: dict[Hashable, int]
+    tot: dict[Hashable, int]
     inner, tot = {}, {}
     for n, nb in adj.items():
         c = part[n]
@@ -243,7 +267,7 @@ def modularity(adj, part):
     return sum(inner[c] / m2 - (tot[c] / m2) ** 2 for c in tot)
 
 
-def louvain(adj):
+def louvain(adj: dict[str, dict[str, int]]) -> dict[str, int]:  # noqa: C901
     """Louvain community detection, deterministic (nodes visited in sorted order).
 
     Returns a map from node to community index, with communities numbered by
@@ -267,7 +291,7 @@ def louvain(adj):
             for n in sorted(graph):
                 c_old = comm[n]
                 tot[c_old] -= deg[n]
-                links = {}
+                links: dict[str, int] = {}
                 for x, w in graph[n].items():
                     if x != n:
                         links[comm[x]] = links.get(comm[x], 0) + w
@@ -283,14 +307,14 @@ def louvain(adj):
         if not improved:
             break
         membership = {o: comm[s] for o, s in membership.items()}
-        agg = {}
+        agg: dict[str, dict[str, int]] = {}
         for n, nb in graph.items():
             cn = comm[n]
             row = agg.setdefault(cn, {})
             for x, w in nb.items():
                 row[comm[x]] = row.get(comm[x], 0) + w
         graph = agg
-    groups = {}
+    groups: dict[str, list[str]] = {}
     for n, c in membership.items():
         groups.setdefault(c, []).append(n)
     ranked = sorted(groups.values(), key=lambda g: (-len(g), min(g)))
@@ -300,12 +324,14 @@ def louvain(adj):
 # --- output ---------------------------------------------------------------------------------------
 
 
-def clustering_rationale(topic):
+def clustering_rationale(topic: str) -> dict[str, str | None] | None:
     """The latest pass's `Clustering rationale` from the survey's retrieval log, with that pass's date, or None.
 
     Log entries are never rewritten, so the latest pass's rationale is the one that explains the current clusters.
     """
     text = (ROOT / "surveys" / f"{topic}.md").read_text()
+    found: dict[str, str | None] | None
+    date: str | None
     found, date, lines = None, None, text.splitlines()
     for i, line in enumerate(lines):
         m = re.match(r"###\s+Pass\s+(\d{4}-\d{2}-\d{2})", line)
@@ -321,13 +347,17 @@ def clustering_rationale(topic):
     return found
 
 
-def load_clustering(topic, nodes):
-    """The report from deeper_research/cluster.py, if one exists: how the clusters were computed, and each paper's assignment."""
+def load_clustering(topic: str, nodes: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The clustering report for the viewer page, or None.
+
+    The report from deeper_research/cluster.py, if one exists: how the clusters were computed, and each paper's
+    assignment.
+    """
     path = topic_dir(topic) / "clusters.json"
     if not path.exists():
         return None
     r = json.loads(path.read_text())
-    sub_of = {}
+    sub_of: dict[str, str] = {}
     for c in r["clusters"]:
         for i, s in enumerate(c["subclusters"]):
             for a in s["members"]:
@@ -364,7 +394,7 @@ def load_clustering(topic, nodes):
     ]
     m = r["measure"]
     out["null_curve"] = [
-        {"clusters": l["clusters"], "stability": l["stability"]} for l in r.get("null_curves", {}).get(m, [])
+        {"clusters": lv["clusters"], "stability": lv["stability"]} for lv in r.get("null_curves", {}).get(m, [])
     ]
     out["slider"] = [
         {"clusters": lv["clusters"], "stability": lv["stability"], "null_stability": lv["null_stability"]}
@@ -372,10 +402,10 @@ def load_clustering(topic, nodes):
     ]
     out["curve"] = [
         {
-            k: l.get(k)
+            k: lv.get(k)
             for k in ("clusters", "stability", "stability_se", "holdout_ari", "resample_ari", "median_clusterwise")
         }
-        for l in r["curves"][m]
+        for lv in r["curves"][m]
     ]
     out["clusters"] = [
         {
@@ -393,8 +423,11 @@ def load_clustering(topic, nodes):
     return out
 
 
-def build(topic, refresh=False):
+def build(topic: str, refresh: bool = False) -> int:
+    """Write graphs/<topic>/graph.html, the viewer page, and print what it holds; return the exit status, 0."""
     title, coreset_layout, clusters, order, papers, cites = parse(topic)
+    fetched: str | None
+    unresolved: list[str]
     fetched, unresolved = None, []
     if not coreset_layout:
         cites, fetched, unresolved = legacy_cites(topic, papers, refresh)
@@ -413,7 +446,7 @@ def build(topic, refresh=False):
     # Cohesion: of the citation links touching a cluster, the share that stay
     # inside it. A cluster whose papers mostly cite other clusters is a label,
     # not a neighbourhood.
-    cohesion = {}
+    cohesion: dict[str, float | None] = {}
     for cid in order:
         inner = sum(1 for a, b in edges if papers[a]["cluster"] == cid and papers[b]["cluster"] == cid)
         touching = sum(1 for a, b in edges if cid in (papers[a]["cluster"], papers[b]["cluster"]))
@@ -422,7 +455,7 @@ def build(topic, refresh=False):
     comm_list = []
     for i in sorted(set(communities.values())):
         members = [n for n, c in communities.items() if c == i]
-        mix = {}
+        mix: dict[str, int] = {}
         for n in members:
             mix[papers[n]["cluster"]] = mix.get(papers[n]["cluster"], 0) + 1
         comm_list.append({"id": f"c{i + 1}", "size": len(members), "mix": sorted(mix.items(), key=lambda t: -t[1])})
@@ -456,14 +489,14 @@ def build(topic, refresh=False):
         )
 
     clustering = load_clustering(topic, nodes)
-    # How many papers have an arXiv ID, so that deeper_research/fulltext.py can fetch their text from arXiv: the rest depend on
-    # an open-access PDF. A legacy survey has no pool, so its papers are all coreset rows.
+    # How many papers have an arXiv ID, so that deeper_research/fulltext.py can fetch their text from arXiv: the rest
+    # depend on an open-access PDF. A legacy survey has no pool, so its papers are all coreset rows.
     arxiv_share = {
         s: [sum(1 for n in sel if n["arxiv"]), len(sel)]
         for s, sel in (("pool", nodes), ("coreset", [n for n in nodes if n["coreset"]]))
     }
 
-    data = {
+    data: dict[str, Any] = {
         "topic": topic,
         "title": title,
         "layout": "coreset" if coreset_layout else "legacy",

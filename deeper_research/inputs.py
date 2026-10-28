@@ -12,13 +12,16 @@ for.
 A bullet is any list item: `-`, `*`, `+` or numbered (`1.`, `1)`). mdformat rewrites `*` and `+` as `-`, so the input
 must read the same before and after it; a numbered item is a list item too, and mdformat keeps it numbered.
 
-`deeper_research/check.py` and `deeper_research/graph.py` import `read_input` for the dimensions, and `deeper_research/cluster.py` for the
-`granularity` steering; `deeper_research/check.py` imports `read_targets` for the output's sections.
+`deeper_research/check.py` and `deeper_research/graph.py` import `read_input` for the dimensions, and
+`deeper_research/cluster.py` for the `granularity` steering; `deeper_research/check.py` imports `read_targets` for the
+output's sections.
 """
 
 import re
 import sys
+from collections.abc import Iterable
 from pathlib import Path
+from typing import cast
 
 ROOT = Path(__file__).resolve().parent.parent
 SECTIONS = {"Topic", "Context", "Coreset Spec", "Dimensions", "Clustering"}
@@ -40,8 +43,11 @@ ITEM = re.compile(r"^(?:[-*+]|\d{1,9}[.)])\s+")
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 
 
-def sections(text):
+def sections(text: str) -> tuple[dict[str, list[str]], list[str]]:
     """Return ({name: lines}, problems). A repeated section is a problem; its lines are kept, after the first's."""
+    out: dict[str, list[str]]
+    problems: list[str]
+    name: str | None
     out, problems, name = {}, [], None
     for line in text.splitlines():
         h = HEADING.match(line)
@@ -62,8 +68,10 @@ def sections(text):
     return out, problems
 
 
-def bullets(lines):
+def bullets(lines: Iterable[str]) -> list[str]:
     """Top-level bullets, each joined with its wrapped continuation lines (but not its nested bullets)."""
+    out: list[list[str]]
+    cur: list[str] | None
     out, cur = [], None
     for line in lines:
         m = ITEM.match(line)
@@ -78,7 +86,9 @@ def bullets(lines):
     return [" ".join(b) for b in out]
 
 
-def read_input(topic):
+def read_input(  # noqa: C901
+    topic: str,
+) -> tuple[dict[str, set[str]] | None, dict[str, str] | None, list[str]]:
     """Return (dimensions, clustering, problems). dimensions: {name: set of values}; clustering: {field: value}."""
     path = ROOT / "inputs" / f"{topic}.md"
     if not path.exists():
@@ -92,7 +102,7 @@ def read_input(topic):
     elif not any(line.strip() for line in secs["Topic"]):
         problems.append("input: the `## Topic` section is empty")
 
-    dims = {}
+    dims: dict[str, set[str]] = {}
     for b in bullets(secs.get("Dimensions", [])):
         m = DIM.match(b)
         if not m:
@@ -109,7 +119,7 @@ def read_input(topic):
             continue
         dims[m.group(1)] = set(re.findall(r"`([^`]+)`", v.group(1)))
 
-    steering = {}
+    steering: dict[str, str] = {}
     for b in bullets(secs.get("Clustering", [])):
         m = FIELD.match(b)
         if not m:
@@ -135,8 +145,10 @@ def read_input(topic):
     return dims, steering, problems
 
 
-def read_targets(topic):
-    """Return (targets, problems): the output sections the coreset must stay stable against (docs/formats.md, `Coreset
+def read_targets(topic: str) -> tuple[list[str], list[str]]:
+    """Return the coreset's targets, with the input's problems in declaring them.
+
+    Return (targets, problems): the output sections the coreset must stay stable against (docs/formats.md, `Coreset
     Spec`). The defaults apply unless dropped with `- `drop`: `Name``; each `- **`Name`** — ...` bullet adds one.
     """
     path = ROOT / "inputs" / f"{topic}.md"
@@ -172,7 +184,8 @@ def read_targets(topic):
     return targets, problems
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
+    """Print what the tools take from a topic's input; return 1 if it breaks the format, else 0 (2 on a usage error)."""
     if len(argv) != 1:
         print(__doc__.strip())
         return 2
@@ -182,7 +195,8 @@ def main(argv):
         for name, values in dims.items():
             print(f"  {name}: {', '.join(sorted(values))}")
         print("clustering steering: " + ("none" if not steering else ""))
-        for key, value in steering.items():
+        # read_input returns the steering whenever it returns the dimensions.
+        for key, value in cast("dict[str, str]", steering).items():
             print(f"  {key}: {value}")
     targets, more = read_targets(argv[0])
     problems = problems + more

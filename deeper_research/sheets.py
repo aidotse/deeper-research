@@ -19,15 +19,18 @@ import json
 import sys
 from datetime import date
 from pathlib import Path
+from typing import Any
+
+from deeper_research.check import row_id, sections, table_rows
+from deeper_research.graph import parse, topic_dir
 
 ROOT = Path(__file__).resolve().parent.parent
-from deeper_research.check import row_id, sections, table_rows  # noqa: E402
-from deeper_research.graph import parse, topic_dir  # noqa: E402
 
 TOP, RECENT, RECENT_RATED, SUB_TOP, FRINGE = 8, 3, 5, 3, 25
 
 
-def main(argv):
+def main(argv: list[str]) -> int:  # noqa: C901
+    """Write a topic's naming and fringe sheets and print their sizes; return the exit status."""
     if len(argv) != 1:
         print(__doc__.strip())
         return 2
@@ -40,15 +43,15 @@ def main(argv):
     ):
         if not path.exists():
             sys.exit(f"no {path.relative_to(ROOT)}; run {then} first")
-    report = json.loads((d / "clusters.json").read_text())
-    cache = json.loads((d / "pool.json").read_text())["papers"]
+    report: dict[str, Any] = json.loads((d / "clusters.json").read_text())
+    cache: dict[str, dict[str, Any]] = json.loads((d / "pool.json").read_text())["papers"]
     papers = parse(topic)[4]
     secs = sections((ROOT / "surveys" / f"{topic}.md").read_text())
-    names = {}
+    names: dict[str, str] = {}
     for h, c, _, _ in table_rows(secs.get("Clusters", "")):
         if h and h[0] == "id" and "computed" in h and c[h.index("computed")]:
             names[c[h.index("computed")]] = c[0]
-    coreset = {row_id(l) for h, _, _, l in table_rows(secs.get("Coreset", "")) if h and h[0] == "paper"}
+    coreset = {row_id(line) for h, _, _, line in table_rows(secs.get("Coreset", "")) if h and h[0] == "paper"}
 
     assigned = dict(report["assignment"])
     assigned.update({p: x["cluster"] for p, x in report.get("late", {}).items()})
@@ -59,14 +62,16 @@ def main(argv):
             if x in by_s2 and by_s2[x] != a:
                 indeg[by_s2[x]] += 1
 
-    def title(a):
+    def title(a: str) -> str:
         return papers.get(a, {}).get("title") or a
 
-    def year(a):
+    def year(a: str) -> int | str:
         return cache.get(a, {}).get("year") or ""
 
-    def age_and_rate(a):
-        """(months since publication, citations per month), counted to the fetch date, when the citations were
+    def age_and_rate(a: str) -> tuple[float, float] | None:
+        """A paper's age and its citations per month, or None.
+
+        (months since publication, citations per month), counted to the fetch date, when the citations were
         counted; None without a date or a count. Citations per month is the frontier role's measure of impact
         (docs/process.md, step 4).
         """
@@ -81,11 +86,11 @@ def main(argv):
             return None
         return months, rec["citations"] / max(1.0, months)
 
-    def impact(a):
+    def impact(a: str) -> str:
         ar = age_and_rate(a)
         return "" if ar is None else f" — {cache[a]['citations']} citations, {ar[1]:.1f} per month"
 
-    def label(c):
+    def label(c: str) -> str:
         return f"{c} ({names[c]})" if c in names else c
 
     # `unstable cluster` and `broad scope` are notes, not diagnostics; a clusters.json written before that change still
@@ -97,12 +102,12 @@ def main(argv):
         for x in report.get("diagnostics", [])
         if x.get("case") in noted
     ]
-    diag = {}
+    diag: dict[str, list[str]] = {}
     for x in diagnostics:
         for c in x.get("clusters", []):
             diag.setdefault(c, []).append(f"{x['case']}: {x['detail']}")
     whole = [f"{x['case']}: {x['detail']}" for x in diagnostics if not x.get("clusters")]
-    note = {}
+    note: dict[str, list[str]] = {}
     for x in notes:
         for c in x.get("clusters", []):
             note.setdefault(c, []).append(x["text"])

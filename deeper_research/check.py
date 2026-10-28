@@ -15,9 +15,9 @@ Two kinds of check, both failing with exit status 1:
              output exists, every cited paper ID in the coreset, every citation of an `abstract`-sourced paper marked
              [abstract-only] with a legend before the first section, no marker after the legend that follows no
              citation, and a section per target plus Questions and Reading.
-  gates      what each step must have left behind, G0 to G5 (deeper_research/gates.py, docs/gates.md). The gates the pass has
-             reached are worked out from the files; `--gate G<n>` also requires every gate up to G<n>, which is how the
-             main session checks a gate before starting the next step. `--status` prints every gate's open
+  gates      what each step must have left behind, G0 to G5 (deeper_research/gates.py, docs/gates.md). The gates the
+             pass has reached are worked out from the files; `--gate G<n>` also requires every gate up to G<n>, which is
+             how the main session checks a gate before starting the next step. `--status` prints every gate's open
              requirements: what the run has done, and what remains.
 
 When the input declares no dimensions, the ones proposed in the current log entry's `Dimensions` line
@@ -40,8 +40,12 @@ them, and no gates. Exit status 2 is a usage error.
 import json
 import re
 import sys
+from collections.abc import Iterator
 from difflib import SequenceMatcher
 from pathlib import Path
+from typing import Any, cast
+
+from deeper_research.inputs import read_input, read_targets
 
 ROOT = Path(__file__).resolve().parent.parent
 # A paper's canonical ID (docs/formats.md): its arXiv ID where it has one, otherwise its Semantic Scholar corpus ID,
@@ -99,47 +103,57 @@ ABSENCE = re.compile(
     re.I,
 )
 
+# A table row as `table_rows` yields it: (header cells, row cells, block heading, the line itself).
+type TableRow = tuple[list[str], list[str], str | None, str]
 
-def read(path):
+
+def read(path: Path) -> str | None:
+    """The text of the file at `path`, or None if it does not exist."""
     return path.read_text() if path.exists() else None
 
 
-def s2_ref(pid):
+def s2_ref(pid: str) -> str:
     """How the Semantic Scholar API and Asta name a paper: ARXIV:<id>, or CorpusId:<n> as it is."""
     return pid if pid.startswith("CorpusId:") else f"ARXIV:{pid}"
 
 
-def link(pid):
+def link(pid: str) -> str:
+    """The page a survey row links a paper to: its arXiv abstract page, or its Semantic Scholar page."""
     return f"https://api.semanticscholar.org/{pid}" if pid.startswith("CorpusId:") else f"https://arxiv.org/abs/{pid}"
 
 
-def arxiv_of(rec):
-    """The arXiv ID of a Semantic Scholar API record. Some records omit it from `externalIds` though their open-access
+def arxiv_of(rec: dict[str, Any] | None) -> str | None:
+    """The arXiv ID of a Semantic Scholar API record.
+
+    Some records omit it from `externalIds` though their open-access
     PDF is on arXiv: often a preprint whose venue version is a separate record.
     """
     ext = (rec or {}).get("externalIds") or {}
     if ext.get("ArXiv"):
-        return ext["ArXiv"]
+        return cast("str", ext["ArXiv"])
     m = re.search(rf"arxiv\.org/(?:pdf|abs)/({ARXIV_ID})", ((rec or {}).get("openAccessPdf") or {}).get("url") or "")
     return m.group(1) if m else None
 
 
-def bib_ids(text):
+def bib_ids(text: str) -> list[str]:
+    """The paper IDs of a bib file's entries, in order: the `eprint` arXiv ID, or `CorpusId:<n>` from `corpusid`."""
     return [a or f"CorpusId:{n}" for a, n in BIB_ID.findall(text)]
 
 
-def cells_of(line):
-    """Split a markdown table row into cells.
+def cells_of(line: str) -> list[str]:
+    r"""Split a markdown table row into cells.
 
-    Escaped pipes (`\\|`) appear inside cell text — formulae like `q(y\\|x)` —
+    Escaped pipes (`\|`) appear inside cell text — formulae like `q(y\|x)` —
     and are not separators, so they must be masked before splitting or the row
     looks wider than it is.
     """
     return [c.strip() for c in line.replace(r"\|", "\0").strip("|").split("|")]
 
 
-def sections(text):
+def sections(text: str) -> dict[str, str]:
     """Map each `## ` heading to the text under it, up to the next one."""
+    out: dict[str, str]
+    buf: list[str]
     out, name, buf = {}, None, []
     for line in text.splitlines():
         if line.startswith("## "):
@@ -153,28 +167,33 @@ def sections(text):
     return out
 
 
-def section_order(text):
+def section_order(text: str) -> list[str]:
+    """The names of the `## ` sections of a text, in order."""
     return [line[3:].strip() for line in text.splitlines() if line.startswith("## ")]
 
 
-def table_rows(text):
+def table_rows(text: str) -> Iterator[TableRow]:
     """Yield (header_cells, row_cells, block_heading, line) for every table row."""
+    block: str | None
+    header: list[str] | None
     block, header = None, None
     for line in text.splitlines():
         if line.startswith("### "):
             block, header = line[4:].strip(), None
         elif line.startswith("|") and header is None:
             header = cells_of(line)
-        elif line.startswith("| --") or line.startswith("|--"):
+        elif line.startswith(("| --", "|--")):
             continue
         elif line.startswith("|"):
-            yield header, cells_of(line), block, line
+            # The branch above sets the header from a table's first line, so a row always has one.
+            yield cast("list[str]", header), cells_of(line), block, line
         else:
             # Tables are contiguous; any non-table line ends the current one.
             header = None
 
 
-def row_id(line):
+def row_id(line: str) -> str | None:
+    """The paper ID a table row links to, or None if it has no paper link."""
     m = LINK.search(line)
     return m.group(1) if m else None
 
@@ -182,23 +201,26 @@ def row_id(line):
 # --- the coreset table ----------------------------------------------------------------------------
 
 
-def check_coreset(table, dims, layout, failures, notes):
+def check_coreset(  # noqa: C901
+    table: str, dims: dict[str, set[str]], layout: str, failures: list[str], notes: list[str]
+) -> tuple[list[TableRow], set[str], set[str | None]]:
     """Checks that apply to any Coreset section, legacy or current."""
-    rows = [(h, c, b, l) for h, c, b, l in table_rows(table) if h and h[0] == "paper"]
-    ids = [row_id(l) for _, _, _, l in rows]
+    rows = [(h, c, b, line) for h, c, b, line in table_rows(table) if h and h[0] == "paper"]
+    ids = [row_id(line) for _, _, _, line in rows]
     unique = {i for i in ids if i}
     print(f"coreset: {len(rows)} rows, {len(unique)} unique paper IDs")
     if len(rows) != len(unique) or None in ids:
         failures.append(
             f"row count {len(rows)} != unique IDs {len(unique)} "
-            "(duplicate row, or a row whose link is neither arxiv.org/abs/<id> nor api.semanticscholar.org/CorpusId:<n>)"
+            "(duplicate row, or a row whose link is neither arxiv.org/abs/<id> nor "
+            "api.semanticscholar.org/CorpusId:<n>)"
         )
 
-    widths = {}
-    for h, c, b, l in rows:
+    widths: dict[int, set[str | None]] = {}
+    for h, c, b, line in rows:
         widths.setdefault(len(h), set()).add(b)
         if len(c) != len(h):
-            failures.append(f"{b or '(no block)'}: row {row_id(l)} has {len(c)} cells, header has {len(h)}")
+            failures.append(f"{b or '(no block)'}: row {row_id(line)} has {len(c)} cells, header has {len(h)}")
     blocks = len({b for _, _, b, _ in rows})
     print(f"columns: {', '.join(f'{w}' for w in sorted(widths))} across {blocks} block(s)")
     if len(widths) > 1:
@@ -206,10 +228,10 @@ def check_coreset(table, dims, layout, failures, notes):
 
     sources = [c[-1] for _, c, _, _ in rows]
     allowed = SOURCES if layout == "coreset" else LEGACY_SOURCES
-    bad = [row_id(l) for (_, c, _, l) in rows if c[-1] not in allowed]
+    bad = [row_id(line) for (_, c, _, line) in rows if c[-1] not in allowed]
     if bad or (rows and rows[0][0][-1] != "source"):
         failures.append(f"rows without a parsable `source` last column: {bad}")
-    snip = [row_id(l) for (_, c, _, l) in rows if c[-1] == "snippet" and layout == "coreset"]
+    snip = [row_id(line) for (_, c, _, line) in rows if c[-1] == "snippet" and layout == "coreset"]
     if snip:
         failures.append(
             f"rows with `source` `snippet`, which is not a source: verify against the fetched full text, "
@@ -224,11 +246,11 @@ def check_coreset(table, dims, layout, failures, notes):
         print(
             f"         {share:.0%} abstract-sourced; after step 5, more than {ABSTRACT_SHARE:.0%} halts the pass (H10)"
         )
-        for h in {tuple(h) for h, _, _, _ in rows}:
-            missing = [c for c in CORESET_COLUMNS if c not in h]
+        for hdr in {tuple(h) for h, _, _, _ in rows}:
+            missing = [c for c in CORESET_COLUMNS if c not in hdr]
             if missing:
                 failures.append(f"Coreset table lacks required column(s): {missing}")
-            extra = [c for c in h if c not in CORESET_COLUMNS and c != "source" and c not in dims]
+            extra = [c for c in hdr if c not in CORESET_COLUMNS and c != "source" and c not in dims]
             if extra:
                 notes.append(
                     f"Coreset column(s) {extra} are not dimensions, declared in the input or proposed in the "
@@ -237,29 +259,34 @@ def check_coreset(table, dims, layout, failures, notes):
 
     header = rows[0][0] if rows else []
     for i, n in [(i, n) for i, n in enumerate(header) if n in dims]:
-        counts = {}
-        for _, c, _, l in rows:
+        counts: dict[str, int] = {}
+        for _, c, _, line in rows:
             v = c[i] if i < len(c) else ""
             counts[v] = counts.get(v, 0) + 1
             if v not in dims[n]:
-                failures.append(f"row {row_id(l)}: {n}={v!r} is not an allowed value")
+                failures.append(f"row {row_id(line)}: {n}={v!r} is not an allowed value")
         shown = ", ".join(f"{k} {v}" for k, v in sorted(counts.items(), key=lambda t: -t[1]))
         print(f"{n + ':':13}{shown}")
 
-    abstract = {row_id(l) for _, c, _, l in rows if c[-1] == "abstract"}
+    abstract = {row_id(line) for _, c, _, line in rows if c[-1] == "abstract"}
     return rows, unique, abstract
 
 
 # --- clusters and pool ----------------------------------------------------------------------------
 
 
-def read_clusters(secs, failures):
+def read_clusters(
+    secs: dict[str, str], failures: list[str]
+) -> tuple[dict[str, str], dict[str, str], list[dict[str, str]]]:
     """The Clusters table: {id: alignment}, the `computed` column as {computed id: named id}, and the rows."""
+    clusters: dict[str, str]
+    computed: dict[str, str]
+    rows: list[dict[str, str]]
     clusters, computed, rows = {}, {}, []
     for h, c, _, _ in table_rows(secs["Clusters"]):
         if not h or h[0] != "id":
             continue
-        row = dict(zip(h, c))
+        row = dict(zip(h, c, strict=False))
         rows.append(row)
         cid, alignment = row["id"], row.get("alignment", "")
         if not CLUSTER_ID.match(cid):
@@ -274,15 +301,21 @@ def read_clusters(secs, failures):
                 failures.append(f"computed cluster {row['computed']} is named twice in the Clusters table")
             computed[row["computed"]] = cid
     print(
-        f"clusters: {len(clusters)} ({', '.join(f'{a} {list(clusters.values()).count(a)}' for a in ['high', 'medium', 'low'])})"
+        f"clusters: {len(clusters)} ("
+        f"{', '.join(f'{a} {list(clusters.values()).count(a)}' for a in ['high', 'medium', 'low'])})"
     )
     return clusters, computed, rows
 
 
-def read_pool(secs, clusters, failures):
+def read_pool(
+    secs: dict[str, str], clusters: dict[str, str], failures: list[str]
+) -> tuple[set[str], dict[str, str], dict[str, set[str]], dict[str, str]]:
     """The Pool table: its IDs, each one's `cluster` cell (may be empty), and the pool papers each one cites."""
+    pool_cluster: dict[str, str]
+    cites: dict[str, set[str]]
+    titles: dict[str, str]
     pool_cluster, cites, titles, header_checked = {}, {}, {}, False
-    for h, c, _, l in table_rows(secs["Pool"]):
+    for h, c, _, line in table_rows(secs["Pool"]):
         if not h or h[0] != "paper":
             continue
         if not header_checked:
@@ -290,7 +323,7 @@ def read_pool(secs, clusters, failures):
             missing = [x for x in POOL_COLUMNS if x not in h]
             if missing:
                 failures.append(f"Pool table lacks required column(s): {missing}")
-        pid = row_id(l)
+        pid = row_id(line)
         if pid is None:
             failures.append(
                 f"pool row whose link is neither arxiv.org/abs/<id> nor api.semanticscholar.org/CorpusId:<n>: "
@@ -311,7 +344,8 @@ def read_pool(secs, clusters, failures):
     return set(pool_cluster), pool_cluster, cites, titles
 
 
-def words(title):
+def words(title: str) -> list[str]:
+    """A title's lower-case words; of a markdown link, the words of its link text only."""
     title = re.sub(r"\]\(.*", "", title.lstrip("["))  # the link text only
     return re.findall(r"[a-z0-9]+", title.lower())
 
@@ -321,10 +355,13 @@ def words(title):
 SAME_TITLE = 0.93
 
 
-def same_title(a, b):
-    """Whether two titles, as lists of `words`, name one paper. Either they are the same once spaces are dropped (text
+def same_title(a: list[str], b: list[str]) -> bool:
+    """Whether two titles, as lists of `words`, name one paper.
+
+    Either they are the same once spaces are dropped (text
     extraction splits words, as in "S ELF -I MPROVING"), or, at four words or more, they share the first word and their
-    character-level similarity is at least SAME_TITLE: a venue version often changes a word ("Arbitrage", "Arbitration").
+    character-level similarity is at least SAME_TITLE: a venue version often changes a word ("Arbitrage",
+    "Arbitration").
     A differing first word is a different paper, such as "Comment on: <title>".
     """
     if not a or not b:
@@ -337,11 +374,13 @@ def same_title(a, b):
     return min(len(x), len(y)) / max(len(x), len(y)) >= SAME_TITLE and SequenceMatcher(None, x, y).ratio() >= SAME_TITLE
 
 
-def check_duplicates(topic, titles, failures, notes):
+def check_duplicates(  # noqa: C901
+    topic: str, titles: dict[str, str], failures: list[str], notes: list[str]
+) -> None:
     """A preprint and its venue version can be two Semantic Scholar records; keep the arXiv one (docs/formats.md)."""
     sidecar = read(ROOT / "graphs" / topic / "pool.json")
     records = json.loads(sidecar)["papers"] if sidecar else {}
-    by_s2 = {}
+    by_s2: dict[str, list[str]] = {}
     for pid in titles:
         rec = records.get(pid) or {}
         if rec.get("s2"):
@@ -352,7 +391,7 @@ def check_duplicates(topic, titles, failures, notes):
         if len(same) > 1:
             failures.append(f"pool lists one Semantic Scholar paper under several IDs: {same}")
     keyed = {pid: words(t) for pid, t in titles.items()}
-    exact = {}
+    exact: dict[str, list[str]] = {}
     for pid, w in keyed.items():
         exact.setdefault(" ".join(w), []).append(pid)
     for t, same in exact.items():
@@ -368,7 +407,15 @@ def check_duplicates(topic, titles, failures, notes):
                 notes.append(f"pool rows with near-identical titles: {a}, {b}; one paper twice?")
 
 
-def check_computed(topic, pool, pool_cluster, clusters, computed, failures, notes):
+def check_computed(  # noqa: C901
+    topic: str,
+    pool: set[str],
+    pool_cluster: dict[str, str],
+    clusters: dict[str, str],
+    computed: dict[str, str],
+    failures: list[str],
+    notes: list[str],
+) -> dict[str, Any] | None:
     """Every pool paper's cluster must be its computed one: membership is never changed by hand."""
     text = read(ROOT / "graphs" / topic / "clusters.json")
     unclustered = sorted(p for p in pool if not pool_cluster.get(p))
@@ -378,7 +425,7 @@ def check_computed(topic, pool, pool_cluster, clusters, computed, failures, note
         elif unclustered:
             notes.append(f"{len(unclustered)} pool paper(s) have no cluster yet; clustering is step 3")
         return None
-    report = json.loads(text)
+    report: dict[str, Any] = json.loads(text)
     assigned = dict(report.get("assignment", {}))
     assigned.update({p: x["cluster"] for p, x in report.get("late", {}).items()})
     if not clusters:
@@ -397,7 +444,8 @@ def check_computed(topic, pool, pool_cluster, clusters, computed, failures, note
     if report.get("previous") and not report["previous"].get("remapped"):
         failures.append(
             f"clusters.json is a new clustering whose names have not been carried over; run "
-            f"`uv run python -m deeper_research.assign remap {topic}`, then `uv run python -m deeper_research.assign clusters {topic}`"
+            f"`uv run python -m deeper_research.assign remap {topic}`, then "
+            f"`uv run python -m deeper_research.assign clusters {topic}`"
         )
         return report
     known = set(report.get("assignment", {}).values())
@@ -436,13 +484,14 @@ def check_computed(topic, pool, pool_cluster, clusters, computed, failures, note
     late = sorted(p for p in pool if p not in assigned and p not in unclusterable)
     if late:
         notes.append(
-            f"late papers awaiting assignment ({len(late)}): {late}; run `uv run python -m deeper_research.assign late {topic}` "
+            f"late papers awaiting assignment ({len(late)}): {late}; run "
+            f"`uv run python -m deeper_research.assign late {topic}` "
             '(docs/process.md, "Late papers")'
         )
     return report
 
 
-def leaders(cid, pool, pool_cluster, indeg):
+def leaders(cid: str, pool: set[str], pool_cluster: dict[str, str], indeg: dict[str, int]) -> tuple[set[str], int]:
     """Print and return a cluster's in-degree leaders within the pool."""
     members = [p for p in pool if pool_cluster.get(p) == cid]
     top = max((indeg[p] for p in members), default=0)
@@ -453,7 +502,14 @@ def leaders(cid, pool, pool_cluster, indeg):
     return lead, top
 
 
-def check_structure(topic, secs, rows, coreset_ids, failures, notes):
+def check_structure(  # noqa: C901
+    topic: str,
+    secs: dict[str, str],
+    rows: list[TableRow],
+    coreset_ids: set[str],
+    failures: list[str],
+    notes: list[str],
+) -> dict[str, Any]:
     """Checks for surveys using clusters, roles and a pool. Returns what the gates read."""
     clusters, computed, cluster_rows = read_clusters(secs, failures)
     pool, pool_cluster, cites, titles = read_pool(secs, clusters, failures)
@@ -474,7 +530,7 @@ def check_structure(topic, secs, rows, coreset_ids, failures, notes):
             if q != p:
                 indeg[q] += 1
 
-    out = {
+    out: dict[str, Any] = {
         "clusters": clusters,
         "computed": computed,
         "cluster_rows": cluster_rows,
@@ -504,15 +560,16 @@ def check_structure(topic, secs, rows, coreset_ids, failures, notes):
     if known_order != [cid for cid in clusters if cid in known_order]:
         failures.append(f"Coreset blocks are not in the Clusters table's order: {known_order}")
 
-    roles = {cid: {} for cid in clusters}
-    anchors = {cid: set() for cid in clusters}
-    bridges = set()
-    for _, c, block, l in rows:
-        cid, pid = (block or "").split(" — ")[0].strip(), row_id(l)
+    roles: dict[str, dict[str, int]] = {cid: {} for cid in clusters}
+    anchors: dict[str, set[str | None]] = {cid: set() for cid in clusters}
+    bridges: set[frozenset[str]] = set()
+    for _, c, block, ln in rows:
+        cid, pid = (block or "").split(" — ")[0].strip(), row_id(ln)
         if cid not in clusters:
             failures.append(f"block {block!r} is not headed by a known cluster id")
             continue
-        role = c[ri]
+        # Not None: `rows` is not empty here.
+        role = c[cast("int", ri)]
         base, _, target = role.partition(":")
         if base == "bridge":
             if target not in clusters:
@@ -525,9 +582,10 @@ def check_structure(topic, secs, rows, coreset_ids, failures, notes):
         roles[cid][base] = roles[cid].get(base, 0) + 1
         if role == "anchor":
             anchors[cid].add(pid)
-        if pool_cluster.get(pid) and pool_cluster[pid] != cid:
+        # A row without a paper link has no ID; looking it up finds nothing, as for any ID not in the pool.
+        if pool_cluster.get(cast("str", pid)) and pool_cluster[cast("str", pid)] != cid:
             failures.append(
-                f"row {pid} sits in block {cid!r} but was computed into {pool_cluster[pid]!r}; "
+                f"row {pid} sits in block {cid!r} but was computed into {pool_cluster[cast('str', pid)]!r}; "
                 "membership is never changed by hand"
             )
 
@@ -545,8 +603,9 @@ def check_structure(topic, secs, rows, coreset_ids, failures, notes):
         )
         lead, top = leaders(cid, pool, pool_cluster, indeg)
         if anchors[cid] and lead and not anchors[cid] & lead:
+            # BUG?: an anchor row without a paper link adds None, and sorting None with an ID raises TypeError
             notes.append(
-                f"{cid}: anchor {sorted(anchors[cid])} is not the in-degree leader {sorted(lead)} ({top}); "
+                f"{cid}: anchor {sorted(anchors[cid])} is not the in-degree leader {sorted(lead)} ({top}); "  # type: ignore[type-var]
                 "fine if deliberate"
             )
 
@@ -557,7 +616,16 @@ def check_structure(topic, secs, rows, coreset_ids, failures, notes):
 # --- output ---------------------------------------------------------------------------------------
 
 
-def check_output(output, coreset_ids, abstract, layout, targets, failures, notes):
+def check_output(  # noqa: C901
+    output: str,
+    coreset_ids: set[str],
+    abstract: set[str | None],
+    layout: str,
+    targets: list[str],
+    failures: list[str],
+    notes: list[str],
+) -> None:
+    """Check the output against the coreset: its cited IDs, [abstract-only] markers, sections and absence claims."""
     out_ids = set(LINK.findall(output)) | set(BARE_ID.findall(output))
     print(f"output:  {len(out_ids)} cited IDs")
     if out_ids - coreset_ids:
@@ -565,7 +633,7 @@ def check_output(output, coreset_ids, abstract, layout, targets, failures, notes
     # A claim resting on an abstract-sourced row carries the marker next to
     # the paper's ID, every time it is cited (docs/formats.md, outputs).
     risky = sorted(out_ids & abstract)
-    unmarked = {}
+    unmarked: dict[str, list[int]] = {}
     for m in list(LINK.finditer(output)) + list(BARE_ID.finditer(output)):
         if m.group(1) in abstract and not MARKED.match(output, m.end()):
             unmarked.setdefault(m.group(1), []).append(output.count("\n", 0, m.start()) + 1)
@@ -592,7 +660,7 @@ def check_output(output, coreset_ids, abstract, layout, targets, failures, notes
         failures.append(
             f"output has an [abstract-only] marker that follows no cited paper ID (line {', '.join(map(str, stray))})"
         )
-    if risky and "[abstract-only]" not in output.split("\n## ")[0]:
+    if risky and "[abstract-only]" not in output.split("\n## ", 1)[0]:
         failures.append(
             "output cites abstract-sourced papers but has no legend for [abstract-only] before its first section"
         )
@@ -613,12 +681,16 @@ def check_output(output, coreset_ids, abstract, layout, targets, failures, notes
             )
 
 
-def print_section(topic, survey, what):
-    """Print one `## ` section of the survey, or one `### <cluster id> — ...` block of the Coreset, with its line span."""
+def print_section(topic: str, survey: str, what: str) -> int:
+    """Print one section of the survey, or one block of its Coreset.
+
+    Print one `## ` section of the survey, or one `### <cluster id> — ...` block of the Coreset, with its line
+    span.
+    """
     name, _, block = what.partition(":")
     key = re.sub(r"[\s_-]+", " ", name).strip().lower()
     lines = survey.splitlines()
-    heads = [(i, l[3:].strip()) for i, l in enumerate(lines) if l.startswith("## ")]
+    heads = [(i, ln[3:].strip()) for i, ln in enumerate(lines) if ln.startswith("## ")]
     match = [(i, h) for i, h in heads if h.lower() == key]
     if not match:
         print(
@@ -645,7 +717,8 @@ def print_section(topic, survey, what):
     return 0
 
 
-def main(argv):
+def main(argv: list[str]) -> int:  # noqa: C901
+    """Run the command: check a topic's artifacts and gates, or print one section of its survey; return the status."""
     if "--print" in argv:
         i = argv.index("--print")
         rest = argv[:i] + argv[i + 2 :]
@@ -671,11 +744,10 @@ def main(argv):
     bib = read(ROOT / "bib" / f"{topic}.bib")
     output = read(ROOT / "outputs" / f"{topic}.md")
 
-    from deeper_research.inputs import read_input, read_targets
-
     dims, steering, problems = read_input(topic)
     targets, more = read_targets(topic)
     dims = dims or {}
+    notes: list[str]
     failures, notes = list(problems) + more, []
     secs = sections(survey)
     layout = "coreset" if "Clusters" in secs else "legacy"
@@ -683,7 +755,8 @@ def main(argv):
     # Without declared dimensions, the pass proposes them in its `Dimensions` line, which is then read the same way.
     proposed = layout == "coreset" and not dims
     if proposed:
-        from deeper_research import gates
+        # local: import cycle with gates
+        from deeper_research import gates  # noqa: PLC0415
 
         entries = gates.log_entries(secs.get("Retrieval log", ""))
         dims = gates.proposed_dimensions(" ".join(entries[-1]["lines"].get("Dimensions", []))) if entries else {}
@@ -699,6 +772,9 @@ def main(argv):
         return 1
 
     has_rows = any(h and h[0] == "paper" for h, _, _, _ in table_rows(secs.get("Coreset", "")))
+    rows: list[TableRow]
+    coreset_ids: set[str]
+    abstract: set[str | None]
     rows, coreset_ids, abstract = [], set(), set()
     if layout == "legacy" or has_rows:
         rows, coreset_ids, abstract = check_coreset(secs.get("Coreset", ""), dims, layout, failures, notes)
@@ -724,7 +800,8 @@ def main(argv):
         check_output(output, coreset_ids, abstract, layout, targets, failures, notes)
 
     if layout == "coreset":
-        from deeper_research import gates
+        # local: import cycle with gates
+        from deeper_research import gates  # noqa: PLC0415
 
         ctx = gates.Ctx(topic, secs, structure, rows, coreset_ids, abstract, output, dims, steering, targets, proposed)
         g_fail, g_notes = gates.run(ctx, int(gate[1]) if gate else None, status)
