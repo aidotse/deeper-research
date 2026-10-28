@@ -1,4 +1,7 @@
-"""The gates of a pass: what each step must have left behind in the files, checked by deeper_research/check.py (docs/gates.md).
+"""The gates of a pass, G0 to G5, and the requirements each one checks.
+
+The gates of a pass: what each step must have left behind in the files, checked by deeper_research/check.py
+(docs/gates.md).
 
 No command line of its own: `uv run python -m deeper_research.check <topic> [--gate G<n>] [--status]` runs it.
 
@@ -35,7 +38,11 @@ import json
 import re
 import subprocess
 import unicodedata
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any, TypedDict, cast
 
+from deeper_research.audit import summary
 from deeper_research.check import (
     ABSTRACT_SHARE,
     BARE_ID,
@@ -43,12 +50,14 @@ from deeper_research.check import (
     FRINGE_QUOTA,
     NEEDED,
     ROOT,
+    TableRow,
     read,
     row_id,
     sections,
     table_rows,
     words,
 )
+from deeper_research.coverage import counted, render, sheet
 from deeper_research.screen import judged, verdicts
 
 GATES = [
@@ -74,7 +83,8 @@ PLACEHOLDER = re.compile(r"<[a-z][^<>\n]{0,80}>")
 COMPUTED_ID = re.compile(r"\bc\d+\b")
 QUOTE = re.compile(r"[\"“][^\"”]{12,}[\"”]")
 REPEATABLE = {"Coverage test"}
-SOURCE_RANK = {"abstract": 0, "snippet": 1, "full-text": 1}  # `snippet` only in legacy surveys and old commits
+# `snippet` only in legacy surveys and old commits
+SOURCE_RANK: dict[str | None, int] = {"abstract": 0, "snippet": 1, "full-text": 1}
 QUOTE_WORDS = 6  # the fewest words in each part of an evidence quote, so that a quote cannot be vacuous
 QUOTE_WINDOW = 3000  # the most characters of normalised text between two parts of an elided quote
 COVERAGE_SAMPLE = 10  # the fewest sampled candidates in a coverage-test round (docs/process.md: 10-15)
@@ -84,10 +94,13 @@ TOKENS = re.compile(r"^[^:,]+:\s*~?\d[\d,.]*\s*[kKM]?$")
 # --- parsing --------------------------------------------------------------------------------------
 
 
-def labelled(lines):
+def labelled(lines: list[str]) -> dict[str, list[str]]:
     """Map each `- **Label:** value` bullet to its values (one per occurrence), joined with its continuation lines.
+
     A parenthesis after the label is dropped: `Orientation (WebSearch)` is `Orientation`.
     """
+    out: dict[str, list[list[str]]]
+    item: list[str] | None
     out, item = {}, None
     for line in lines:
         m = re.match(r"^- \*\*([^*]+?):\*\*\s*(.*)$", line)
@@ -101,8 +114,10 @@ def labelled(lines):
     return {k: [" ".join(v) for v in vs] for k, vs in out.items()}
 
 
-def log_entries(log_text):
+def log_entries(log_text: str) -> list[dict[str, Any]]:
     """The retrieval log's `### Pass YYYY-MM-DD` entries, in order: {date, text, lines}."""
+    entries: list[dict[str, Any]]
+    cur: dict[str, Any] | None
     entries, cur = [], None
     for line in log_text.splitlines():
         m = re.match(r"^### Pass (\d{4}-\d{2}-\d{2})", line)
@@ -117,12 +132,14 @@ def log_entries(log_text):
     return entries
 
 
-def halts(lines):
-    """{halt id: [decision, ...]} from the `Halts` line: entries `<id> — <what happened> — <decision>`, separated by
+def halts(lines: dict[str, list[str]]) -> dict[str, list[str]]:
+    """The decisions recorded for each halt in the log's `Halts` line.
+
+    {halt id: [decision, ...]} from the `Halts` line: entries `<id> — <what happened> — <decision>`, separated by
     `;`. The decision is what follows the entry's last `—`, since what happened may itself contain one.
     """
     text = " ".join(lines.get("Halts", []))
-    out = {}
+    out: dict[str, list[str]] = {}
     for entry in re.split(r";\s*(?=H\d+\s*—)", text):
         m = re.match(r"\s*(H\d+)\s*—\s*(.*)—\s*(.*?)\s*$", entry)
         if m:
@@ -130,19 +147,23 @@ def halts(lines):
     return out
 
 
-def gate_line(lines):
+def gate_line(lines: dict[str, list[str]]) -> set[int]:
+    """The gates the log's `Gates` line declares passed, as numbers."""
     return {int(g) for g in re.findall(r"\bG([0-5])\b", " ".join(lines.get("Gates", [])))}
 
 
-def waivers(lines):
+def waivers(lines: dict[str, list[str]]) -> set[str]:
+    """The requirement ids the log's `Waivers` line waives, such as `g4.h10`."""
     return set(re.findall(r"\b(g\d\.[a-z0-9-]+)\s*—", " ".join(lines.get("Waivers", []))))
 
 
-def proposed_dimensions(text):
-    """{name: set of values} from a `Dimensions` line that proposes them, in the input's form:
+def proposed_dimensions(text: str) -> dict[str, set[str]]:
+    """The dimensions a `Dimensions` line proposes, with their values.
+
+    {name: set of values} from a `Dimensions` line that proposes them, in the input's form:
     `proposed: `name` — values: `a`, `b`; `other` — values: `c`, `d``.
     """
-    out = {}
+    out: dict[str, set[str]] = {}
     for part in text.partition("proposed")[2].split(";"):
         m = re.search(r"`([a-z0-9][a-z0-9-]*)`\s*—\s*values:(.*)$", part)
         if m:
@@ -150,7 +171,7 @@ def proposed_dimensions(text):
     return out
 
 
-def mentions(text, *parts):
+def mentions(text: str | None, *parts: str) -> bool:
     """Whether `text` holds the parts in order, separated by a dash: `c — dissent`."""
     return re.search(r"\s*[—-]+\s*".join(re.escape(p) for p in parts), text or "") is not None
 
@@ -161,9 +182,58 @@ def mentions(text, *parts):
 class Ctx:
     """Everything the requirements read, gathered once by deeper_research/check.py."""
 
+    topic: str
+    secs: dict[str, str]
+    output: str | None
+    dims: dict[str, set[str]]
+    proposed: bool
+    steering: dict[str, str]
+    targets: list[str]
+    rows: list[TableRow]
+    coreset_ids: set[str]
+    abstract: set[str | None]
+    clusters: dict[str, str]
+    computed: dict[str, str]
+    cluster_rows: list[dict[str, str]]
+    pool: set[str]
+    pool_cluster: dict[str, str]
+    titles: dict[str, str]
+    report: dict[str, Any] | None
+    roles: dict[str, dict[str, int]]
+    bridges: set[frozenset[str]]
+    entries: list[dict[str, Any]]
+    cur: dict[str, Any] | None
+    L: dict[str, list[str]]
+    date: str
+    first_pass: bool
+    open_work: dict[str, list[str]]
+    halts: dict[str, list[str]]
+    waived: set[str]
+    declared: set[int]
+    records: dict[str, Any]
+    fringe: dict[str, Any] | None
+    screen: str | None
+    rejected: str | None
+    expand: dict[str, Any] | None
+    expand_screen: str | None
+    # Set by r_evidence only when some full-text quote could not be checked; run reads it with getattr.
+    unchecked: list[str]
+
     def __init__(
-        self, topic, secs, structure, rows, coreset_ids, abstract, output, dims, steering, targets, proposed=False
-    ):
+        self,
+        topic: str,
+        secs: dict[str, str],
+        structure: dict[str, Any] | None,
+        rows: list[TableRow],
+        coreset_ids: set[str],
+        abstract: set[str | None],
+        output: str | None,
+        dims: dict[str, set[str]],
+        steering: dict[str, str] | None,
+        targets: list[str],
+        proposed: bool = False,
+    ) -> None:
+        """Gather the survey's parsed sections and structure, the current log entry, and the topic's graph files."""
         self.topic, self.secs, self.output = topic, secs, output
         # The dimensions: declared in the input, or, when it declares none, proposed in the `Dimensions` line.
         self.dims, self.proposed, self.steering, self.targets = dims, proposed, steering or {}, targets
@@ -189,16 +259,20 @@ class Ctx:
         self.expand = json.loads(read(d / "expand.json") or "null")
         self.expand_screen = read(d / "expand-screen.md")
 
-    def line(self, label):
+    def line(self, label: str) -> str:
+        """The current log entry's `label` line, its occurrences joined by spaces; empty if it has none."""
         return " ".join(self.L.get(label, []))
 
-    def ow(self, label):
+    def ow(self, label: str) -> str:
+        """Open work's `label` bullet, its occurrences joined by spaces; empty if it has none."""
         return " ".join(self.open_work.get(label, []))
 
-    def pending(self):
+    def pending(self) -> list[str]:
+        """The halts whose recorded decision is still `pending`, sorted."""
         return sorted(h for h, ds in self.halts.items() if any(d.lower().startswith("pending") for d in ds))
 
-    def assigned(self):
+    def assigned(self) -> dict[str, Any]:
+        """{pool paper: computed cluster} from clusters.json, its late papers included."""
         r = self.report or {}
         a = dict(r.get("assignment", {}))
         a.update({p: x["cluster"] for p, x in r.get("late", {}).items()})
@@ -209,27 +283,33 @@ class Ctx:
 # Each returns None when it holds, or a string saying what is missing.
 
 
-def need_lines(c, *labels):
-    missing = [l for l in labels if not any(v.strip() for v in c.L.get(l, []))]  # an empty line is a missing one
+def need_lines(c: Ctx, *labels: str) -> str | None:
+    """None if the current log entry has a non-empty line for every label; else which are missing."""
+    # an empty line is a missing one
+    missing = [label for label in labels if not any(v.strip() for v in c.L.get(label, []))]
     return f"the log entry of {c.date} has no `{'`, `'.join(missing)}` line" if missing else None
 
 
-def r_entry(c):
+def r_entry(c: Ctx) -> str | None:
+    """The pass has its `### Pass YYYY-MM-DD` entry in the Retrieval log."""
     return None if c.cur else "the Retrieval log has no `### Pass YYYY-MM-DD` entry for this pass"
 
 
-def r_placeholders(c):
+def r_placeholders(c: Ctx) -> str | None:
+    """No template placeholder (`<...>`) is left in the current log entry or in Open work."""
     text = (c.cur["text"] if c.cur else "") + "\n" + c.secs.get("Open work", "")
     found = sorted(set(PLACEHOLDER.findall(text)))
     return f"template placeholders left in the log entry or Open work: {found[:6]}" if found else None
 
 
-def r_labels(c):
+def r_labels(c: Ctx) -> str | None:
+    """No log line is written twice in the current entry, except the repeatable `Coverage test`."""
     twice = sorted(k for k, v in c.L.items() if len(v) > 1 and k not in REPEATABLE)
     return f"log lines written twice in one entry: {twice}; update the line instead" if twice else None
 
 
-def r_dimensions(c):
+def r_dimensions(c: Ctx) -> str | None:
+    """The `Dimensions` line says `declared in the input`, or proposes dimensions of two values or more."""
     if m := need_lines(c, "Dimensions"):
         return m
     text = c.line("Dimensions")
@@ -245,7 +325,8 @@ def r_dimensions(c):
     return f"proposed dimensions with fewer than two values: {few}; the form is {form}" if few else None
 
 
-def r_preflight(c):
+def r_preflight(c: Ctx) -> str | None:
+    """The `Preflight` line shows every preflight check passing (`ok` or `set`)."""
     if m := need_lines(c, "Preflight"):
         return m
     bad = []
@@ -256,10 +337,12 @@ def r_preflight(c):
     return f"`Preflight` does not show these checks passing: {bad}; a failed check halts the pass (H1)" if bad else None
 
 
-def r_orientation(c):
+def r_orientation(c: Ctx) -> str | None:
+    """`Orientation` and `Recency window` are logged; Orientation names IDs to traverse and themes to search."""
     if m := need_lines(c, "Orientation", "Recency window"):
         return m
-    from deeper_research.expand import orientation_parts
+    # local: import cycle with expand, which imports gates
+    from deeper_research.expand import orientation_parts  # noqa: PLC0415
 
     seeds, ids, themes = orientation_parts(c.line("Orientation"))
     problems = []
@@ -276,18 +359,26 @@ def r_orientation(c):
     return "; ".join(problems) or None
 
 
-def expand_rounds(c):
+def expand_rounds(c: Ctx) -> list[tuple[int, dict[str, Any]]]:
     """This pass's collections in expand.json, as (index, record)."""
     return [(i, r) for i, r in enumerate((c.expand or {}).get("rounds", [])) if r.get("collected", "") >= c.date]
 
 
-def r_expansion_collected(c):
+def r_expansion_collected(c: Ctx) -> str | None:
+    """This pass's expansion collected every seed, frontier candidate and theme that `Orientation` names."""
     if not c.expand:
-        return f"graphs/{c.topic}/expand.json does not exist: run `uv run python -m deeper_research.expand collect {c.topic}`"
+        return (
+            f"graphs/{c.topic}/expand.json does not exist: run "
+            f"`uv run python -m deeper_research.expand collect {c.topic}`"
+        )
     first = [r for _, r in expand_rounds(c) if r.get("kind") == "first"]
     if not first:
-        return f"expansion was not collected this pass ({c.date}): run `uv run python -m deeper_research.expand collect {c.topic}`"
-    from deeper_research.expand import orientation_parts
+        return (
+            f"expansion was not collected this pass ({c.date}): run "
+            f"`uv run python -m deeper_research.expand collect {c.topic}`"
+        )
+    # local: import cycle with expand, which imports gates
+    from deeper_research.expand import orientation_parts  # noqa: PLC0415
 
     seeds, ids, themes = orientation_parts(c.line("Orientation"))
     have = {(x["kind"], x.get("from") or x.get("query")) for x in first[-1]["sources"]}
@@ -319,15 +410,17 @@ def r_expansion_collected(c):
     return "; ".join(problems) or None
 
 
-def expand_mine(c):
+def expand_mine(c: Ctx) -> dict[str, tuple[str, str] | None]:
     """{s2: (verdict, reason)} for the sheet rows of this pass's candidates."""
-    from deeper_research.expand import pass_candidates
+    # local: import cycle with expand, which imports gates
+    from deeper_research.expand import pass_candidates  # noqa: PLC0415
 
     said = verdicts(c.expand_screen)
     return {s: said.get(s) for s in pass_candidates(c.expand, c.date)}
 
 
-def r_expansion_screened(c):
+def r_expansion_screened(c: Ctx) -> str | None:
+    """Every candidate this pass's expansion collected has a row in expand-screen.md, judged."""
     if not c.expand_screen:
         return f"graphs/{c.topic}/expand-screen.md does not exist"
     if not c.expand:
@@ -347,14 +440,16 @@ def r_expansion_screened(c):
     return "; ".join(problems) or None
 
 
-def r_expansion_added(c):
+def r_expansion_added(c: Ctx) -> str | None:
+    """Every in-scope expansion candidate is in the pool or Open work, and every rejected one in rejected.md."""
     if not (c.expand and c.expand_screen):
         return None  # g1.expansion-collected and g1.expansion-screened report it
-    from deeper_research.expand import canonical
+    # local: import cycle with expand, which imports gates
+    from deeper_research.expand import canonical  # noqa: PLC0415
 
     cands = c.expand.get("candidates", {})
     pool_titles = {" ".join(words(t)) for t in c.titles.values()}
-    rejected = {row_id(l) for h, _, _, l in table_rows(c.rejected or "") if h and h[0] == "paper"}
+    rejected = {row_id(line) for h, _, _, line in table_rows(c.rejected or "") if h and h[0] == "paper"}
     unseen = c.ow("Papers that could not enter the pool")
     missing, unrecorded, conflict = [], [], []
     for s, v in expand_mine(c).items():
@@ -392,12 +487,14 @@ def r_expansion_added(c):
     return "; ".join(problems) or None
 
 
-def r_expansion_line(c):
+def r_expansion_line(c: Ctx) -> str | None:
+    """The `Expansion` line matches expand.json and its screening sheet, as `add-expand` prints it."""
     if m := need_lines(c, "Expansion"):
         return m
     if not (c.expand and c.expand_screen):
         return None
-    from deeper_research.expand import expansion_line
+    # local: import cycle with expand, which imports gates
+    from deeper_research.expand import expansion_line  # noqa: PLC0415
 
     want = expansion_line(c.expand, verdicts(c.expand_screen), c.date).split(":** ", 1)[1]
     if " ".join(c.line("Expansion").split()) != " ".join(want.split()):
@@ -408,7 +505,8 @@ def r_expansion_line(c):
     return None
 
 
-def r_errored(c):
+def r_errored(c: Ctx) -> str | None:
+    """`Errored queries` is `none` or gives each query's retry outcome, with H2 for a failed retry."""
     if m := need_lines(c, "Errored queries"):
         return m
     text = c.line("Errored queries")
@@ -416,7 +514,10 @@ def r_errored(c):
     if not entries and text.strip().lower().startswith("none"):
         return None  # a `none` followed by entries is read by its entries
     if not entries:
-        return '`Errored queries` is neither `none` nor in the form `"<query>" (...; retried at the end of the step: ok | failed)`'
+        return (
+            "`Errored queries` is neither `none` nor in the form "
+            '`"<query>" (...; retried at the end of the step: ok | failed)`'
+        )
     if any("retried at the end of the step:" not in e for e in entries):
         return "an errored query has no retry outcome (`retried at the end of the step: ok | failed`)"
     if any(re.search(r"retried at the end of the step:\s*failed", e) for e in entries) and "H2" not in c.halts:
@@ -424,8 +525,10 @@ def r_errored(c):
     return None
 
 
-def pool_step(c):
-    """What fetches papers added to the pool and prints the `Pool` line: `pool.py` before this pass's clustering, and
+def pool_step(c: Ctx) -> str:
+    """The command that fetches papers added to the pool and prints the `Pool` line.
+
+    What fetches papers added to the pool and prints the `Pool` line: `pool.py` before this pass's clustering, and
     `assign.py late` after it, which also places them in their nearest cluster.
     """
     if c.report and c.report.get("generated", "") >= c.date:
@@ -433,7 +536,8 @@ def pool_step(c):
     return f"`uv run python -m deeper_research.pool {c.topic}`"
 
 
-def r_fetched(c):
+def r_fetched(c: Ctx) -> str | None:
+    """Every pool paper is fetched into pool.json."""
     out = sorted(c.pool - set(c.records))
     return (
         f"{len(out)} pool paper(s) not fetched: {out[:8]}; run {pool_step(c)} and paste the `Pool` line it prints"
@@ -442,20 +546,25 @@ def r_fetched(c):
     )
 
 
-def screened(c):
+def screened(c: Ctx) -> dict[str, tuple[str, str]]:
     """{s2: (verdict, reason)} from the fringe screening sheet."""
     return verdicts(c.screen)
 
 
-def r_fringe_collected(c):
+def r_fringe_collected(c: Ctx) -> str | None:
+    """The fringe routes were collected into fringe.json during this pass."""
     if not c.fringe:
-        return f"graphs/{c.topic}/fringe.json does not exist: run `uv run python -m deeper_research.fringe collect {c.topic}`"
+        return (
+            f"graphs/{c.topic}/fringe.json does not exist: run "
+            f"`uv run python -m deeper_research.fringe collect {c.topic}`"
+        )
     if c.fringe.get("collected", "") < c.date:
         return f"the fringe routes were last collected on {c.fringe.get('collected')}, before this pass ({c.date})"
     return None
 
 
-def r_fringe_screened(c):
+def r_fringe_screened(c: Ctx) -> str | None:
+    """Every fringe candidate has a row in fringe-screen.md, judged with a reason."""
     if not c.screen:
         return f"graphs/{c.topic}/fringe-screen.md does not exist"
     s = screened(c)
@@ -472,7 +581,8 @@ def r_fringe_screened(c):
     return "; ".join(problems) or None
 
 
-def r_fringe_added(c):
+def r_fringe_added(c: Ctx) -> str | None:
+    """Every in-scope fringe candidate is in the pool, or recorded in Open work as unable to enter it."""
     if not (c.fringe and c.screen):
         return None  # g1.fringe-collected and g1.fringe-screened report it
     cands, missing = c.fringe.get("candidates", {}), []
@@ -499,7 +609,8 @@ def r_fringe_added(c):
     )
 
 
-def r_fringe_line(c):
+def r_fringe_line(c: Ctx) -> str | None:
+    """The `Fringe` line's collection date, unique candidates and in-scope count match the files."""
     if m := need_lines(c, "Fringe"):
         return m
     if not c.fringe:
@@ -521,13 +632,19 @@ def r_fringe_line(c):
     )
 
 
-def fetched_range(c):
-    """The fetch dates of the pool's records, as deeper_research/pool.py prints them: one date, or `<first> to <last>`."""
-    dates = sorted({(c.records.get(p) or {}).get("fetched") for p in c.pool | c.coreset_ids} - {None})
+def fetched_range(c: Ctx) -> str:
+    """The fetch dates of the pool's records.
+
+    The fetch dates of the pool's records, as deeper_research/pool.py prints them: one date, or
+    `<first> to <last>`.
+    """
+    # Removing None leaves the fetch dates, which are strings.
+    dates = sorted(cast("set[str]", {(c.records.get(p) or {}).get("fetched") for p in c.pool | c.coreset_ids} - {None}))
     return "unknown" if not dates else dates[0] if len(dates) == 1 else f"{dates[0]} to {dates[-1]}"
 
 
-def r_pool_line(c):
+def r_pool_line(c: Ctx) -> str | None:
+    """The `Pool` line gives the pool's size and the fetch dates recorded in pool.json."""
     if m := need_lines(c, "Pool"):
         return m
     text, problems = c.line("Pool"), []
@@ -540,15 +657,20 @@ def r_pool_line(c):
     return f"`Pool` {'; '.join(problems)}; run {pool_step(c)} and paste the line it prints" if problems else None
 
 
-def r_clustered(c):
+def r_clustered(c: Ctx) -> str | None:
+    """clusters.json exists and was generated during this pass."""
     if not c.report:
         return f"graphs/{c.topic}/clusters.json does not exist"
     if c.report.get("generated", "") < c.date:
-        return f"clusters.json is from {c.report.get('generated')}, before this pass: run `uv run python -m deeper_research.cluster {c.topic}`"
+        return (
+            f"clusters.json is from {c.report.get('generated')}, before this pass: run "
+            f"`uv run python -m deeper_research.cluster {c.topic}`"
+        )
     return None
 
 
-def r_named(c):
+def r_named(c: Ctx) -> str | None:
+    """Every Clusters row has its id, name, definition, alignment, reason and computed id filled in."""
     if not c.cluster_rows:
         return "the Clusters table has no rows"
     cols = ["id", "name", "definition", "alignment", "alignment reason", "computed"]
@@ -558,8 +680,12 @@ def r_named(c):
     return f"Clusters rows with an empty or placeholder cell: {bad}" if bad else None
 
 
-def r_central_claim(c):
-    """Each `high` cluster's definition states its central claim in a second sentence, which dissent is judged against."""
+def r_central_claim(c: Ctx) -> str | None:
+    """Each `high` cluster's definition has a second sentence.
+
+    Each `high` cluster's definition states its central claim in a second sentence, which dissent is judged
+    against.
+    """
     short = sorted(
         r.get("id", "?")
         for r in c.cluster_rows
@@ -571,17 +697,20 @@ def r_central_claim(c):
     )
 
 
-def r_written(c):
+def r_written(c: Ctx) -> str | None:
+    """Every pool paper clusters.json assigns has its cluster written into the Pool table."""
     a = c.assigned()
     blank = sorted(p for p in c.pool if p in a and not c.pool_cluster.get(p))
     return (
-        f"{len(blank)} pool paper(s) have no cluster written: run `uv run python -m deeper_research.assign clusters {c.topic}`"
+        f"{len(blank)} pool paper(s) have no cluster written: run "
+        f"`uv run python -m deeper_research.assign clusters {c.topic}`"
         if blank
         else None
     )
 
 
-def r_cluster_lines(c):
+def r_cluster_lines(c: Ctx) -> str | None:
+    """`Clustering`, `Clustering rationale` and `Clusters` are logged, and `Clustering` uses named ids."""
     if m := need_lines(c, "Clustering", "Clustering rationale", "Clusters"):
         return m
     ids = sorted(set(COMPUTED_ID.findall(c.line("Clustering"))))
@@ -590,7 +719,8 @@ def r_cluster_lines(c):
     return None
 
 
-def r_clustering_matches(c):
+def r_clustering_matches(c: Ctx) -> str | None:
+    """The `Clustering` line's measure, level, rule and `--level` override agree with clusters.json."""
     if not c.report or not c.L.get("Clustering"):
         return None
     text, problems = c.line("Clustering"), []
@@ -600,7 +730,8 @@ def r_clustering_matches(c):
     n = re.search(r"level (\d+) clusters", text)
     if not n or int(n.group(1)) != len(c.report.get("clusters", [])):
         problems.append(f"level is not {len(c.report.get('clusters', []))} clusters")
-    # The rule, with any granularity steering or --level override that moved the level, as deeper_research/cluster.py recorded it.
+    # The rule, with any granularity steering or --level override that moved the level, as
+    # deeper_research/cluster.py recorded it.
     rule = c.report.get("rule", "")
     r = re.search(r"clusters by rule (.+?), stability", text)
     if not r or r.group(1).strip() != rule:
@@ -613,7 +744,8 @@ def r_clustering_matches(c):
     return f"`Clustering` disagrees with clusters.json: {'; '.join(problems)}" if problems else None
 
 
-def r_clusters_line(c):
+def r_clusters_line(c: Ctx) -> str | None:
+    """The `Clusters` line's counts match the Clusters table, and a pending review is in Open work."""
     if not c.L.get("Clusters"):
         return None
     text = c.line("Clusters")
@@ -627,23 +759,27 @@ def r_clusters_line(c):
     return None
 
 
-def r_diagnosis_halts(c):
+def r_diagnosis_halts(c: Ctx) -> str | None:
+    """A clusters.json diagnosis of no structure (H4) or no stable level (H5) is in `Halts`."""
     cases = {d.get("case") for d in (c.report or {}).get("diagnostics", [])}
     need = [h for case, h in (("no structure", "H4"), ("no stable level", "H5")) if case in cases and h not in c.halts]
     return f"clusters.json diagnoses {', '.join(need)}'s condition, but `Halts` does not record it" if need else None
 
 
-def r_review(c):
+def r_review(c: Ctx) -> str | None:
+    """When the input asks for a review before the coreset, `Halts` records H13."""
     if "review" in c.steering and "H13" not in c.halts:
         return "the input asks for `review: before coreset`, but `Halts` does not record H13 with the user's decision"
     return None
 
 
-def empty_roles(c):
+def empty_roles(c: Ctx) -> str:
+    """Open work's `Empty roles` entries, joined into one string."""
     return c.ow("Empty roles")
 
 
-def r_roles(c):
+def r_roles(c: Ctx) -> str | None:
+    """Every role a cluster's alignment requires is filled, or its empty slot is recorded in `Empty roles`."""
     out = []
     for cid, alignment in c.clusters.items():
         for role in NEEDED.get(alignment, ()):
@@ -659,11 +795,13 @@ def r_roles(c):
     )
 
 
-def dissent_searches(c):
-    """{cluster id: [found ids] or None for `none found`} from `Dissent searches`, whose entries read
+def dissent_searches(c: Ctx) -> dict[str, list[list[str] | None]]:
+    """The papers each cluster's dissent searches found, from the `Dissent searches` line.
+
+    {cluster id: [found ids] or None for `none found`} from `Dissent searches`, whose entries read
     `<cluster id>: <what was searched> -> found: <id>, ... | none found`, separated by `|` or `;`.
     """
-    out = {}
+    out: dict[str, list[list[str] | None]] = {}
     for m in re.finditer(
         r"(?:^|[|;])\s*([a-z0-9]+(?:-[a-z0-9]+)*):\s*([^|;]*?)->\s*(found:[^|;]*|none found)",
         c.line("Dissent searches"),
@@ -673,7 +811,8 @@ def dissent_searches(c):
     return out
 
 
-def r_dissent_searched(c):
+def r_dissent_searched(c: Ctx) -> str | None:
+    """Every high-alignment cluster has a dissent search, and what each search found is a dissent row or demoted."""
     searches, problems = dissent_searches(c), []
     missing = [cid for cid, a in c.clusters.items() if a == "high" and cid not in searches]
     if missing:
@@ -693,15 +832,20 @@ def r_dissent_searched(c):
     return "; ".join(problems) or None
 
 
-def coreset_cells(c):
+def coreset_cells(c: Ctx) -> tuple[list[str], list[dict[str, Any]]]:
+    """The Coreset header, and each row as {column: cell} plus its paper ID (`_id`) and cluster block (`_block`).
+
+    `_id` is None for a row without a paper link.
+    """
     header = c.rows[0][0] if c.rows else []
     return header, [
-        dict(zip(header, cs)) | {"_id": row_id(l), "_block": (b or "").split(" — ")[0].strip()}
-        for _, cs, b, l in c.rows
+        dict(zip(header, cs, strict=False)) | {"_id": row_id(line), "_block": (b or "").split(" — ")[0].strip()}
+        for _, cs, b, line in c.rows
     ]
 
 
-def r_dissent_quoted(c):
+def r_dissent_quoted(c: Ctx) -> str | None:
+    """Every dissent row's `selected because` quotes the claim that contradicts its cluster."""
     _, rows = coreset_cells(c)
     out = [r["_id"] for r in rows if r.get("role") == "dissent" and not QUOTE.search(r.get("selected because", ""))]
     return (
@@ -711,7 +855,8 @@ def r_dissent_quoted(c):
     )
 
 
-def r_bridges(c):
+def r_bridges(c: Ctx) -> str | None:
+    """Every pair of clusters that trade papers has a bridge row, or an `Empty roles` entry for it."""
     out = []
     for d in (c.report or {}).get("diagnostics", []):
         if d.get("case") != "clusters trade papers":
@@ -719,15 +864,22 @@ def r_bridges(c):
         a, b = (c.computed.get(x) for x in d.get("clusters", [None, None]))
         if None in (a, b) or frozenset((a, b)) in c.bridges:
             continue
-        if not (mentions(empty_roles(c), a, f"bridge:{b}") or mentions(empty_roles(c), b, f"bridge:{a}")):
+        # Neither is None here: a pair with an unnamed computed cluster was skipped above.
+        if not (
+            mentions(empty_roles(c), cast("str", a), f"bridge:{b}")
+            or mentions(empty_roles(c), cast("str", b), f"bridge:{a}")
+        ):
             out.append(f"{a} / {b}")
     return f"clusters that trade papers with neither a bridge row nor an `Empty roles` entry: {out}" if out else None
 
 
-def r_divided(c):
+def r_divided(c: Ctx) -> str | None:
+    """Every divided high-alignment cluster has a second frontier or a bridge, or an `Empty roles` entry."""
     out = []
     for cl in (c.report or {}).get("clusters", []):
-        cid = c.computed.get(cl["id"])
+        # None for a computed cluster the Clusters table does not name; its alignment is then not `high`, so the
+        # check below skips it.
+        cid = cast("str", c.computed.get(cl["id"]))
         if not cl.get("divided") or c.clusters.get(cid) != "high":
             continue
         r = c.roles.get(cid, {})
@@ -749,20 +901,23 @@ def r_divided(c):
     )
 
 
-def r_fringe_quota(c):
+def r_fringe_quota(c: Ctx) -> str | None:
+    """The number of fringe rows is within FRINGE_QUOTA."""
     n = sum(r.get("fringe", 0) for r in c.roles.values())
     lo, hi = FRINGE_QUOTA
     return None if lo <= n <= hi else f"{n} fringe row(s); the quota is {lo}-{hi} per topic"
 
 
-def r_cells(c):
+def r_cells(c: Ctx) -> str | None:
+    """No coreset row has an empty or placeholder cell in a required column or a dimension."""
     header, rows = coreset_cells(c)
     cols = [k for k in header if k in CORESET_COLUMNS or k in c.dims]
     bad = sorted({r["_id"] for r in rows for k in cols if not r.get(k, "").strip() or PLACEHOLDER.search(r.get(k, ""))})
     return f"coreset rows with an empty or placeholder cell: {bad[:10]}" if bad else None
 
 
-def r_assigned(c):
+def r_assigned(c: Ctx) -> str | None:
+    """Every coreset row's paper has a cluster in the Pool table."""
     out = sorted(i for i in c.coreset_ids if not c.pool_cluster.get(i))
     return (
         f"coreset rows for papers with no cluster yet (late papers take a role only once assigned): {out}"
@@ -771,7 +926,7 @@ def r_assigned(c):
     )
 
 
-def r_dimension_columns(c):
+def r_dimension_columns(c: Ctx) -> str | None:
     """One Coreset column per dimension, declared or proposed, and no other extra column."""
     if not c.rows:
         return None
@@ -789,12 +944,15 @@ def r_dimension_columns(c):
     return "; ".join(problems) or None
 
 
-def r_abstract_listed(c):
-    out = sorted(i for i in c.abstract if i not in c.ow("Rows needing verification"))
+def r_abstract_listed(c: Ctx) -> str | None:
+    """Every `abstract` row is listed under Open work's `Rows needing verification`."""
+    # BUG?: an `abstract` row without a paper link puts None in c.abstract, and `None not in <str>` raises TypeError
+    out = sorted(i for i in c.abstract if i not in c.ow("Rows needing verification"))  # type: ignore[operator, type-var]
     return f"`abstract` rows not listed in Open work's `Rows needing verification`: {out}" if out else None
 
 
-def r_h10(c):
+def r_h10(c: Ctx) -> str | None:
+    """If more than ABSTRACT_SHARE of the rows are `abstract`, `Halts` records H10."""
     if not c.rows:
         return None
     share = len(c.abstract) / len(c.rows)
@@ -808,14 +966,19 @@ EVIDENCE_LINE = re.compile(r"^((?:`[^`]+`\s*,?\s*)+)\s*—\s*(snippet|full-text|
 ELLIPSIS = re.compile(r"\s*(?:\.\.\.|…|\[\.\.\.\])\s*")
 
 
-def evidence_path(c, pid):
+def evidence_path(c: Ctx, pid: str) -> Path:
+    """The path of a paper's evidence file, its ID's `/` and `:` replaced by `_`."""
     return ROOT / "graphs" / c.topic / "evidence" / (pid.replace("/", "_").replace(":", "_") + ".md")
 
 
-def evidence_entries(text):
-    """[(cells, source, locator, quote)] from an evidence file: bullets `- `cell`, ... — source[, where] — "quote"`,
+def evidence_entries(text: str) -> list[tuple[list[str] | None, str | None, str | None, str]]:
+    """The entries of an evidence file, one per bullet.
+
+    [(cells, source, locator, quote)] from an evidence file: bullets `- `cell`, ... — source[, where] — "quote"`,
     joined with their wrapped continuation lines.
     """
+    out: list[list[str]]
+    cur: list[str] | None
     out, cur = [], None
     for line in text.splitlines():
         if line.startswith("- "):
@@ -825,7 +988,7 @@ def evidence_entries(text):
             cur.append(line.strip())
         elif not line.strip():
             cur = None
-    entries = []
+    entries: list[tuple[list[str] | None, str | None, str | None, str]] = []
     for b in (" ".join(x) for x in out):
         m = EVIDENCE_LINE.match(b)
         if m:
@@ -837,9 +1000,10 @@ def evidence_entries(text):
     return entries
 
 
-def normalised(text):
-    """Lower-case words, split on anything else, padded with spaces, so that a word matches only a whole word. Two
-    readings of the text: with words hyphenated across a line break joined (`im-\nproves`), and without, so that a
+def normalised(text: str) -> list[str]:
+    r"""Lower-case words, split on anything else, padded with spaces, so that a word matches only a whole word.
+
+    Two readings of the text: with words hyphenated across a line break joined (`im-\nproves`), and without, so that a
     compound broken at its hyphen (`state-of-\nthe-art`) also matches.
     """
     text = unicodedata.normalize("NFKC", text).lower()
@@ -847,7 +1011,7 @@ def normalised(text):
     return [" " + " ".join(re.findall(r"[a-z0-9]+", v)) + " " for v in (joined, text)]
 
 
-def quote_parts(quote):
+def quote_parts(quote: str) -> list[str]:
     """The parts of a quote elided with `...`, normalised; empty parts dropped."""
     return [
         p
@@ -859,12 +1023,13 @@ def quote_parts(quote):
     ]
 
 
-def too_short(quote):
+def too_short(quote: str) -> bool:
+    """Whether the quote has no part, or a part shorter than QUOTE_WORDS words."""
     parts = quote_parts(quote)
     return not parts or any(len(p.split()) < QUOTE_WORDS for p in parts)
 
 
-def found_in(quote, readings):
+def found_in(quote: str, readings: list[str]) -> bool:
     """Whether the quote's parts are in one reading of the text, in order, each within QUOTE_WINDOW of the last."""
     parts = quote_parts(quote)
     if not parts:
@@ -885,13 +1050,24 @@ def found_in(quote, readings):
     return False
 
 
-def r_evidence(c):
-    """Every row verified against the full text keeps the quotes it rests on (docs/verification.md): one for each
-    claim cell and each dimension not `n/a`. Its file is headed by its own ID, and its method rests on the full text. A full-text quote must be in the fetched full text, at least QUOTE_WORDS words per part and its parts in
+def r_evidence(c: Ctx) -> str | None:  # noqa: C901
+    """Every verified row's evidence file holds a checkable quote for each claim it makes.
+
+    Every row verified against the full text keeps the quotes it rests on (docs/verification.md): one for each
+    claim cell and each dimension not `n/a`. Its file is headed by its own ID, and its method rests on the full text.
+    A full-text quote must be in the fetched full text, at least QUOTE_WORDS words per part and its parts in
     order; no quote may come from a snippet, which nothing can check afterwards.
     """
     header, rows = coreset_cells(c)
     dims = [k for k in header if k in c.dims]
+    missing: list[str]
+    malformed: list[str]
+    unfound: list[str]
+    unchecked: list[str]
+    snippets: list[str]
+    short: list[str]
+    foreign: list[str]
+    no_text: list[str]
     missing, malformed, unfound, unchecked, snippets, short, foreign, no_text = [], [], [], [], [], [], [], []
     for r in rows:
         if r.get("source") in (None, "abstract"):
@@ -924,11 +1100,12 @@ def r_evidence(c):
             if source != "full-text":
                 continue
             if too_short(quote):
-                short.append(f"{r['_id']} ({', '.join(cells)})")
+                # A full-text entry is a parsed one, so its cells are a list.
+                short.append(f"{r['_id']} ({', '.join(cast('list[str]', cells))})")
             elif readings is None:
                 unchecked.append(r["_id"])
             elif not found_in(quote, readings):
-                unfound.append(f"{r['_id']} ({', '.join(cells)})")
+                unfound.append(f"{r['_id']} ({', '.join(cast('list[str]', cells))})")
     problems = []
     if missing:
         problems.append(
@@ -960,7 +1137,7 @@ def r_evidence(c):
     return "; ".join(problems) or None
 
 
-def r_dissent_evidence(c):
+def r_dissent_evidence(c: Ctx) -> str | None:
     """A verified dissent row's quoted claim is in its evidence, so that it too traces back to the full text."""
     out = []
     for r in coreset_cells(c)[1]:
@@ -977,19 +1154,23 @@ def r_dissent_evidence(c):
     )
 
 
-def r_coreset_line(c):
+def r_coreset_line(c: Ctx) -> str | None:
+    """The `Coreset` line gives the number of coreset rows."""
     if m := need_lines(c, "Coreset"):
         return m
     n = re.search(r"(\d+) rows", c.line("Coreset"))
     return None if n and int(n.group(1)) == len(c.rows) else f"`Coreset` does not say {len(c.rows)} rows"
 
 
-def r_output(c):
+def r_output(c: Ctx) -> str | None:
+    """The output, outputs/<topic>.md, exists."""
     return None if c.output is not None else f"outputs/{c.topic}.md does not exist"
 
 
-def items(text):
+def items(text: str | None) -> list[str]:
     """Top-level list items of a section, each joined with its continuation lines."""
+    out: list[list[str]]
+    cur: list[str] | None
     out, cur = [], None
     for line in (text or "").splitlines():
         if re.match(r"^(?:[-*]|\d+\.)\s", line):
@@ -1002,7 +1183,8 @@ def items(text):
     return ["\n".join(i) for i in out]
 
 
-def r_cite_entries(c):
+def r_cite_entries(c: Ctx) -> str | None:
+    """Every entry of the output's `Questions` and `Reading` sections cites a paper by ID."""
     if c.output is None:
         return None
     secs, out = sections(c.output), []
@@ -1013,8 +1195,19 @@ def r_cite_entries(c):
     return f"output entries citing no coreset paper: {out}" if out else None
 
 
-def rounds(c):
-    out = []
+class CoverageRound(TypedDict):
+    """A parsed `Coverage test` line: round number, K changed of N sampled, the IDs counted in K, and new clusters."""
+
+    r: int
+    k: int
+    n: int
+    ids: list[str]
+    new: str
+
+
+def rounds(c: Ctx) -> list[CoverageRound | None]:
+    """Each `Coverage test` line of the entry as {r, k, n, ids, new}, or None where it is not in the form."""
+    out: list[CoverageRound | None] = []
     for text in c.L.get("Coverage test", []):
         m = re.search(
             r"round (\d+):\s*(\d+) of (\d+) sampled candidates changed the output(.*?)(?:;\s*new clusters:\s*(.*))?$",
@@ -1037,18 +1230,24 @@ def rounds(c):
     return out
 
 
-def converged(r):
+def converged(r: CoverageRound) -> bool:
+    """Whether a coverage round converged: at most one candidate changed the output, and no new cluster."""
     return r["k"] <= 1 and r["new"].lower().startswith("none")
 
 
-def r_coverage(c):
+def r_coverage(c: Ctx) -> str | None:
+    """The `Coverage test` lines are in the form, each sampling enough candidates and naming those it counts."""
     if m := need_lines(c, "Coverage test"):
         return m
     rs = rounds(c)
     if None in rs:
-        return "a `Coverage test` line is not in the form `round R: K of N sampled candidates changed the output (...); new clusters: ...`"
+        return (
+            "a `Coverage test` line is not in the form "
+            "`round R: K of N sampled candidates changed the output (...); new clusters: ...`"
+        )
     problems = []
-    for i, r in enumerate(rs, 1):
+    # No None is left in rs: the check above returns on one.
+    for i, r in enumerate(cast("list[CoverageRound]", rs), 1):
         if r["n"] < COVERAGE_SAMPLE:
             problems.append(f"round {i} sampled {r['n']} candidates, fewer than {COVERAGE_SAMPLE}")
         if r["k"] != len(set(r["ids"])) or r["k"] > r["n"]:
@@ -1060,13 +1259,13 @@ def r_coverage(c):
     return "; ".join(problems) or None
 
 
-def r_coverage_sheets(c):
-    """Each round's sheet, written by deeper_research/coverage.py, backs its `Coverage test` line: every candidate judged, N its
-    rows, the IDs the line counts in K its `changes` rows, a proposed cluster not reported as `none`, and the line as
-    `coverage.py line` prints it, up to `new clusters:`.
-    """
-    from deeper_research.coverage import counted, render, sheet
+def r_coverage_sheets(c: Ctx) -> str | None:
+    """Each coverage round's sheet backs its `Coverage test` line.
 
+    Each round's sheet, written by deeper_research/coverage.py, backs its `Coverage test` line: every candidate judged,
+    N its rows, the IDs the line counts in K its `changes` rows, a proposed cluster not reported as `none`, and the
+    line as `coverage.py line` prints it, up to `new clusters:`.
+    """
     texts = c.L.get("Coverage test", [])
     problems = []
     for r in (x for x in rounds(c) if x):
@@ -1074,7 +1273,8 @@ def r_coverage_sheets(c):
         rows = sheet(read(path))
         if not rows:
             problems.append(
-                f"round {r['r']} has no sheet {path.relative_to(ROOT)} (`uv run python -m deeper_research.coverage draw`)"
+                f"round {r['r']} has no sheet {path.relative_to(ROOT)} "
+                "(`uv run python -m deeper_research.coverage draw`)"
             )
             continue
         left = [x["id"] for x in rows if not x.get("verdict")]
@@ -1095,7 +1295,10 @@ def r_coverage_sheets(c):
             )
         printed, why, _ = render(read(path), r["r"])
         pasted = next((x for x in texts if re.match(rf"\s*round {r['r']}:", x)), "")
-        head = lambda s: " ".join(s.split("; new clusters:")[0].split())
+
+        def head(s: str) -> str:
+            return " ".join(s.split("; new clusters:", 1)[0].split())
+
         if printed is None:
             problems.append(f"round {r['r']}'s sheet: {why}")
         elif head(pasted) != head(printed):
@@ -1106,21 +1309,23 @@ def r_coverage_sheets(c):
     return "; ".join(problems) or None
 
 
-def r_judgement_audit(c):
+def r_judgement_audit(c: Ctx) -> str | None:
     """The `Judgement audit` line, as deeper_research/audit.py computes it from the two judged sheets."""
-    from deeper_research.audit import summary
-
     if m := need_lines(c, "Judgement audit"):
         return m + " (`uv run python -m deeper_research.audit line`)"
     value, missing = summary(c.topic)
     if missing:
         return f"the judgement audits are not done: {missing}"
     if " ".join(c.line("Judgement audit").split()) != value:
-        return f"`Judgement audit` does not match its sheets; `uv run python -m deeper_research.audit line {c.topic}` prints: {value}"
+        return (
+            f"`Judgement audit` does not match its sheets; "
+            f"`uv run python -m deeper_research.audit line {c.topic}` prints: {value}"
+        )
     return None
 
 
-def r_converged(c):
+def r_converged(c: Ctx) -> str | None:
+    """Unconverged rounds lead to H11, and `Ended` is a converged `finished (F1)` or a recorded halt."""
     rs = [r for r in rounds(c) if r]
     ended = c.line("Ended").strip()
     unconverged = sum(1 for r in rs if not converged(r))
@@ -1138,12 +1343,14 @@ def r_converged(c):
     return None
 
 
-def r_counted_rows(c):
-    """Every paper a coverage round counted in K is an assigned coreset row, verified from the full text or marked
+def r_counted_rows(c: Ctx) -> str | None:
+    """Every paper a coverage round counted is an assigned and verified coreset row.
+
+    Every paper a coverage round counted in K is an assigned coreset row, verified from the full text or marked
     uncheckable: until then, Revise is not done (docs/process.md, step 7).
     """
     ids = {i for r in rounds(c) if r for i in r["ids"]}
-    rows = {row_id(l): dict(zip(h, cs)) for h, cs, _, l in c.rows}
+    rows = {row_id(line): dict(zip(h, cs, strict=False)) for h, cs, _, line in c.rows}
     out = sorted(i for i in ids if i not in c.coreset_ids or not c.pool_cluster.get(i))
     unverified = sorted(
         i
@@ -1164,17 +1371,20 @@ def r_counted_rows(c):
     return "; ".join(problems) or None
 
 
-def r_late_empty(c):
+def r_late_empty(c: Ctx) -> str | None:
+    """No pool paper with an embedding is still waiting for its cluster assignment."""
     a = c.assigned()
     out = sorted(p for p in c.pool if p not in a and (c.records.get(p) or {}).get("embedding"))
     return (
-        f"late papers still awaiting assignment: {out[:8]}; run `uv run python -m deeper_research.assign late {c.topic}`"
+        f"late papers still awaiting assignment: {out[:8]}; run "
+        f"`uv run python -m deeper_research.assign late {c.topic}`"
         if out
         else None
     )
 
 
-def r_end_lines(c):
+def r_end_lines(c: Ctx) -> str | None:
+    """The closing `Tokens`, `Halts` and `Ended` lines exist, and `Tokens` lists `<step>: <tokens>`."""
     if m := need_lines(c, "Tokens", "Halts", "Ended"):
         return m
     bad = [x.strip() for x in c.line("Tokens").split(",") if not TOKENS.match(x.strip())]
@@ -1183,7 +1393,7 @@ def r_end_lines(c):
     return None
 
 
-REQUIREMENTS = {
+REQUIREMENTS: dict[int, list[tuple[str, Callable[[Ctx], str | None]]]] = {
     0: [
         ("g0.entry", r_entry),
         ("g0.placeholders", r_placeholders),
@@ -1252,18 +1462,30 @@ REQUIREMENTS = {
 # --- history: compared with the last commit -------------------------------------------------------
 
 
-def committed(path):
+def committed(path: Path) -> str | None:
+    """The file's text at the last commit (`git show HEAD:<path>`), or None if git cannot give it."""
     try:
-        r = subprocess.run(["git", "show", f"HEAD:{path.relative_to(ROOT)}"], cwd=ROOT, capture_output=True, text=True)
+        # A fixed git command on a path under the repo; git is looked up on PATH on purpose.
+        r = subprocess.run(  # noqa: S603
+            ["git", "show", f"HEAD:{path.relative_to(ROOT)}"],  # noqa: S607
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
     except OSError:
         return None
     return r.stdout if r.returncode == 0 else None
 
 
-def history(c):
-    """Invariants against HEAD: earlier passes' entries intact, no pool paper or coreset row gone unrecorded, no
+def history(c: Ctx) -> tuple[list[str], list[str]]:
+    """Check the survey against its last commit.
+
+    Invariants against HEAD: earlier passes' entries intact, no pool paper or coreset row gone unrecorded, no
     `source` lowered. Returns (failures, notes).
     """
+    failures: list[str]
+    notes: list[str]
     failures, notes = [], []
     old = committed(ROOT / "surveys" / f"{c.topic}.md")
     if old is None:
@@ -1273,26 +1495,32 @@ def history(c):
     for e in log_entries(osecs.get("Retrieval log", "")):
         if e["date"] == c.date:
             continue
-        gone = [l for l in e["raw"] if l.strip() and l not in now]
+        gone = [line for line in e["raw"] if line.strip() and line not in now]
         if gone:
             failures.append(
                 f"the log entry of {e['date']} was changed since the last commit (earlier entries are never "
                 f"rewritten; add a pointer instead): {gone[0][:80]!r}"
             )
     record = " ".join(c.L.get(k, [""])[0] for k in ("Halts", "Corrections to existing rows", "Demotions"))
-    old_pool = {row_id(l) for h, _, _, l in table_rows(osecs.get("Pool", "")) if h and h[0] == "paper"} - {None}
+    # Removing None leaves the IDs of the rows with a paper link.
+    old_pool = cast(
+        "set[str]",
+        {row_id(line) for h, _, _, line in table_rows(osecs.get("Pool", "")) if h and h[0] == "paper"} - {None},
+    )
     gone = sorted(p for p in old_pool - c.pool if p not in record)
     if gone:
         failures.append(f"pool papers removed since the last commit without H12 or a logged merge: {gone[:8]}")
     old_rows = {
-        row_id(l): dict(zip(h, cs)) for h, cs, _, l in table_rows(osecs.get("Coreset", "")) if h and h[0] == "paper"
+        row_id(line): dict(zip(h, cs, strict=False))
+        for h, cs, _, line in table_rows(osecs.get("Coreset", ""))
+        if h and h[0] == "paper"
     }
     gone = sorted(p for p in set(old_rows) - c.coreset_ids if p and p not in record)
     if gone:
         failures.append(
             f"coreset rows removed since the last commit without a `Demotions` or `Corrections` entry: {gone[:8]}"
         )
-    now_rows = {row_id(l): dict(zip(h, cs)) for h, cs, _, l in c.rows}
+    now_rows = {row_id(line): dict(zip(h, cs, strict=False)) for h, cs, _, line in c.rows}
     both = sorted(p for p in set(old_rows) & set(now_rows) if p)
     lowered = [
         p for p in both if SOURCE_RANK.get(now_rows[p].get("source"), 0) < SOURCE_RANK.get(old_rows[p].get("source"), 0)
@@ -1323,7 +1551,7 @@ def history(c):
 # --- running --------------------------------------------------------------------------------------
 
 
-def inferred(c):
+def inferred(c: Ctx) -> int:
     """The highest gate the files show the pass has gone past, whatever the `Gates` line says."""
     L, g = c.L, -1
     if c.cur:
@@ -1341,12 +1569,12 @@ def inferred(c):
     return g
 
 
-def evaluate(c):
+def evaluate(c: Ctx) -> dict[int, list[tuple[str, str | None, bool]]]:
     """{gate: [(id, problem or None, waived)]} for every gate."""
     return {g: [(rid, fn(c), rid in c.waived) for rid, fn in REQUIREMENTS[g]] for g in REQUIREMENTS}
 
 
-def halted(c):
+def halted(c: Ctx) -> str | None:
     """The halt that ended the pass, if `Ended` says halted and `Halts` records the user's decision on it."""
     m = re.match(r"halted \((H\d+)\)", c.line("Ended").strip())
     if m and any(d and not d.lower().startswith("pending") for d in c.halts.get(m.group(1), [])):
@@ -1354,13 +1582,19 @@ def halted(c):
     return None
 
 
-def r_closed(c):
+def r_closed(c: Ctx) -> str | None:
     """A halted pass is closed: its end lines are written, and its halt is recorded with the user's decision."""
     return need_lines(c, "Tokens", "Halts", "Ended")
 
 
-def run(c, target=None, status=False):
-    """Print the gate report; return (failures, notes) for deeper_research/check.py, which says whether `--gate` passed."""
+def run(c: Ctx, target: int | None = None, status: bool = False) -> tuple[list[str], list[str]]:  # noqa: C901
+    """Print the gate report and return its failures and notes.
+
+    Print the gate report; return (failures, notes) for deeper_research/check.py, which says whether `--gate`
+    passed.
+    """
+    failures: list[str]
+    notes: list[str]
     failures, notes = [], []
     if c.cur is None and not c.rows and not c.clusters and target is None and not status:
         return failures, notes  # a survey with no pass yet
@@ -1398,10 +1632,10 @@ def run(c, target=None, status=False):
                 failures.append(f"G{g} {rid}: {problem}")
     if status:
         print()
-        for gi, (g, name) in enumerate(GATES):
+        for gi, (gate_id, name) in enumerate(GATES):
             open_ = [(rid, p) for rid, p, w in results[gi] if p and not w]
             mark = "passed" if not open_ else f"{len(open_)} open"
-            print(f"  {g} {name:18} {mark}" + ("   (required)" if gi in required else ""))
+            print(f"  {gate_id} {name:18} {mark}" + ("   (required)" if gi in required else ""))
             for rid, p in open_:
                 print(f"      {rid}: {p}")
         print()
@@ -1418,7 +1652,8 @@ def run(c, target=None, status=False):
         else:
             notes.append(missing)
     conflict = sorted(
-        (c.pool | c.coreset_ids) & {row_id(l) for h, _, _, l in table_rows(c.rejected or "") if h and h[0] == "paper"}
+        (c.pool | c.coreset_ids)
+        & {row_id(line) for h, _, _, line in table_rows(c.rejected or "") if h and h[0] == "paper"}
     )
     if conflict:
         notes.append(
