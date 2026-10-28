@@ -70,17 +70,45 @@ session only: a proposal becomes spec only when it is moved into one of the spec
 current before the session ends: add an item when work is left unfinished or a proposal is raised, and delete an item
 once it is done, adopted or dropped. Git history keeps the record of what was removed.
 
-## Developing the repo
+## The repository
 
-The repo follows the [PyMaxQ](https://github.com/aidotse/pymaxq) template (`.copier-answers.yml`; `docs/user-guide.md`
-is its guide). The scripts are the modules of the `deeper_research` package, run as
-`uv run python -m deeper_research.<module>`. When changing code, docs or tooling, rather than running a pass:
+The repo is a Python project built on the [PyMaxQ](https://github.com/aidotse/pymaxq) template: `.copier-answers.yml`
+records the template version, and `docs/user-guide.md` is the template's developer guide.
 
-- `main` is protected by the `no-commit-to-branch` hook: commit on a branch and open a PR.
-- Commit messages are Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, ...); the `commit-msg` hook rejects
-    others, and releases and `CHANGELOG.md` are cut from them on merge.
-- `uv run poe lint` and `uv run poe test` must pass before a commit; CI runs the same tasks. `poe lint` formats Markdown
-    too, except `inputs/` and `surveys/`.
+- `deeper_research/`: the scripts, one module each, run as `uv run python -m deeper_research.<module>`. The docs name a
+    module by its file, `deeper_research/<module>.py`; `docs/tooling.md` says what each does.
+- `tests/gates/`: the gate suites, under pytest (`docs/tooling.md`, "Tests").
+- `inputs/`, `surveys/`, `outputs/`, `bib/`, `graphs/`: the pipeline's data (`docs/formats.md`). `docs/`: the spec, also
+    built into the documentation site (`mkdocs.yaml`). `.audits/`: audit records (`docs/audits.md`).
+- Dependencies are declared in `pyproject.toml` and locked in `uv.lock`; `uv run` installs them. The clustering stack
+    (numpy, scipy, scikit-learn, igraph, leidenalg) is pinned exactly, since a clustering reproduces only on the same
+    versions.
+
+Until 2026-10-28 the scripts lived in `tools/` and ran as `python3 tools/<module>.py`. The dated `.audits/20*/` records,
+the surveys' retrieval logs and sheets written before then keep those paths, as the record of what ran: read
+`tools/<module>.py` there as `deeper_research/<module>.py`. PR #1 has the full map of what moved.
+
+### Git and commits
+
+These apply to a pass's commits as much as to changes to the code or docs.
+
+- `main` is protected by the `no-commit-to-branch` hook. Commit on a branch, such as `pass/<topic>` for a pass, and
+    merge through a PR. The consistency check compares the survey with the last commit on the current branch.
+- Commit messages are Conventional Commits; the `commit-msg` hook rejects any other. Releases and `CHANGELOG.md` are cut
+    from them on merge: `feat:` and `fix:` cut a release. For a pass's or an audit's data, use `docs(<topic>):`, which
+    does not.
+- Every commit runs the hooks: ruff, strict mypy, mdformat, gitleaks and file hygiene. They skip `graphs/`, the dated
+    `.audits/20*/` records and `deeper_research/vendor/`; mdformat also skips `inputs/`, `surveys/` and
+    `docs/verification.md`. A hook that fixes a file fails the commit: add the file again and commit again.
+- `uv run poe lint` and `uv run poe test` run the checks CI runs; both must pass before a PR.
+
+### Code standards
+
+- Code passes the template's ruff rules and strict mypy, unmodified. A waived rule carries `# noqa: <code>`, with the
+    reason in a comment on the line above. The `C901` waivers (too complex) are debt, listed in `docs/roadmap.md`.
+- A `# BUG?` comment marks a suspected bug found but not yet fixed; each has an item in `docs/roadmap.md`.
+- `copier update` pulls in template changes. It re-copies `noxfile.py`: set `PYTHON_VERSIONS` back to 3.12 and 3.13
+    after it.
 
 ## Rules for agents
 
