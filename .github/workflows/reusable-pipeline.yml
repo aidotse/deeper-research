@@ -17,8 +17,12 @@
 # safety and to satisfy zizmor's unpinned-uses check.
 #
 # REQUIRED SETUP (see docs/getting-started.md):
-#   - Allow the workflow to push to the protected `main` branch (branch-protection bypass
-#     for github-actions[bot], or a PAT in `secrets.RELEASE_TOKEN` used below if set).
+#   - Allow the workflow to push to the protected `main` branch. Preferred: a write-access
+#     deploy key, its private half in the secret RELEASE_DEPLOY_KEY of a `release` environment
+#     limited to `main`, and a ruleset on `main` whose bypass list is "Deploy keys". Nothing
+#     expires and no person's account is involved. Alternatives: a PAT in `secrets.RELEASE_TOKEN`
+#     allowed to bypass protection, or a bypass for github-actions[bot] where one is allowed
+#     (a repository ruleset in an organisation rejects GitHub Actions as a bypass actor).
 #   - GitHub Pages: enable it once by hand -- Settings > Pages > Source = "GitHub Actions" --
 #     BEFORE your first release. CI cannot enable Pages itself (creating the site needs
 #     administration:write, which the default GITHUB_TOKEN never has). Until it is enabled the
@@ -122,16 +126,23 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # The `release` environment holds RELEASE_DEPLOY_KEY. Restrict the environment to `main`
+    # (Settings > Environments) so no other branch's workflow can read the key.
+    environment: release
     permissions:
       contents: write
     outputs:
       bumped: ${{ steps.cz.outputs.bumped }}
       version: ${{ steps.cz.outputs.version }}
     steps:
+      # The push credential, in order of preference: a deploy key (ssh-key, set when the
+      # RELEASE_DEPLOY_KEY secret is), then a RELEASE_TOKEN PAT, then the built-in token. Only the
+      # first two can be granted a ruleset bypass on a protected `main`; see REQUIRED SETUP above.
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1  # zizmor: ignore[artipacked]
         with:
           fetch-depth: 0
           fetch-tags: true
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
           token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0

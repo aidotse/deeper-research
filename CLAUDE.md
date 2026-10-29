@@ -110,7 +110,9 @@ These apply to a pass's commits as much as to changes to the code or docs.
     reason in a comment on the line above. The `C901` waivers (too complex) are debt, listed in `docs/roadmap.md`.
 - A `# BUG?` comment marks a suspected bug found but not yet fixed; each has an item in `docs/roadmap.md`.
 - `copier update` pulls in template changes. It re-copies `noxfile.py`: set `PYTHON_VERSIONS` back to 3.12 and 3.13
-    after it.
+    after it. It also re-copies `.github/workflows/reusable-pipeline.yml`: keep the `bump` job's `environment: release`
+    and `ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}` unless the template has adopted them, or releases fail to push to
+    `main` (`docs/user-guide.md`, "If On GitHub...").
 
 ## Rules for agents
 

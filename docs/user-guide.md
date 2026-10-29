@@ -160,7 +160,8 @@ to push the version bump, and **how that plays out differs by platform** (detail
 
 - **GitHub** — the credential is *conditional on protection*. Leave the default branch unprotected and the built-in
     token pushes the release itself with no extra credential (but then `main` isn't protected, defeating the reviewed-PR
-    workflow); protect it and you must add a `RELEASE_TOKEN` or a `github-actions[bot]` bypass so the bump can land.
+    workflow); protect it and you must give the bump a way past the protection: a deploy key (recommended, below), a
+    `RELEASE_TOKEN`, or a `github-actions[bot]` bypass where one is allowed.
 - **GitLab** — the credential is *required either way*. The pipeline authenticates the push as `oauth2:$CI_REPO_ACCESS`
     (the built-in `CI_JOB_TOKEN` can't push commits back), and GitLab protects the default branch out of the box, so
     `CI_REPO_ACCESS` is not optional.
@@ -186,21 +187,37 @@ configure a [GitLab Renovate runner](https://docs.renovatebot.com/modules/platfo
 
 - **Settings → Actions → General → Workflow permissions**: set **Read and write permissions** so the release workflow
     can push the bump commit/tag and create releases.
-- **Branch protection** on `main`: enable **Require a pull request before merging** so collaborators can't push directly
-    (the local `no-commit-to-branch` hook only guards each clone). Then let the release workflow push the bump — either
-    add a bypass for `github-actions[bot]`, or create a fine-grained PAT with `contents: write`, store it as the
-    `RELEASE_TOKEN` secret (the workflow prefers it over `GITHUB_TOKEN`), and allow it to bypass protection.
+
+- **Branch protection** on `main`: add a ruleset (**Settings → Rules → Rulesets**) that targets the default branch and
+    requires a pull request and the CI checks, so collaborators can't push directly (the local `no-commit-to-branch`
+    hook only guards each clone). Then let the release workflow push the bump. The recommended way needs no token and
+    nothing that expires:
+
+    1. Generate an SSH key pair (`ssh-keygen -t ed25519 -N "" -f release-key`) and add the public half as a deploy key
+        with write access (**Settings → Deploy keys**).
+    2. Create an environment named `release` (**Settings → Environments**), limit its deployment branches to `main`, and
+        store the private half there as the secret `RELEASE_DEPLOY_KEY`. Then delete the local key pair.
+    3. In the ruleset, add **Deploy keys** to the bypass list.
+
+    The `bump` job checks out with that key, so its push is the deploy key's. Alternatives: create a fine-grained PAT with
+    `contents: write`, store it as the `RELEASE_TOKEN` secret (the workflow prefers it over `GITHUB_TOKEN`), and allow
+    it to bypass protection; or bypass `github-actions[bot]`, which a repository ruleset in an organisation does not
+    accept.
+
 - **Pages** — **enable once, by hand, before your first release.** Set **Settings → Pages → Source: "GitHub Actions"**.
     CI cannot enable Pages for you: creating the site needs `administration: write`, a permission the default
     `GITHUB_TOKEN` never has. Until you do this the `deploy-docs` job fails; once enabled it stays enabled. Docs are
     then deployed by the official GitHub Pages Actions from the release workflow run — there is no `gh-pages` branch,
     and only the single current version is published.
+
 - **Publishing the package** — *opt-in; unset `PUBLISH_TARGET` means no package is published*:
+
     - *PyPI via OIDC Trusted Publishing*: set repo **variable** `PUBLISH_TARGET=pypi-oidc` and configure a
         [trusted publisher](https://docs.pypi.org/trusted-publishers/) on PyPI for this repo (workflow file `ci.yml`,
         environment `pypi` if you use one). No secrets required.
     - *Private index instead*: set **variable** `PUBLISH_TARGET=private-index` and **variable** `PRIVATE_INDEX_URL`, plus
         secrets `PRIVATE_INDEX_USERNAME` / `PRIVATE_INDEX_PASSWORD`.
+
 - **Publishing a Docker image** — *opt-in*: set repo **variable** `BUILD_DOCKER=true`. The image is pushed to
     `ghcr.io/<owner>/<repo>` using the built-in `GITHUB_TOKEN` (the workflow already grants `packages: write`), so no
     extra credentials are needed. Newly created packages are private by default — adjust visibility under the repo's
