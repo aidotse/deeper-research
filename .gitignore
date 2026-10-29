@@ -111,6 +111,7 @@ ipython_config.py
 # NB: outputs/ is the pipeline's deliverables directory (docs/formats.md), so the template's Hydra `outputs/` rule is
 # deliberately absent.
 .claude/worktrees/
+.claude/.headroom*
 .idea/
 .vscode/
 
