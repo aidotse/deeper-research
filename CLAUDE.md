@@ -112,7 +112,8 @@ These apply to a pass's commits as much as to changes to the code or docs.
 - `copier update` pulls in template changes. It re-copies `noxfile.py`: set `PYTHON_VERSIONS` back to 3.12 and 3.13
     after it. It also re-copies `.github/workflows/reusable-pipeline.yml`: keep the `bump` job's `environment: release`
     and `ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}` unless the template has adopted them, or releases fail to push to
-    `main` (`docs/user-guide.md`, "If On GitHub...").
+    `main` (`docs/user-guide.md`, "If On GitHub..."). `scripts/bump.py` and `docs/user-guide.md` are re-copied too;
+    their deploy-key text is documentation only.
 
 ## Rules for agents
 
