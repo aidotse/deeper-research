@@ -10,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/tools/asta_config.py\" --quiet || true"
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && uv run --quiet python -m deeper_research.asta_config --quiet || true"
           }
         ]
       }
@@ -20,8 +20,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && if command -v mdformat >/dev/null; then mdformat docs outputs; else echo \"mdformat not found: docs/ and outputs/ were not formatted (docs/tooling.md, Formatting)\" >&2; exit 1; fi",
-            "timeout": 15
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && uv run --quiet pre-commit run mdformat --files $(ls docs/*.md outputs/*.md 2>/dev/null) >/dev/null; rc=$?; if [ $rc -gt 1 ]; then echo \"mdformat (pre-commit) could not run: docs/ and outputs/ were not formatted (docs/tooling.md, Formatting)\" >&2; exit 1; fi",
+            "timeout": 60
           }
         ]
       }

@@ -21,9 +21,9 @@ Concretely, in explanatory passages:
 
 - One idea per sentence. Prefer several plain sentences to one clause-stacked sentence. Let the prose breathe.
 - Unpack a concept before you lean on it. The first time a term or mechanism does real work, say what it means in
-  ordinary words, then use it.
+    ordinary words, then use it.
 - Signpost the logic. Small connectives — "The catch is…", "Why this matters…", "The upshot is…" — let me track where an
-  argument is heading.
+    argument is heading.
 - Pair the what with the why it matters. Don't just state a fact; say what turns on it.
 - Reach for a concrete analogy when it makes an abstract point land.
 - Give a caveat its own sentence, rather than folding it into a parenthetical aside.

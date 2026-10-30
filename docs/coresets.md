@@ -55,22 +55,22 @@ The naive alternative is to traverse citations from seed papers until some limit
 three reasons:
 
 - `It never finishes` — for an active topic, the literature grows faster than it can be read. A traversal has no natural
-  stopping point, only an arbitrary one.
+    stopping point, only an arbitrary one.
 - `It dilutes` — every extra paper takes attention from the themes and pivots an analysis turns on. A survey of 200
-  papers in which 20 carry the argument is harder to use than a survey of 40 in which all of them do.
+    papers in which 20 carry the argument is harder to use than a survey of 40 in which all of them do.
 - `It cannot be verified` — verification to publication grade costs tens of thousands of tokens per row. That is
-  affordable for 50 rows, not for 500. A small set is what makes every row trustworthy.
+    affordable for 50 rows, not for 500. A small set is what makes every row trustworthy.
 
 ## Pool and coreset
 
 The coreset is selected from a larger set, the pool, and the two are built in separate stages.
 
 - `Pool` — every in-scope paper found during retrieval, with metadata only: title, year, citations, and which pool
-  papers it cites, plus embeddings and reference lists fetched by script. It is broad and cheap. It is used to find the
-  clusters, to supply the citation structure anchors are chosen from, to test the coreset's coverage, and to draw from
-  when a role needs a paper. No output cites a pool paper.
+    papers it cites, plus embeddings and reference lists fetched by script. It is broad and cheap. It is used to find
+    the clusters, to supply the citation structure anchors are chosen from, to test the coreset's coverage, and to draw
+    from when a role needs a paper. No output cites a pool paper.
 - `Coreset` — a few papers per cluster, selected in roles and verified against body text. It is small and expensive. It
-  is the only thing an output (i.e. `outputs/<topic>.md`) may cite.
+    is the only thing an output (i.e. `outputs/<topic>.md`) may cite.
 
 The pool is not the field. It is what our retrieval reached. Everything the coreset approximates, it approximates
 relative to the pool. This is why retrieval deliberately mixes tools and routes (`docs/process.md`, "Overview" and
@@ -89,16 +89,16 @@ the coreset's coverage an artefact of the run.
 `Roles fill the map.` Ranking alone would select consensus, so each coreset paper plays a role in its cluster:
 
 - `anchor` and `frontier` — the cluster's foundation and its current state. They are typical members, which is what the
-  Landscape needs.
+    Landscape needs.
 - `dissent` — a paper that contradicts the cluster's consensus. It is searched for deliberately, because a pivot is
-  under-cited at the moment it matters, and a cluster represented only by its most-cited papers looks more settled than
-  it is.
+    under-cited at the moment it matters, and a cluster represented only by its most-cited papers looks more settled
+    than it is.
 - `bridge` — a paper connecting two clusters. The `Gaps` target pulls bridges in: an unrepresented connection between
-  two clusters is a gap, so a pool paper bridging them changes the output, and the coverage test adds it.
+    two clusters is a gap, so a pool paper bridging them changes the output, and the coverage test adds it.
 - `fringe` — a paper carrying an idea no other row has, far from its nearest neighbours in the pool for its age. This is
-  the covering argument applied directly. Anchors and frontier papers cover the dense parts of the space; a far-out
-  point is covered only if it is chosen itself. The fringe score, a paper's age-corrected distance to its nearest
-  neighbours, measures how poorly the rest of the pool covers it.
+    the covering argument applied directly. Anchors and frontier papers cover the dense parts of the space; a far-out
+    point is covered only if it is chosen itself. The fringe score, a paper's age-corrected distance to its nearest
+    neighbours, measures how poorly the rest of the pool covers it.
 
 `Sizing follows alignment, not size.` A cluster gets more rows the more directly it bears on the input, not the more
 papers it has (`docs/process.md`, step 4, "Sizing"). A covering needs one representative per region, however dense the
@@ -115,18 +115,19 @@ papers with one change is consistent, at 95% confidence, with up to 39% of that 
 (`docs/process.md`, step 7). The rest of the pool is closer to a row, so its share is probably lower; that is reasoned,
 not measured.
 
-The covering itself is measured, as the k-center view above suggests: `tools/coverage.py` computes the coreset's radius
-over the pool, the distance from the worst-covered pool paper to its nearest row (`docs/tooling.md`, "Coverage"). It is
-a number to report beside the coverage verdict, not a stopping rule. Distances are taken under the clustering's measure,
-so they say how near a row is in the pool's own terms, not whether the row says what the paper says.
+The covering itself is measured, as the k-center view above suggests: `deeper_research/coverage.py` computes the
+coreset's radius over the pool, the distance from the worst-covered pool paper to its nearest row (`docs/tooling.md`,
+"Coverage"). It is a number to report beside the coverage verdict, not a stopping rule. Distances are taken under the
+clustering's measure, so they say how near a row is in the pool's own terms, not whether the row says what the paper
+says.
 
 `Minimality is not tested directly.` No step removes a row and checks whether the output changes. A proxy exists:
-`tools/coverage.py radius --loo` prints how much the radius grows when each row alone is removed, so a row whose removal
-changes nothing covers no pool paper on its own. That is a fact about the pool's geometry, not about the output, and a
-`dissent` or `fringe` row is there for what it says, not for where it sits. Otherwise, minimality is approximated by the
-role structure, which gives each row a distinct job, and by the sizing rules: about two to four rows per cluster, and
-past about 80 rows, a check that no role is filled twice. Size alone is not an error: a topic with many `high` clusters
-can legitimately need more. A direct removal test is an open item.
+`deeper_research/coverage.py radius --loo` prints how much the radius grows when each row alone is removed, so a row
+whose removal changes nothing covers no pool paper on its own. That is a fact about the pool's geometry, not about the
+output, and a `dissent` or `fringe` row is there for what it says, not for where it sits. Otherwise, minimality is
+approximated by the role structure, which gives each row a distinct job, and by the sizing rules: about two to four rows
+per cluster, and past about 80 rows, a check that no role is filled twice. Size alone is not an error: a topic with many
+`high` clusters can legitimately need more. A direct removal test is an open item.
 
 Two different stabilities are in play, and they are easy to confuse:
 
@@ -148,10 +149,10 @@ The error is bias, not noise, and it matters which. A random sample gives noisy 
 sample sharpens them. The coreset is selected systematically away from proportions:
 
 - `One anchor per cluster` — a cluster of ten papers and one of a thousand count the same, so small clusters are
-  over-represented.
+    over-represented.
 - `Dissent is searched for` — so negative results and broken assumptions are over-represented.
 - `Fringe is chosen for being atypical` — so fringe rows are, by construction, the least representative papers in the
-  pool.
+    pool.
 
 A bigger coreset does not shrink this error. For example, if dissent papers tend to be elicitation studies, the share of
 `elicited` rows reflects the dissent quota more than the field. This is why dimensions are for comparing papers and
@@ -168,7 +169,7 @@ whole field, and should say so. This is not yet part of a pass; like a probe, it
 
 - `Minimality` has no direct test, only the radius proxy (see above).
 - `Sufficiency` is judged by a model reading the output, not by a metric. Whether two agents would agree on "would this
-  change a claim" has not been measured.
+    change a claim" has not been measured.
 - `The covering is only as good as the pool.` Retrieval bias toward well-publicised or recent work becomes coverage
-  bias. The fringe routes and mixed retrieval tools mitigate this; nothing measures it.
+    bias. The fringe routes and mixed retrieval tools mitigate this; nothing measures it.
 - `Field statistics from a pool sample` are proposed above, not adopted.

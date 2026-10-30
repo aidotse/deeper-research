@@ -1,0 +1,14 @@
+# This file is managed by Copier; do not edit it by hand.
+# It records the answers used to generate this project so that `copier update`
+# can re-apply future improvements from the PyMaxQ template.
+_commit: v0.3.1
+_src_path: https://github.com/aidotse/pymaxq
+author: Mauricio Munoz
+ci_platform: github
+description: Literature research agent harness
+docs_url: https://aidotse.github.io/deeper-research
+email: mauricio.munoz@ai.se
+group: aidotse
+package_name: deeper_research
+project_name: deeper-research
+repo_url: https://github.com/aidotse/deeper-research

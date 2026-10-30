@@ -1,22 +1,131 @@
-# Python
-__pycache__/
-*.pyc
+
+# ── uv / virtual environments ──────────────────────────────────────────
 .venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.uv-cache/
 
-# Local, per-machine settings
+# ── Python bytecode / build / packaging ────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+sdist/
+wheels/
+share/python-wheels/
+*.egg
+*.egg-info/
+.installed.cfg
+MANIFEST
+*.manifest
+*.spec
+
+# ── Test / type / lint / coverage caches ───────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pytype/
+.pyre/
+.hypothesis/
+.tox/
+.nox/
+.cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+cover/
+*.cover
+*.py,cover
+nosetests.xml
+
+# ── Docs build & generated artifacts (mkdocs / pytest) ─────────────────
+site/
+public/
+/site
+/public
+docs/_build/
+docs/exported/
+
+# ── Large / binary / data artifacts / ML Models ────────────────────────
+*.dylib
+*.dll
+*.a
+*.o
+*.bin
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.safetensors
+*.h5
+*.npy
+*.npz
+*.parquet
+*.feather
+*.arrow
+*.pkl
+*.pickle
+*.joblib
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.gz
+*.7z
+*.db
+*.sqlite3
+*.sqlite3-journal
+*.tokensave
+
+# ── Logs & local env files ─────────────────────────────────────────────
+*.log
+.env
+.env.*
+local_settings.py
+
+# ── Editor / OS / Local Tooling cruft ──────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
 .claude/settings.local.json
-.claude/worktrees/
-.serena/project.local.yml
+.claude/plans/
+.serena/
+.ipynb_checkpoints/
+profile_default/
+ipython_config.py
 
-# Full texts fetched from arXiv by tools/fulltext.py. Third-party text, and
-# regenerable with `uv run tools/fulltext.py <topic> <id>`.
+# ── This project ───────────────────────────────────────────────────────
+# NB: outputs/ is the pipeline's deliverables directory (docs/formats.md), so the template's Hydra `outputs/` rule is
+# deliberately absent.
+.claude/worktrees/
+.claude/.headroom*
+.idea/
+.vscode/
+
+# Full texts fetched from arXiv by deeper_research/fulltext.py. Third-party text, and
+# regenerable with `uv run python -m deeper_research.fulltext <topic> <id>`.
 graphs/*/fulltext/
 
-# The viewer is generated from the survey and clusters.json by tools/graph.py,
-# and is large; rebuild it rather than track it.
+# The viewer is generated from the survey and clusters.json by deeper_research/graph.py,
+# and is large; rebuild it rather than track it. The docs site publishes every topic's
+# viewer (`poe graphs`, docs/maps.md), and docs/graphs/ holds those build-time copies.
 graphs/*/graph.html
+docs/graphs/
 
-# Compact sheets for the naming and fringe agents, written by tools/sheets.py from
+# Compact sheets for the naming and fringe agents, written by deeper_research/sheets.py from
 # clusters.json; regenerable.
 graphs/*/naming-sheet.md
 graphs/*/fringe-sheet.md
@@ -25,8 +134,6 @@ graphs/*/fringe-sheet.md
 # (docs/audits.md, "Starting states"); regenerable.
 .audits/*-sim/*/segments/runs/checkpoints/
 
-# Editors and OS
-.DS_Store
-*.swp
-.idea/
-.vscode/
+# Copied in by `poe docs` from README.md and LICENSE.md at build time.
+docs/index.md
+docs/LICENSE.md

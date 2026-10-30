@@ -14,11 +14,11 @@ Verify against the paper's full text, in `graphs/<topic>/fulltext/<id>.txt`. The
 before dispatching verification (`docs/process.md`, step 5); do not fetch papers yourself, since parallel fetches break
 arXiv's request spacing. The text is the paper's own: arXiv's HTML rendering, the PDF where arXiv has no HTML, or, for a
 paper without an arXiv ID, the open-access PDF Semantic Scholar lists. Every quote a verified row rests on comes from
-this file, which is what lets `tools/check.py` confirm that each quote is verbatim. If the file is missing, the paper
-could not be fetched, and the row is uncheckable ("Outcomes" below).
+this file, which is what lets `deeper_research/check.py` confirm that each quote is verbatim. If the file is missing,
+the paper could not be fetched, and the row is uncheckable ("Outcomes" below).
 
 A whole paper is 10–70k tokens, so never Read it end to end. Read it by section, with the section reader (`R` below
-stands for `uv run tools/fulltext.py show <topic> <id>`):
+stands for `uv run python -m deeper_research.fulltext show <topic> <id>`):
 
 1. `R` alone prints the outline: every heading, with its size in tokens. Start here, to see where the method, the setup
    and the results are.
@@ -84,8 +84,8 @@ trace back to its text cannot be reviewed or audited. One bullet per piece of ev
 The file opens with `# Evidence: <id>`, the row's own ID. The `method summary` must rest on a full-text quote, since the
 abstract can carry a number but never the method.
 
-`tools/check.py` requires the file for every row not `abstract`-sourced, and finds every `full-text` quote in the
-fetched full text, ignoring case, punctuation and line breaks, with words hyphenated across a line break joined
+`deeper_research/check.py` requires the file for every row not `abstract`-sourced, and finds every `full-text` quote in
+the fetched full text, ignoring case, punctuation and line breaks, with words hyphenated across a line break joined
 (`docs/gates.md`, `G4`). A quote it cannot find there is a paraphrase, which is a claim presented as retrieved. Evidence
 marked `snippet` fails. A correction replaces the evidence it corrects.
 
@@ -112,11 +112,11 @@ Each row ends in exactly one of three states:
   cell in place, replace the evidence it rested on, and log the old and new text under `Corrections to existing rows`.
   Corrections of verified rows are never silent.
 - **Uncheckable** — no full text could be fetched: for an arXiv paper, neither HTML nor PDF; for any other, no
-  open-access PDF that `tools/fulltext.py` can fetch. Snippets alone do not verify a row. Leave `source` as `abstract`,
-  end its `selected because` with `(uncheckable: <why>)`, and list it under "Rows needing verification" in Open work,
-  with the reason. Do not look for a replacement yourself: report the row, and the main session dispatches Selection to
-  look for a verifiable paper in its role (`docs/process.md`, step 5). The row stays only if none is found, or if it is
-  a `fringe` row, which by definition no other paper can replace. The output marks every claim resting on it
+  open-access PDF that `deeper_research/fulltext.py` can fetch. Snippets alone do not verify a row. Leave `source` as
+  `abstract`, end its `selected because` with `(uncheckable: <why>)`, and list it under "Rows needing verification" in
+  Open work, with the reason. Do not look for a replacement yourself: report the row, and the main session dispatches
+  Selection to look for a verifiable paper in its role (`docs/process.md`, step 5). The row stays only if none is found,
+  or if it is a `fringe` row, which by definition no other paper can replace. The output marks every claim resting on it
   `[abstract-only]` (`docs/formats.md`). Re-check on a later pass, since open-access copies appear over time. This
   should be rare for arXiv papers, and is common for papers without one. If more than 20% of rows end here, the pass
   halts (`H10` in `docs/process.md`, "When a pass ends").
@@ -144,5 +144,6 @@ not just the pool:
 
 Record in the log what the probe searched and what it found. Report the result as either "found: <papers>", which enter
 the coreset in a role, or "survived a refutation attempt: <what was searched>". Never report absence more strongly than
-the search that tested it. A paper a probe finds is a late paper: add it to the pool with `tools/assign.py add`; it
-takes a role only once `tools/assign.py late` has assigned it a cluster (`docs/process.md`, "Late papers").
+the search that tested it. A paper a probe finds is a late paper: add it to the pool with
+`deeper_research/assign.py add`; it takes a role only once `deeper_research/assign.py late` has assigned it a cluster
+(`docs/process.md`, "Late papers").

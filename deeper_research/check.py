@@ -1,0 +1,831 @@
+"""Consistency check for one topic's pipeline artifacts, and the gates of a pass.
+
+Usage: uv run python -m deeper_research.check <topic> [--gate G<n>] [--status]
+       uv run python -m deeper_research.check <topic> --print <section>[:<cluster id>]
+
+Two kinds of check, both failing with exit status 1:
+
+  integrity  whatever exists must be well formed. The input's format; the survey's sections and their order; the
+             Clusters table; the Pool table (columns, paper links, unique IDs, known clusters; no paper twice, whether
+             under two IDs, as two records with one title, or as a CorpusId row for a paper that has an arXiv ID); every
+             pool paper's `cluster` its computed cluster, through the Clusters table's `computed` column; once the
+             Coreset has rows, one row per unique paper ID, the required columns, `source` last, declared dimension
+             values, blocks headed by known clusters in the Clusters table's order, valid roles and bridges, every
+             coreset paper in the pool and in the block of its computed cluster, and coreset/bib parity; once the
+             output exists, every cited paper ID in the coreset, every citation of an `abstract`-sourced paper marked
+             [abstract-only] with a legend before the first section, no marker after the legend that follows no
+             citation, and a section per target plus Questions and Reading.
+  gates      what each step must have left behind, G0 to G5 (deeper_research/gates.py, docs/gates.md). The gates the
+             pass has reached are worked out from the files; `--gate G<n>` also requires every gate up to G<n>, which is
+             how the main session checks a gate before starting the next step. `--status` prints every gate's open
+             requirements: what the run has done, and what remains.
+
+When the input declares no dimensions, the ones proposed in the current log entry's `Dimensions` line
+(`proposed: `<name>` — values: `<a>`, `<b>`; ...`) are checked in their place.
+
+It also prints, without failing: each cluster's in-degree leaders within the pool and role coverage, anchors that are
+not an in-degree leader, the `source` tally, how many coreset and pool papers have an arXiv ID, and pool papers still
+waiting for a cluster. Notes also flag clusters that trade papers with no bridge yet, while G3 is not yet required, and
+papers both rejected and in the pool.
+
+`--print` prints one section of the survey instead, checking nothing: `Retrieval log`, `Clusters`, `Coreset`, `Pool` or
+`Open work` (case and dashes do not matter, so `open-work` will do), or one cluster's block, `Coreset:<cluster id>`. It
+heads the text with the line numbers it spans, so that an agent can Read on or Edit from there. A survey is mostly its
+Pool table, so this is the cheap way to read the rest.
+
+Surveys written before the coreset structure (no `## Clusters` section) get only the integrity checks that apply to
+them, and no gates. Exit status 2 is a usage error.
+"""
+
+import json
+import re
+import sys
+from collections.abc import Iterator
+from difflib import SequenceMatcher
+from pathlib import Path
+from typing import Any, cast
+
+from deeper_research.inputs import read_input, read_targets
+
+ROOT = Path(__file__).resolve().parent.parent
+# A paper's canonical ID (docs/formats.md): its arXiv ID where it has one, otherwise its Semantic Scholar corpus ID,
+# `CorpusId:<n>`. These are the one definition every tool uses.
+#
+# Every form of arXiv identifier: YYMM.NNNNN since 2015, YYMM.NNNN from 2007 to
+# 2014, and archive/YYMMNNN before that (hep-th/9901001). The canonical old form
+# has no subject class: math/0309136, not math.GT/0309136, which Semantic
+# Scholar does not resolve.
+ARXIV_ID = r"(?:\d{2}(?:0[1-9]|1[0-2])\.\d{4,5}|[a-z]+(?:-[a-z]+)?/\d{7})"
+CORPUS_ID = r"CorpusId:\d+"
+PAPER_ID = rf"(?:{ARXIV_ID}|{CORPUS_ID})"
+ID = re.compile(rf"^{PAPER_ID}$")
+ARXIV_ONLY = re.compile(rf"^{ARXIV_ID}$")
+# A survey row links its paper to arxiv.org/abs/<id>, or, without an arXiv ID, to
+# api.semanticscholar.org/CorpusId:<n>, which redirects to the paper's page.
+LINK = re.compile(rf"(?:arxiv\.org/abs/|api\.semanticscholar\.org/)({PAPER_ID})")
+# Outputs cite papers as bare IDs inline (e.g. "(2504.13837)") rather than as
+# links, so that prose stays readable. Match those too, or the output/survey
+# cross-reference check silently passes by matching nothing.
+BARE_ID = re.compile(rf"(?<![\w./-])({PAPER_ID})(?:v\d+)?(?![\w/]|\.\d)")
+# A bib entry carries `eprint` for an arXiv paper, `corpusid` for any other.
+BIB_ID = re.compile(rf"(?:eprint\s*=\s*\{{({ARXIV_ID})\}}|corpusid\s*=\s*\{{(\d+)\}})")
+# What may sit between a cited ID and its [abstract-only] marker: a version,
+# whitespace (including a line break), bold markers and punctuation, but no
+# other ID.
+MARKED = re.compile(r"(?:v\d+)?[\s*,;:()\]]*\[abstract-only\]")
+CLUSTER_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+SURVEY_SECTIONS = ["Retrieval log", "Clusters", "Coreset", "Pool", "Open work"]
+POOL_COLUMNS = ["paper", "year", "cluster", "citations", "cites"]
+CORESET_COLUMNS = [
+    "paper",
+    "venue+year",
+    "role",
+    "selected because",
+    "method name",
+    "method summary",
+    "datasets / models",
+    "metric",
+    "result",
+]
+ALIGNMENTS = {"high", "medium", "low"}
+ROLES = {"anchor", "frontier", "dissent", "fringe"}
+NEEDED = {"high": ("anchor", "frontier", "dissent"), "medium": ("anchor", "frontier"), "low": ("anchor",)}
+FRINGE_QUOTA = (5, 10)  # per topic, not per cluster
+ABSTRACT_SHARE = 0.2  # above this share of abstract-sourced rows after step 5, the pass halts (H10)
+SOURCES = {"abstract", "full-text"}
+# Legacy surveys were verified against snippets, before quotes had to come from the fetched full text.
+LEGACY_SOURCES = SOURCES | {"snippet"}
+# Phrases that claim absence, which only a probe may support (docs/verification.md, "Probes").
+ABSENCE = re.compile(
+    r"\b(?:has not been (?:studied|explored|addressed)|no (?:prior )?work (?:on|has)|nobody has|"
+    r"no one has|has never been)\b",
+    re.I,
+)
+
+# A table row as `table_rows` yields it: (header cells, row cells, block heading, the line itself).
+type TableRow = tuple[list[str], list[str], str | None, str]
+
+
+def read(path: Path) -> str | None:
+    """The text of the file at `path`, or None if it does not exist."""
+    return path.read_text() if path.exists() else None
+
+
+def s2_ref(pid: str) -> str:
+    """How the Semantic Scholar API and Asta name a paper: ARXIV:<id>, or CorpusId:<n> as it is."""
+    return pid if pid.startswith("CorpusId:") else f"ARXIV:{pid}"
+
+
+def link(pid: str) -> str:
+    """The page a survey row links a paper to: its arXiv abstract page, or its Semantic Scholar page."""
+    return f"https://api.semanticscholar.org/{pid}" if pid.startswith("CorpusId:") else f"https://arxiv.org/abs/{pid}"
+
+
+def arxiv_of(rec: dict[str, Any] | None) -> str | None:
+    """The arXiv ID of a Semantic Scholar API record.
+
+    Some records omit it from `externalIds` though their open-access
+    PDF is on arXiv: often a preprint whose venue version is a separate record.
+    """
+    ext = (rec or {}).get("externalIds") or {}
+    if ext.get("ArXiv"):
+        return cast("str", ext["ArXiv"])
+    m = re.search(rf"arxiv\.org/(?:pdf|abs)/({ARXIV_ID})", ((rec or {}).get("openAccessPdf") or {}).get("url") or "")
+    return m.group(1) if m else None
+
+
+def bib_ids(text: str) -> list[str]:
+    """The paper IDs of a bib file's entries, in order: the `eprint` arXiv ID, or `CorpusId:<n>` from `corpusid`."""
+    return [a or f"CorpusId:{n}" for a, n in BIB_ID.findall(text)]
+
+
+def cells_of(line: str) -> list[str]:
+    r"""Split a markdown table row into cells.
+
+    Escaped pipes (`\|`) appear inside cell text — formulae like `q(y\|x)` —
+    and are not separators, so they must be masked before splitting or the row
+    looks wider than it is.
+    """
+    return [c.strip() for c in line.replace(r"\|", "\0").strip("|").split("|")]
+
+
+def sections(text: str) -> dict[str, str]:
+    """Map each `## ` heading to the text under it, up to the next one."""
+    out: dict[str, str]
+    buf: list[str]
+    out, name, buf = {}, None, []
+    for line in text.splitlines():
+        if line.startswith("## "):
+            if name is not None:
+                out[name] = "\n".join(buf)
+            name, buf = line[3:].strip(), []
+        else:
+            buf.append(line)
+    if name is not None:
+        out[name] = "\n".join(buf)
+    return out
+
+
+def section_order(text: str) -> list[str]:
+    """The names of the `## ` sections of a text, in order."""
+    return [line[3:].strip() for line in text.splitlines() if line.startswith("## ")]
+
+
+def table_rows(text: str) -> Iterator[TableRow]:
+    """Yield (header_cells, row_cells, block_heading, line) for every table row."""
+    block: str | None
+    header: list[str] | None
+    block, header = None, None
+    for line in text.splitlines():
+        if line.startswith("### "):
+            block, header = line[4:].strip(), None
+        elif line.startswith("|") and header is None:
+            header = cells_of(line)
+        elif line.startswith(("| --", "|--")):
+            continue
+        elif line.startswith("|"):
+            # The branch above sets the header from a table's first line, so a row always has one.
+            yield cast("list[str]", header), cells_of(line), block, line
+        else:
+            # Tables are contiguous; any non-table line ends the current one.
+            header = None
+
+
+def row_id(line: str) -> str | None:
+    """The paper ID a table row links to, or None if it has no paper link."""
+    m = LINK.search(line)
+    return m.group(1) if m else None
+
+
+# --- the coreset table ----------------------------------------------------------------------------
+
+
+def check_coreset(  # noqa: C901
+    table: str, dims: dict[str, set[str]], layout: str, failures: list[str], notes: list[str]
+) -> tuple[list[TableRow], set[str], set[str | None]]:
+    """Checks that apply to any Coreset section, legacy or current."""
+    rows = [(h, c, b, line) for h, c, b, line in table_rows(table) if h and h[0] == "paper"]
+    ids = [row_id(line) for _, _, _, line in rows]
+    unique = {i for i in ids if i}
+    print(f"coreset: {len(rows)} rows, {len(unique)} unique paper IDs")
+    if len(rows) != len(unique) or None in ids:
+        failures.append(
+            f"row count {len(rows)} != unique IDs {len(unique)} "
+            "(duplicate row, or a row whose link is neither arxiv.org/abs/<id> nor "
+            "api.semanticscholar.org/CorpusId:<n>)"
+        )
+
+    widths: dict[int, set[str | None]] = {}
+    for h, c, b, line in rows:
+        widths.setdefault(len(h), set()).add(b)
+        if len(c) != len(h):
+            failures.append(f"{b or '(no block)'}: row {row_id(line)} has {len(c)} cells, header has {len(h)}")
+    blocks = len({b for _, _, b, _ in rows})
+    print(f"columns: {', '.join(f'{w}' for w in sorted(widths))} across {blocks} block(s)")
+    if len(widths) > 1:
+        failures.append(f"blocks disagree on column count: {sorted(widths)}")
+
+    sources = [c[-1] for _, c, _, _ in rows]
+    allowed = SOURCES if layout == "coreset" else LEGACY_SOURCES
+    bad = [row_id(line) for (_, c, _, line) in rows if c[-1] not in allowed]
+    if bad or (rows and rows[0][0][-1] != "source"):
+        failures.append(f"rows without a parsable `source` last column: {bad}")
+    snip = [row_id(line) for (_, c, _, line) in rows if c[-1] == "snippet" and layout == "coreset"]
+    if snip:
+        failures.append(
+            f"rows with `source` `snippet`, which is not a source: verify against the fetched full text, "
+            f"or leave the row `abstract` (docs/verification.md): {snip[:8]}"
+        )
+    tally = {k: sources.count(k) for k in sorted(set(sources) & allowed)}
+    print(f"source:  {tally}")
+    print(f"arXiv:   {sum(1 for i in unique if ARXIV_ONLY.match(i))} of {len(unique)} coreset papers have an arXiv ID")
+
+    if layout == "coreset" and rows:
+        share = sources.count("abstract") / len(rows)
+        print(
+            f"         {share:.0%} abstract-sourced; after step 5, more than {ABSTRACT_SHARE:.0%} halts the pass (H10)"
+        )
+        for hdr in {tuple(h) for h, _, _, _ in rows}:
+            missing = [c for c in CORESET_COLUMNS if c not in hdr]
+            if missing:
+                failures.append(f"Coreset table lacks required column(s): {missing}")
+            extra = [c for c in hdr if c not in CORESET_COLUMNS and c != "source" and c not in dims]
+            if extra:
+                notes.append(
+                    f"Coreset column(s) {extra} are not dimensions, declared in the input or proposed in the "
+                    f"log; values unchecked"
+                )
+
+    header = rows[0][0] if rows else []
+    for i, n in [(i, n) for i, n in enumerate(header) if n in dims]:
+        counts: dict[str, int] = {}
+        for _, c, _, line in rows:
+            v = c[i] if i < len(c) else ""
+            counts[v] = counts.get(v, 0) + 1
+            if v not in dims[n]:
+                failures.append(f"row {row_id(line)}: {n}={v!r} is not an allowed value")
+        shown = ", ".join(f"{k} {v}" for k, v in sorted(counts.items(), key=lambda t: -t[1]))
+        print(f"{n + ':':13}{shown}")
+
+    abstract = {row_id(line) for _, c, _, line in rows if c[-1] == "abstract"}
+    return rows, unique, abstract
+
+
+# --- clusters and pool ----------------------------------------------------------------------------
+
+
+def read_clusters(
+    secs: dict[str, str], failures: list[str]
+) -> tuple[dict[str, str], dict[str, str], list[dict[str, str]]]:
+    """The Clusters table: {id: alignment}, the `computed` column as {computed id: named id}, and the rows."""
+    clusters: dict[str, str]
+    computed: dict[str, str]
+    rows: list[dict[str, str]]
+    clusters, computed, rows = {}, {}, []
+    for h, c, _, _ in table_rows(secs["Clusters"]):
+        if not h or h[0] != "id":
+            continue
+        row = dict(zip(h, c, strict=False))
+        rows.append(row)
+        cid, alignment = row["id"], row.get("alignment", "")
+        if not CLUSTER_ID.match(cid):
+            failures.append(f"cluster id {cid!r} is not kebab-case")
+        if cid in clusters:
+            failures.append(f"cluster id {cid!r} is defined twice")
+        if alignment not in ALIGNMENTS:
+            failures.append(f"cluster {cid}: alignment {alignment!r} is not one of {sorted(ALIGNMENTS)}")
+        clusters[cid] = alignment
+        if row.get("computed"):
+            if row["computed"] in computed:
+                failures.append(f"computed cluster {row['computed']} is named twice in the Clusters table")
+            computed[row["computed"]] = cid
+    print(
+        f"clusters: {len(clusters)} ("
+        f"{', '.join(f'{a} {list(clusters.values()).count(a)}' for a in ['high', 'medium', 'low'])})"
+    )
+    return clusters, computed, rows
+
+
+def read_pool(
+    secs: dict[str, str], clusters: dict[str, str], failures: list[str]
+) -> tuple[set[str], dict[str, str], dict[str, set[str]], dict[str, str]]:
+    """The Pool table: its IDs, each one's `cluster` cell (may be empty), and the pool papers each one cites."""
+    pool_cluster: dict[str, str]
+    cites: dict[str, set[str]]
+    titles: dict[str, str]
+    pool_cluster, cites, titles, header_checked = {}, {}, {}, False
+    for h, c, _, line in table_rows(secs["Pool"]):
+        if not h or h[0] != "paper":
+            continue
+        if not header_checked:
+            header_checked = True
+            missing = [x for x in POOL_COLUMNS if x not in h]
+            if missing:
+                failures.append(f"Pool table lacks required column(s): {missing}")
+        pid = row_id(line)
+        if pid is None:
+            failures.append(
+                f"pool row whose link is neither arxiv.org/abs/<id> nor api.semanticscholar.org/CorpusId:<n>: "
+                f"{c[0][:60]!r}"
+            )
+            continue
+        titles[pid] = c[0]
+        if pid in pool_cluster:
+            failures.append(f"pool lists {pid} twice")
+        cl = c[h.index("cluster")] if "cluster" in h else ""
+        if cl and cl not in clusters:
+            failures.append(f"pool {pid}: cluster {cl!r} is not a known cluster")
+        pool_cluster[pid] = cl
+        cites[pid] = set(BARE_ID.findall(c[h.index("cites")])) if "cites" in h else set()
+    print(
+        f"pool:    {len(pool_cluster)} papers, {sum(1 for p in pool_cluster if ARXIV_ONLY.match(p))} with an arXiv ID"
+    )
+    return set(pool_cluster), pool_cluster, cites, titles
+
+
+def words(title: str) -> list[str]:
+    """A title's lower-case words; of a markdown link, the words of its link text only."""
+    title = re.sub(r"\]\(.*", "", title.lstrip("["))  # the link text only
+    return re.findall(r"[a-z0-9]+", title.lower())
+
+
+# On the model-collapse candidates of 2026-10-13, every second record of one paper scored at least 0.936; the closest
+# two different papers with the same first word scored 0.92 ("Attention is all you need", "Intention is all you need").
+SAME_TITLE = 0.93
+
+
+def same_title(a: list[str], b: list[str]) -> bool:
+    """Whether two titles, as lists of `words`, name one paper.
+
+    Either they are the same once spaces are dropped (text
+    extraction splits words, as in "S ELF -I MPROVING"), or, at four words or more, they share the first word and their
+    character-level similarity is at least SAME_TITLE: a venue version often changes a word ("Arbitrage",
+    "Arbitration").
+    A differing first word is a different paper, such as "Comment on: <title>".
+    """
+    if not a or not b:
+        return False
+    if "".join(a) == "".join(b):
+        return True
+    if a[0] != b[0] or min(len(a), len(b)) < 4:
+        return False
+    x, y = " ".join(a), " ".join(b)
+    return min(len(x), len(y)) / max(len(x), len(y)) >= SAME_TITLE and SequenceMatcher(None, x, y).ratio() >= SAME_TITLE
+
+
+def check_duplicates(  # noqa: C901
+    topic: str, titles: dict[str, str], failures: list[str], notes: list[str]
+) -> None:
+    """A preprint and its venue version can be two Semantic Scholar records; keep the arXiv one (docs/formats.md)."""
+    sidecar = read(ROOT / "graphs" / topic / "pool.json")
+    records = json.loads(sidecar)["papers"] if sidecar else {}
+    by_s2: dict[str, list[str]] = {}
+    for pid in titles:
+        rec = records.get(pid) or {}
+        if rec.get("s2"):
+            by_s2.setdefault(rec["s2"], []).append(pid)
+        if pid.startswith("CorpusId:") and rec.get("arxiv"):
+            failures.append(f"pool {pid} has an arXiv ID, {rec['arxiv']}: use it as the paper's ID")
+    for same in by_s2.values():
+        if len(same) > 1:
+            failures.append(f"pool lists one Semantic Scholar paper under several IDs: {same}")
+    keyed = {pid: words(t) for pid, t in titles.items()}
+    exact: dict[str, list[str]] = {}
+    for pid, w in keyed.items():
+        exact.setdefault(" ".join(w), []).append(pid)
+    for t, same in exact.items():
+        if t and len(same) > 1:
+            failures.append(
+                f"pool rows with the same title, probably one paper twice: {same}; keep the arXiv record, "
+                "merge the other into it, and log it under `Corrections to existing rows`"
+            )
+    pids = sorted(keyed)
+    for i, a in enumerate(pids):
+        for b in pids[i + 1 :]:
+            if keyed[a] != keyed[b] and same_title(keyed[a], keyed[b]):
+                notes.append(f"pool rows with near-identical titles: {a}, {b}; one paper twice?")
+
+
+def check_computed(  # noqa: C901
+    topic: str,
+    pool: set[str],
+    pool_cluster: dict[str, str],
+    clusters: dict[str, str],
+    computed: dict[str, str],
+    failures: list[str],
+    notes: list[str],
+) -> dict[str, Any] | None:
+    """Every pool paper's cluster must be its computed one: membership is never changed by hand."""
+    text = read(ROOT / "graphs" / topic / "clusters.json")
+    unclustered = sorted(p for p in pool if not pool_cluster.get(p))
+    if text is None:
+        if clusters:
+            failures.append(f"the Clusters table has rows but graphs/{topic}/clusters.json does not exist")
+        elif unclustered:
+            notes.append(f"{len(unclustered)} pool paper(s) have no cluster yet; clustering is step 3")
+        return None
+    report: dict[str, Any] = json.loads(text)
+    assigned = dict(report.get("assignment", {}))
+    assigned.update({p: x["cluster"] for p, x in report.get("late", {}).items()})
+    if not clusters:
+        if unclustered:
+            notes.append(
+                f"{len(unclustered)} pool paper(s) have no cluster yet: name the computed clusters (step 3), "
+                f"then run `uv run python -m deeper_research.assign clusters {topic}`"
+            )
+        return report
+    if not computed:
+        failures.append(
+            "the Clusters table has no `computed` column, so pool clusters cannot be checked against "
+            "clusters.json (docs/formats.md, Clusters)"
+        )
+        return report
+    if report.get("previous") and not report["previous"].get("remapped"):
+        failures.append(
+            f"clusters.json is a new clustering whose names have not been carried over; run "
+            f"`uv run python -m deeper_research.assign remap {topic}`, then "
+            f"`uv run python -m deeper_research.assign clusters {topic}`"
+        )
+        return report
+    known = set(report.get("assignment", {}).values())
+    orphans = [cid for cid in clusters if cid not in computed.values()]
+    if orphans:
+        failures.append(f"Clusters row(s) {orphans} have no `computed` id: every named cluster is a computed one")
+    for cc, cid in computed.items():
+        if cc not in known:
+            failures.append(f"Clusters table: {cid} names computed cluster {cc!r}, which clusters.json does not have")
+    unnamed = sorted(known - set(computed), key=lambda x: int(x[1:]) if x[1:].isdigit() else 0)
+    if unnamed:
+        failures.append(f"computed cluster(s) {unnamed} have no row in the Clusters table")
+    wrong = sorted(
+        p for p in pool if p in assigned and pool_cluster.get(p) and computed.get(assigned[p]) != pool_cluster[p]
+    )
+    if wrong:
+        failures.append(
+            f"pool cluster differs from the computed assignment for {wrong[:10]}"
+            + (f" and {len(wrong) - 10} more" if len(wrong) > 10 else "")
+            + f"; run `uv run python -m deeper_research.assign clusters {topic}`, never edit by hand"
+        )
+    blank = sorted(p for p in pool if p in assigned and not pool_cluster.get(p))
+    if blank:
+        notes.append(
+            f"{len(blank)} pool paper(s) are assigned in clusters.json but their Pool cell is empty; run "
+            f"`uv run python -m deeper_research.assign clusters {topic}`"
+        )
+    sidecar = read(ROOT / "graphs" / topic / "pool.json")
+    records = json.loads(sidecar)["papers"] if sidecar else {}
+    unclusterable = sorted(p for p in pool if p in records and not records[p].get("embedding"))
+    if unclusterable:
+        notes.append(
+            f"pool paper(s) without a SPECTER2 embedding, which no clustering can place: {unclusterable}; "
+            'record them in Open work (docs/formats.md, "Paper IDs")'
+        )
+    late = sorted(p for p in pool if p not in assigned and p not in unclusterable)
+    if late:
+        notes.append(
+            f"late papers awaiting assignment ({len(late)}): {late}; run "
+            f"`uv run python -m deeper_research.assign late {topic}` "
+            '(docs/process.md, "Late papers")'
+        )
+    return report
+
+
+def leaders(cid: str, pool: set[str], pool_cluster: dict[str, str], indeg: dict[str, int]) -> tuple[set[str], int]:
+    """Print and return a cluster's in-degree leaders within the pool."""
+    members = [p for p in pool if pool_cluster.get(p) == cid]
+    top = max((indeg[p] for p in members), default=0)
+    lead = {p for p in members if indeg[p] == top} if top > 0 else set()
+    print(
+        f"    in-degree leader(s) within the pool: {', '.join(sorted(lead)) or 'none'}" + (f" ({top})" if top else "")
+    )
+    return lead, top
+
+
+def check_structure(  # noqa: C901
+    topic: str,
+    secs: dict[str, str],
+    rows: list[TableRow],
+    coreset_ids: set[str],
+    failures: list[str],
+    notes: list[str],
+) -> dict[str, Any]:
+    """Checks for surveys using clusters, roles and a pool. Returns what the gates read."""
+    clusters, computed, cluster_rows = read_clusters(secs, failures)
+    pool, pool_cluster, cites, titles = read_pool(secs, clusters, failures)
+    check_duplicates(topic, titles, failures, notes)
+    report = check_computed(topic, pool, pool_cluster, clusters, computed, failures, notes)
+
+    sidecar = read(ROOT / "graphs" / topic / "pool.json")
+    unfetched = sorted(pool - set(json.loads(sidecar)["papers"] if sidecar else ()))
+    if unfetched:
+        notes.append(
+            f"{len(unfetched)} pool paper(s) are not in graphs/{topic}/pool.json; run "
+            f"`uv run python -m deeper_research.pool {topic}`"
+        )
+
+    indeg = dict.fromkeys(pool, 0)
+    for p, cs in cites.items():
+        for q in cs & pool:
+            if q != p:
+                indeg[q] += 1
+
+    out: dict[str, Any] = {
+        "clusters": clusters,
+        "computed": computed,
+        "cluster_rows": cluster_rows,
+        "pool": pool,
+        "pool_cluster": pool_cluster,
+        "titles": titles,
+        "report": report,
+        "roles": {},
+        "bridges": set(),
+    }
+    if not rows:
+        for cid, alignment in clusters.items():
+            print(f"  {cid} [{alignment}]: pool {sum(1 for p in pool if pool_cluster.get(p) == cid)}")
+            leaders(cid, pool, pool_cluster, indeg)
+        return out
+
+    header = rows[0][0]
+    if "role" not in header:
+        failures.append("Coreset section has no `role` column")
+        return out
+    ri = header.index("role") if rows else None
+    order = [
+        b.split(" — ")[0].strip()
+        for b in (line[4:].strip() for line in secs["Coreset"].splitlines() if line.startswith("### "))
+    ]
+    known_order = [b for b in order if b in clusters]
+    if known_order != [cid for cid in clusters if cid in known_order]:
+        failures.append(f"Coreset blocks are not in the Clusters table's order: {known_order}")
+
+    roles: dict[str, dict[str, int]] = {cid: {} for cid in clusters}
+    anchors: dict[str, set[str | None]] = {cid: set() for cid in clusters}
+    bridges: set[frozenset[str]] = set()
+    for _, c, block, ln in rows:
+        cid, pid = (block or "").split(" — ")[0].strip(), row_id(ln)
+        if cid not in clusters:
+            failures.append(f"block {block!r} is not headed by a known cluster id")
+            continue
+        # Not None: `rows` is not empty here.
+        role = c[cast("int", ri)]
+        base, _, target = role.partition(":")
+        if base == "bridge":
+            if target not in clusters:
+                failures.append(f"row {pid}: bridge target {target!r} is not a known cluster")
+            elif target == cid:
+                failures.append(f"row {pid}: bridge to its own cluster {cid!r}")
+            bridges.add(frozenset((cid, target)))
+        elif role not in ROLES:
+            failures.append(f"row {pid}: role {role!r} is not valid")
+        roles[cid][base] = roles[cid].get(base, 0) + 1
+        if role == "anchor":
+            anchors[cid].add(pid)
+        # A row without a paper link has no ID; looking it up finds nothing, as for any ID not in the pool.
+        if pool_cluster.get(cast("str", pid)) and pool_cluster[cast("str", pid)] != cid:
+            failures.append(
+                f"row {pid} sits in block {cid!r} but was computed into {pool_cluster[cast('str', pid)]!r}; "
+                "membership is never changed by hand"
+            )
+
+    missing = sorted(coreset_ids - pool)
+    if missing:
+        failures.append(f"coreset papers missing from the pool: {missing}")
+
+    for cid, alignment in clusters.items():
+        r = roles[cid]
+        shown = ", ".join(f"{k} {v}" for k, v in sorted(r.items())) or "no rows"
+        gaps = [k for k in NEEDED.get(alignment, ()) if not r.get(k)]
+        print(
+            f"  {cid} [{alignment}]: pool {sum(1 for p in pool if pool_cluster.get(p) == cid)}; coreset {shown}"
+            + (f"; missing {', '.join(gaps)}" if gaps else "")
+        )
+        lead, top = leaders(cid, pool, pool_cluster, indeg)
+        if anchors[cid] and lead and not anchors[cid] & lead:
+            # BUG?: an anchor row without a paper link adds None, and sorting None with an ID raises TypeError
+            notes.append(
+                f"{cid}: anchor {sorted(anchors[cid])} is not the in-degree leader {sorted(lead)} ({top}); "  # type: ignore[type-var]
+                "fine if deliberate"
+            )
+
+    out.update(roles=roles, bridges=bridges)
+    return out
+
+
+# --- output ---------------------------------------------------------------------------------------
+
+
+def check_output(  # noqa: C901
+    output: str,
+    coreset_ids: set[str],
+    abstract: set[str | None],
+    layout: str,
+    targets: list[str],
+    failures: list[str],
+    notes: list[str],
+) -> None:
+    """Check the output against the coreset: its cited IDs, [abstract-only] markers, sections and absence claims."""
+    out_ids = set(LINK.findall(output)) | set(BARE_ID.findall(output))
+    print(f"output:  {len(out_ids)} cited IDs")
+    if out_ids - coreset_ids:
+        failures.append(f"cited in output but not in the coreset: {sorted(out_ids - coreset_ids)}")
+    # A claim resting on an abstract-sourced row carries the marker next to
+    # the paper's ID, every time it is cited (docs/formats.md, outputs).
+    risky = sorted(out_ids & abstract)
+    unmarked: dict[str, list[int]] = {}
+    for m in list(LINK.finditer(output)) + list(BARE_ID.finditer(output)):
+        if m.group(1) in abstract and not MARKED.match(output, m.end()):
+            unmarked.setdefault(m.group(1), []).append(output.count("\n", 0, m.start()) + 1)
+    for aid, lines in sorted(unmarked.items()):
+        failures.append(
+            f"output cites abstract-sourced {aid} without an [abstract-only] marker "
+            f"(line {', '.join(map(str, sorted(set(lines))))})"
+        )
+    # The reverse: a marker that follows no citation marks nothing. The legend before the first section is exempt.
+    covered = {
+        mk.end()
+        for m in list(LINK.finditer(output)) + list(BARE_ID.finditer(output))
+        if (mk := MARKED.match(output, m.end()))
+    }
+    body = output.find("\n## ")
+    stray = sorted(
+        {
+            output.count("\n", 0, m.start()) + 1
+            for m in re.finditer(r"\[abstract-only\]", output)
+            if m.end() not in covered and 0 <= body < m.start()
+        }
+    )
+    if stray and layout == "coreset":
+        failures.append(
+            f"output has an [abstract-only] marker that follows no cited paper ID (line {', '.join(map(str, stray))})"
+        )
+    if risky and "[abstract-only]" not in output.split("\n## ", 1)[0]:
+        failures.append(
+            "output cites abstract-sourced papers but has no legend for [abstract-only] before its first section"
+        )
+    if risky:
+        notes.append(f"{len(risky)} abstract-sourced paper(s) cited in the output: {risky}")
+    if layout == "coreset":
+        missing = [s for s in targets + ["Questions", "Reading"] if s not in sections(output)]
+        if missing:
+            failures.append(
+                f"output lacks required section(s): {missing}: one per target, then Questions and Reading "
+                "(docs/formats.md, outputs)"
+            )
+        absent = sorted({output.count("\n", 0, m.start()) + 1 for m in ABSENCE.finditer(output)})
+        if absent:
+            notes.append(
+                f"output claims absence (line {', '.join(map(str, absent))}); only a probe supports that, and "
+                'an unrepresented connection is "not represented in the coreset"'
+            )
+
+
+def print_section(topic: str, survey: str, what: str) -> int:
+    """Print one section of the survey, or one block of its Coreset.
+
+    Print one `## ` section of the survey, or one `### <cluster id> — ...` block of the Coreset, with its line
+    span.
+    """
+    name, _, block = what.partition(":")
+    key = re.sub(r"[\s_-]+", " ", name).strip().lower()
+    lines = survey.splitlines()
+    heads = [(i, ln[3:].strip()) for i, ln in enumerate(lines) if ln.startswith("## ")]
+    match = [(i, h) for i, h in heads if h.lower() == key]
+    if not match:
+        print(
+            f"usage error: no section {name!r} in surveys/{topic}.md; it has: {', '.join(h for _, h in heads)}",
+            file=sys.stderr,
+        )
+        return 2
+    start = match[0][0]
+    end = next((i for i, _ in heads if i > start), len(lines))
+    if block:
+        subs = [i for i in range(start, end) if lines[i].startswith("### ")]
+        hit = [i for i in subs if lines[i][4:].split(" — ")[0].strip() == block.strip()]
+        if not hit:
+            ids = [lines[i][4:].split(" — ")[0].strip() for i in subs]
+            print(
+                f"usage error: no block {block!r} in {match[0][1]}; it has: {', '.join(ids) or 'none'}", file=sys.stderr
+            )
+            return 2
+        start, end = hit[0], next((i for i in subs if i > hit[0]), end)
+    while end > start + 1 and not lines[end - 1].strip():
+        end -= 1
+    print(f"surveys/{topic}.md, lines {start + 1}-{end}:\n")
+    print("\n".join(lines[start:end]))
+    return 0
+
+
+def main(argv: list[str]) -> int:  # noqa: C901
+    """Run the command: check a topic's artifacts and gates, or print one section of its survey; return the status."""
+    if "--print" in argv:
+        i = argv.index("--print")
+        rest = argv[:i] + argv[i + 2 :]
+        if i + 1 >= len(argv) or len(rest) != 1 or rest[0].startswith("--"):
+            print(__doc__.strip())
+            return 2
+        survey = read(ROOT / "surveys" / f"{rest[0]}.md")
+        if survey is None:
+            print(f"FAIL  surveys/{rest[0]}.md does not exist")
+            return 1
+        return print_section(rest[0], survey, argv[i + 1])
+    gate = argv[argv.index("--gate") + 1] if "--gate" in argv else None
+    status = "--status" in argv
+    args = [a for a in argv if not a.startswith("--") and a != gate]
+    if len(args) != 1 or (gate is not None and not re.fullmatch(r"G[0-5]", gate)):
+        print(__doc__.strip())
+        return 2
+    topic = args[0]
+    survey = read(ROOT / "surveys" / f"{topic}.md")
+    if survey is None:
+        print(f"FAIL  surveys/{topic}.md does not exist")
+        return 1
+    bib = read(ROOT / "bib" / f"{topic}.bib")
+    output = read(ROOT / "outputs" / f"{topic}.md")
+
+    dims, steering, problems = read_input(topic)
+    targets, more = read_targets(topic)
+    dims = dims or {}
+    notes: list[str]
+    failures, notes = list(problems) + more, []
+    secs = sections(survey)
+    layout = "coreset" if "Clusters" in secs else "legacy"
+    print(f"layout:  {layout}")
+    # Without declared dimensions, the pass proposes them in its `Dimensions` line, which is then read the same way.
+    proposed = layout == "coreset" and not dims
+    if proposed:
+        # local: import cycle with gates
+        from deeper_research import gates  # noqa: PLC0415
+
+        entries = gates.log_entries(secs.get("Retrieval log", ""))
+        dims = gates.proposed_dimensions(" ".join(entries[-1]["lines"].get("Dimensions", []))) if entries else {}
+        if dims:
+            print(f"dimensions: proposed in the log: {', '.join(dims)}")
+
+    if layout == "coreset":
+        found = [s for s in section_order(survey) if s in SURVEY_SECTIONS]
+        if found != SURVEY_SECTIONS:
+            failures.append(f"survey sections must be {SURVEY_SECTIONS}, in that order; found {found}")
+    elif "Coreset" not in secs:
+        print(f"FAIL  surveys/{topic}.md has no `## Coreset` section")
+        return 1
+
+    has_rows = any(h and h[0] == "paper" for h, _, _, _ in table_rows(secs.get("Coreset", "")))
+    rows: list[TableRow]
+    coreset_ids: set[str]
+    abstract: set[str | None]
+    rows, coreset_ids, abstract = [], set(), set()
+    if layout == "legacy" or has_rows:
+        rows, coreset_ids, abstract = check_coreset(secs.get("Coreset", ""), dims, layout, failures, notes)
+
+    structure = None
+    if layout == "coreset" and "Clusters" in secs and "Pool" in secs:
+        structure = check_structure(topic, secs, rows, coreset_ids, failures, notes)
+    elif layout == "legacy":
+        print("layout:  legacy (no Clusters section); cluster, role, pool and gate checks skipped")
+
+    if rows:
+        if bib is None:
+            failures.append(f"bib/{topic}.bib does not exist; run `uv run python -m deeper_research.bib {topic}`")
+        else:
+            in_bib = set(bib_ids(bib))
+            print(f"bib:     {len(in_bib)} entries")
+            if coreset_ids - in_bib:
+                failures.append(f"in coreset but not bib: {sorted(coreset_ids - in_bib)}")
+            if in_bib - coreset_ids:
+                failures.append(f"in bib but not coreset: {sorted(in_bib - coreset_ids)}")
+
+    if output is not None:
+        check_output(output, coreset_ids, abstract, layout, targets, failures, notes)
+
+    if layout == "coreset":
+        # local: import cycle with gates
+        from deeper_research import gates  # noqa: PLC0415
+
+        ctx = gates.Ctx(topic, secs, structure, rows, coreset_ids, abstract, output, dims, steering, targets, proposed)
+        g_fail, g_notes = gates.run(ctx, int(gate[1]) if gate else None, status)
+        failures += g_fail
+        notes += g_notes
+        # Only now is every failure known: integrity, gates and history alike.
+        if gate and not failures:
+            notes.append(
+                f"{gate} passed"
+                + ("" if int(gate[1]) in ctx.declared else f": add `{gate} <today>` to the log's `Gates` line")
+            )
+    elif gate or status:
+        failures.append("gates apply only to surveys in the coreset layout")
+
+    print()
+    for n in notes:
+        print(f"note  {n}")
+    if failures:
+        for f in failures:
+            print(f"FAIL  {f}")
+        return 1
+    print("OK")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
