@@ -1,18 +1,9 @@
 # Literature research agent harness
 
-A literature research harness that builds trustworthy literature surveys with LLM agents. It does this in three moves:
+The project's overview is `README.md`, written for people and imported here, so agents read the same one. What follows
+is for agents only.
 
-- It gathers a broad, cheap pool of in-scope papers, starting from a user query.
-- It computes a stable map of the pool's themes, from embeddings and shared references rather than the model's opinion.
-- It picks a small coreset of papers per theme, each in a stated role (anchor, frontier, dissent, bridge, fringe), and
-    checks each against the paper's body text with quotes recorded.
-
-The value over commercial deep-research tools is about
-
-- Evidence: every claim traces to its source, the structure is reproducible, the stopping rule is stated, we don't aim
-    to prove negatives (the output refuses to claim "nobody has done X") or to interpret paper counts as if they were
-    field statistics.
-- Coresets: we use a principled methodology for finding the representative papers that matter, from the wider pool.
+@README.md
 
 ## Pipeline and philosophy
 
@@ -26,18 +17,12 @@ See `docs/formats.md` for how to format each step.
 The pipeline is modular. A pre-existing `surveys/<topic_X>.md` can be listed as context in a new `inputs/<topic_Y>.md`.
 A previous survey used this way is a source, not a template: its papers enter the new pool and are re-clustered from
 scratch. Its verified rows can be reused without re-verification if selected, since verification is a property of the
-row (paper), not of the survey it came from, see below.
+row (paper), not of the survey it came from (`docs/verification.md`).
 
 The naive way to build a given survey would be to simply traverse all forward and backwards citations starting from some
-seed publications, up to some limit. We explicitly do not do (only) this, but rather rely on the concept of coresets,
-and using specialized retrieval tools - more info in `docs/external_services.md` and `docs/process.md`.
-
-A **coreset** (concept taken from the active learning literature) in this context represents the smallest set of papers
-that represents the ideas in a body of work well enough to answer the input's spec in a stable manner: *adding* more
-papers from the larger corpus should not significantly change the responses, while taking *away* papers from the coreset
-should. Every element of the coreset is *verified* (see `docs/verification.md`) to publication grade. It is not a list
-of everything published, and this is precisely what makes manual investigation and navigation of the resulting landscape
-tractable for users. For a detailed look see `docs/coresets.md`.
+seed publications, up to some limit. We explicitly do not do (only) this, but rather rely on the concept of coresets
+(`README.md`, and in detail `docs/coresets.md`), and using specialized retrieval tools - more info in
+`docs/external_services.md` and `docs/process.md`.
 
 ## Docs index / where to read next
 

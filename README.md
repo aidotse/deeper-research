@@ -18,10 +18,13 @@ A literature research agent harness: it builds trustworthy literature surveys wi
 The value over commercial deep-research tools is about:
 
 - Evidence: every claim traces to its source, the structure is reproducible, and the stopping rule is stated. The output
-    refuses to claim "nobody has done X", and does not read paper counts as field statistics.
-- Coresets: a principled method for finding the papers that matter within the wider pool. A coreset is the smallest set
-    of papers that answers the input's questions stably: adding more papers from the pool should not change the answers
-    much, while taking one away should. See
+    does not try to prove a negative: it refuses to claim "nobody has done X", and does not read paper counts as field
+    statistics.
+- Coresets: a principled method for finding the papers that matter within the wider pool. A coreset, a concept from the
+    active learning literature, is the smallest set of papers that answers the input's questions stably: adding more
+    papers from the pool should not change the answers much, while taking one away should. Every paper in it is verified
+    to publication grade. It is not a list of everything published, and that is what keeps the resulting map small
+    enough to explore by hand. See
     [`docs/coresets.md`](https://github.com/aidotse/deeper-research/blob/main/docs/coresets.md).
 
 ## How it works
