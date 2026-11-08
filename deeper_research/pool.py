@@ -20,7 +20,8 @@ log's `Pool` line: the papers in scope, how many of them have an arXiv ID, and t
 
 This runs outside any model's context, so it costs no tokens.
 
-Calls are unauthenticated. No API key or user identifier is sent.
+Calls go through `net`, which paces them to the rate limit and sends the S2_API_KEY key if set; no other key and no
+user identifier is sent.
 """
 
 import json
@@ -50,7 +51,7 @@ def fetch(ids: list[str], save: Saver) -> None:
     """Fetch in batches of 100, passing each batch's records to `save` as soon as it arrives."""
     for i in range(0, len(ids), 100):
         batch = ids[i : i + 100]
-        # The unauthenticated endpoint shares one rate limit across all users and answers 429 freely; net retries.
+        # net paces Graph API calls to the rate limit and retries a 429.
         data = get_json(S2_BATCH, {"ids": [s2_ref(a) for a in batch]})
         out: dict[str, Record]
         today, out = time.strftime("%Y-%m-%d"), {}

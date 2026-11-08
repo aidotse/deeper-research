@@ -38,7 +38,8 @@ it refuses, and it locks the sheet while it writes, so that agents judging disjo
 takes the same lock to append. Then `uv run python -m deeper_research.assign add-expand <topic>` adds each `yes` to the
 pool, records each `no` in rejected.md, and prints the log's `Expansion` line.
 
-Calls are unauthenticated; no key or user identifier is sent.
+Calls go through `net`, which paces them to the rate limit and sends the S2_API_KEY key if set; no other key and no
+user identifier is sent.
 """
 
 import fcntl
@@ -80,8 +81,7 @@ judge {topic}`).
 
 # The parsed JSON of a Graph API response: an object, or a list of them for the batch endpoint.
 def call(url: str, body: dict[str, Any] | None = None) -> Any:  # noqa: ANN401
-    """`net.get_json` after a one-second pause, to stay within the shared rate limit."""
-    time.sleep(1)  # the unauthenticated endpoint shares one rate limit across all its users; net retries a 429
+    """`net.get_json`, which paces Graph API calls to the rate limit and retries a 429."""
     return get_json(url, body)
 
 

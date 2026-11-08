@@ -193,7 +193,7 @@ def fetch_s2(ids: list[str], save: Callable[[dict[str, dict[str, Any]]], None]) 
     """Fetch title, year, citation count and references for arXiv IDs, in batches of 500, saving after each."""
     for i in range(0, len(ids), 500):
         batch = ids[i : i + 500]
-        # The unauthenticated endpoint shares one rate limit across all users and answers 429 freely; net retries.
+        # net paces Graph API calls to the rate limit and retries a 429.
         data = get_json(S2_BATCH, {"ids": [s2_ref(a) for a in batch]})
         out: dict[str, dict[str, Any]] = {}
         for aid, rec in zip(batch, data, strict=False):

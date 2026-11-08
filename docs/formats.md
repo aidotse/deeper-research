@@ -189,7 +189,7 @@ One entry per pass, in date order. An entry's lines keep the order below, so a l
 
 - **Gates:** G0 YYYY-MM-DD, G1 YYYY-MM-DD, ... (each gate as it passes; `docs/gates.md`)
 - **Preflight:** snippet_search ok | search_papers_by_relevance ok | get_paper ok | get_citations ok | WebSearch ok |
-  Graph API ok | arXiv ok | uv ok | Asta key set
+  Graph API ok (key) | arXiv ok | uv ok | Asta key set
 - **Orientation (WebSearch):** "<exact query>", ...; themes: "<phrase>", ...; seeds from the input: none | <id>, ...;
   frontier candidates: <id>, ...
 - **Expansion:** backward from <id> (<n>[, not found][, capped]), ...; forward from <id> (<n>), ...; queries "<theme>"

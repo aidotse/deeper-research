@@ -86,9 +86,10 @@ block is a usage error, and the message lists the ones there are.
 
 ## Preflight
 
-`uv run python -m deeper_research.preflight` runs the preflight checks that need no agent: the Graph API, the arXiv API
-and HTML, `uv`, and the Asta key. It prints their part of the log's `Preflight` line, and exits 1 on any failure, which
-halts the pass (`H1`). The Asta tools and WebSearch are checked by the agent (`docs/external_services.md`, "Preflight").
+`uv run python -m deeper_research.preflight` runs the preflight checks that need no agent: the Graph API, with the
+Semantic Scholar key if one is set, the arXiv API and HTML, `uv`, and the Asta key. It prints their part of the log's
+`Preflight` line, and exits 1 on any failure, which halts the pass (`H1`). The Asta tools and WebSearch are checked by
+the agent (`docs/external_services.md`, "Preflight").
 
 ## Input
 
@@ -214,7 +215,7 @@ confirm your own range is done, read its rows again.
 ## Pool metadata
 
 `uv run python -m deeper_research.pool <topic>` fetches publication dates, citation counts, full reference lists and
-SPECTER2 embeddings for every paper in a survey from the Semantic Scholar API, unauthenticated, into the pool sidecar
+SPECTER2 embeddings for every paper in a survey from the Semantic Scholar API into the pool sidecar
 `graphs/<topic>/pool.json`, and fills the pool's `year`, `citations` and `cites` columns. It fetches by arXiv ID or
 `CorpusId`, and records each paper's arXiv ID where Semantic Scholar knows it, from `externalIds` or an open-access PDF
 on arXiv; `deeper_research/check.py` uses that to catch a `CorpusId` row for a paper that has an arXiv ID. It runs
@@ -416,8 +417,9 @@ are described in `docs/experiments.md`, for human reviewers.
 
 `uv run python -m deeper_research.asta_config` reports whether the Asta MCP server is configured with an API key,
 without printing the key; the session-start hook and the preflight check run it (`docs/external_services.md`).
-`deeper_research/net.py` is the HTTP retry that every fetching script shares: it retries a 429, a 500, 502, 503 or 504,
-a dropped connection or a timeout, and raises anything else.
+`deeper_research/net.py` is the HTTP layer that every fetching script shares. It retries a 429, a 500, 502, 503 or 504,
+a dropped connection or a timeout, and raises anything else. It also paces Graph API requests and adds the Semantic
+Scholar key to them (`docs/external_services.md`, "Semantic Scholar Graph API" and "Credentials and privacy").
 
 ## Tests
 

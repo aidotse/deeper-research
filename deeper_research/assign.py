@@ -46,7 +46,7 @@ reject      Records a candidate screened out of scope, with a one-line reason, i
             Without a paper ID, it reads one `<paper-id><TAB><reason>` per line from stdin, and records them all or,
             if any line is wrong, none.
 
-Calls to Semantic Scholar are unauthenticated; no key or user identifier is sent.
+Calls to Semantic Scholar go through `net`, which sends the S2_API_KEY key if set, and no other key or user identifier.
 """
 
 import json

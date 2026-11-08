@@ -45,7 +45,9 @@ agents' entry point to the docs.
 ## Getting started
 
 You need [uv](https://docs.astral.sh/uv/), [Claude Code](https://code.claude.com/docs/en/overview), and an API key for
-[Asta](https://allenai.org/asta), the Allen Institute's scientific-literature MCP server.
+[Asta](https://allenai.org/asta), the Allen Institute's scientific-literature MCP server. A
+[Semantic Scholar API key](https://www.semanticscholar.org/product/api) is optional: set as `S2_API_KEY`, it gives the
+scripts a rate limit of their own instead of the shared anonymous one.
 
 ```bash
 uv sync                                        # create .venv with the package and its dev tools
