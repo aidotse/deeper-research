@@ -18,14 +18,28 @@ the rule that a persistent error halts the pass, exist to turn those silent fail
 | arXiv | `deeper_research/bib.py`, `deeper_research/fulltext.py` | bibliography entries; full text for verification | HTTP, unauthenticated |
 | WebSearch and WebFetch | agents | orientation, the frontier, work that never reached arXiv, probes | built into Claude Code |
 
-Agents reach the Semantic Scholar corpus through Asta (see below for how sure that is), and scripts reach it through the
-Graph API directly. Neither goes through web searches. The split is by who reads the result. An MCP server such as Asta
-is a model's interface: whatever a tool returns enters the calling agent's context. That suits what a model must read,
-such as a paper's abstract or a passage to verify. Bulk data that no model should read, such as embeddings, reference
-lists and expansion's candidate lists, goes through a script instead, which reduces it to the little a model needs. Asta
-also lacks some of what the scripts need: embeddings, recommendations, and citer lists past the first page. Details are
-in "Why the fringe routes use the Graph API and not Asta", below. The two routes have a key each ("Credentials and
-privacy").
+### Two routes to Semantic Scholar
+
+Semantic Scholar is reached two ways: agents go through Asta, and scripts call the Graph API directly. Neither goes
+through web searches. This can look odd, because Asta is in effect the MCP server for Semantic Scholar: both come from
+the Allen Institute, and Asta's paper tools appear to run on the Semantic Scholar corpus (see "Asta" for how sure that
+is). So the split is not about which service finds better papers. It is about who reads the result.
+
+An MCP server is a model's interface. Whatever an Asta tool returns lands in the calling agent's context, and the agent
+reads all of it. That is right for what a model must read and judge: a paper's abstract, or a passage to verify a claim
+against.
+
+The catch is bulk data that no model should read. Clustering needs SPECTER2 embeddings, and the fringe routes and
+expansion need full reference and citer lists. On `reasoning-legacy`, 195 pool papers cite 3,772 distinct papers. Sent
+through Asta, every one of those records would pass through an agent's context, only to be thrown away by a rule a
+script applies exactly. A script instead fetches the bulk, applies the rule the same way on every run, and boils the
+result down to the little a model needs: the titles and abstracts on a screening sheet.
+
+Asta also lacks some of what the scripts need: embeddings, Semantic Scholar's recommendations, and citer lists past the
+first page. The fringe routes' case is set out in full under "Semantic Scholar Graph API", below.
+
+The upshot: what a model reads comes through Asta, and what only a script reads comes through the Graph API. Each route
+has its own key ("Credentials and privacy").
 
 ## Asta
 
@@ -188,8 +202,8 @@ frontier, the field's vocabulary, OpenReview, lab blogs, system cards, release n
 
 ## Credentials and privacy
 
-There are two keys, one for each route to the Semantic Scholar corpus ("The services" says why there are two routes).
-Each goes only to the service that issued it.
+There are two keys, one for each route to the Semantic Scholar corpus ("Two routes to Semantic Scholar" says why there
+are two). Each goes only to the service that issued it.
 
 - `ASTA_API_KEY` — the agents' key, for Asta. Claude Code sends it, from the MCP config where it was stored when the
     server was added ("Asta", "Configuration"). No script sends it: `deeper_research/asta_config.py` only checks that it
