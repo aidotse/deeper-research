@@ -69,7 +69,7 @@ template rather than refactored, to keep behaviour identical: `grep -rn "noqa: C
 Most are the checks in `check.py` and `gates.py` and the scripts' `main` functions. Split one when it is next changed
 for another reason, with the gate suites as the safety net.
 
-### Theme searches, and the Semantic Scholar key
+### Theme searches
 
 `deeper_research/expand.py collect` searches each theme on the Graph API's bulk endpoint, `/paper/search/bulk`: the
 theme as an exact phrase in title or abstract, keeping the 50 most-cited matches. It moved there on 2026-10-13, when the
@@ -79,13 +79,11 @@ word a theme differently, while an exact phrase finds only papers that use it, a
 work. A theme that is a description rather than a phrase papers use matches little or nothing: 4 of 9 themes tried on
 `model-collapse` matched none (the auditor's probes, recorded under `E21` in the simulation audit's `segments/pool.md`).
 
-- `The key` — the user applied for a Semantic Scholar API key on 2026-10-13; an answer may take two weeks. With it,
-    every script gets a rate limit of its own (1 request per second, introductory). Using it changes the spec's
-    statement that no key or user identifier is sent (`docs/external_services.md`, "Credentials and privacy"), which the
-    user approves when the key arrives. Every script must then pace itself to the key's limit.
-- `The comparison` — once the relevance endpoint answers reliably, run both on the same themes of a real pass, and
-    compare: the overlap of the two result sets; how many of each are judged in scope; what each finds that traversal
-    did not; and how many themes match nothing as a phrase. Then choose one, or keep both, with the reason in the spec.
+- `The comparison` — the scripts now send a Semantic Scholar key when one is set (2026-11-08), which may make the
+    relevance endpoint answer reliably; that it does is `UNVERIFIED`. Once it does, run both on the same themes of a
+    real pass, and compare: the overlap of the two result sets; how many of each are judged in scope; what each finds
+    that traversal did not; and how many themes match nothing as a phrase. Then choose one, or keep both, with the
+    reason in the spec.
 - `Meanwhile, watch` — whether orientation writes its themes as phrases papers use, now that the Orient brief asks for
     it, and how many themes the `Expansion` line shows matching nothing.
 

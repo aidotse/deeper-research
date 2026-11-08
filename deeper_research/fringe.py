@@ -42,7 +42,10 @@ add-fringe and for the G1 gate alike.
 
 `analyse` adds the in-scope candidates to the pool and reclusters with the chosen measure. Per route, it reports how
 consistently papers keep their cluster-mates across reruns, how close they sit to their nearest neighbours, and whether
-they form clusters of their own. See docs/process.md, "Fringe routes". Calls are unauthenticated.
+they form clusters of their own. See docs/process.md, "Fringe routes".
+
+Calls go through `net`, which paces them to the rate limit and sends the S2_API_KEY key if set; no other key and no
+user identifier is sent.
 """
 
 import json
@@ -83,7 +86,7 @@ def need(path: Path, then: str) -> None:
 # Any: the parsed JSON answer, an object or a list as the endpoint gives it
 def call(url: str, body: dict[str, Any] | None = None) -> Any:  # noqa: ANN401
     """The parsed JSON answer of a Semantic Scholar endpoint: a GET of `url`, or a POST of `body` to it."""
-    # The unauthenticated endpoint shares one rate limit across all users and answers 429 freely; net retries.
+    # net paces Graph API calls to the rate limit and retries a 429.
     return get_json(url, body)
 
 
@@ -109,7 +112,6 @@ def fetch_s2(ids: list[str]) -> dict[str, dict[str, Any]]:
                 "refs": sorted({x["paperId"] for x in rec.get("references") or [] if x.get("paperId")}),
                 "embedding": [round(v, 5) for v in rec["embedding"]["vector"]],
             }
-        time.sleep(1)
     return out
 
 
